@@ -1,0 +1,18 @@
+# Node
+node_modules/
+dist/
+*.local
+coverage/
+
+# Rust / Tauri
+src-tauri/target/
+src-tauri/gen/
+
+# 运行时数据（本地数据库与上传文件，绝不入库）
+data/
+
+# 系统与编辑器
+.DS_Store
+.env
+.env.*
+*.log
