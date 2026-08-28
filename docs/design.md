@@ -48,7 +48,7 @@
 │  Rust 后端（Tauri 2 主进程）                                          │
 │      ├── crate core   领域层：模型/状态机/服务/仓储（纯 Rust 可单测）  │
 │      │     └── sqlx ──> SQLite (~/Library/Application Support/       │
-│      │                   find-your-job/findyourjob.db, WAL)              │
+│      │                   find-your-job (com.findyourjob)/findyourjob.db, WAL)              │
 │      ├── 上传文件     data 目录：uploads/{resumes,attachments}/      │
 │      ├── crate http   P1：axum 仅监听 127.0.0.1（扩展剪藏/局域网）    │
 │      └── 插件         通知/文件对话框/opener/菜单托盘                 │
@@ -108,7 +108,7 @@ find-your-job/
 
 ### 2.4 数据与文件位置
 
-- DB：`~/Library/Application Support/find-your-job/findyourjob.db`（Tauri `app_data_dir`）
+- DB：`~/Library/Application Support/com.findyourjob/findyourjob.db`（Tauri `app_data_dir`，目录名取自应用标识符）
 - 上传：同目录 `uploads/resumes/`、`uploads/attachments/`（按内容 hash 重命名防冲突）
 - 备份：设置页「导出 JSON」+ 「在 Finder 中显示数据目录」；`scripts/backup.sh` 整目录快照
 
