@@ -1,4 +1,4 @@
-# FindMyJob — 求职投递记录与面试复盘系统 · 设计文档
+# FindYourJob — 求职投递记录与面试复盘系统 · 设计文档
 
 > 版本 v1.2（macOS 原生应用形态，待用户评审）· 2026-08-29
 > 定位：**macOS 桌面应用**，面向广泛求职群体（校招/社招/实习、各行业），以校招流程为最完整的预置模板、其他场景可精简定制。覆盖「投递记录 → 测评/笔试/面试过程 → 面经复盘 → offer 比较」全流程。数据本地优先。
@@ -40,7 +40,7 @@
 ### 2.1 形态：Tauri 2 原生 macOS 应用
 
 ```
-┌─────────────────────────── FindMyJob.app ────────────────────────────┐
+┌─────────────────────────── FindYourJob.app ────────────────────────────┐
 │  原生窗口（系统 WKWebView 渲染 UI，非捆绑 Chromium，体积 ~10MB）      │
 │                                                                      │
 │  前端 React 19 + TS + Vite + Tailwind + shadcn/ui + dnd-kit          │
@@ -48,7 +48,7 @@
 │  Rust 后端（Tauri 2 主进程）                                          │
 │      ├── crate core   领域层：模型/状态机/服务/仓储（纯 Rust 可单测）  │
 │      │     └── sqlx ──> SQLite (~/Library/Application Support/       │
-│      │                   find-my-job/findmyjob.db, WAL)              │
+│      │                   find-your-job/findyourjob.db, WAL)              │
 │      ├── 上传文件     data 目录：uploads/{resumes,attachments}/      │
 │      ├── crate http   P1：axum 仅监听 127.0.0.1（扩展剪藏/局域网）    │
 │      └── 插件         通知/文件对话框/opener/菜单托盘                 │
@@ -91,7 +91,7 @@
 ### 2.3 仓库结构
 
 ```
-find-my-job/
+find-your-job/
 ├── src/                     # React 前端（Vite 根）
 │   ├── components/  app/(路由)  lib/  types/(specta 生成)
 ├── src-tauri/
@@ -108,7 +108,7 @@ find-my-job/
 
 ### 2.4 数据与文件位置
 
-- DB：`~/Library/Application Support/find-my-job/findmyjob.db`（Tauri `app_data_dir`）
+- DB：`~/Library/Application Support/find-your-job/findyourjob.db`（Tauri `app_data_dir`）
 - 上传：同目录 `uploads/resumes/`、`uploads/attachments/`（按内容 hash 重命名防冲突）
 - 备份：设置页「导出 JSON」+ 「在 Finder 中显示数据目录」；`scripts/backup.sh` 整目录快照
 
