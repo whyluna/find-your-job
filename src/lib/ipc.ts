@@ -87,6 +87,8 @@ export const api = {
     invoke<void>("set_setting", { key, value }),
 
   exportJson: (path: string) => invoke<number>("export_json", { path }),
+  exportCsv: (path: string) => invoke<number>("export_csv", { path }),
+  readTextFile: (path: string) => invoke<string>("read_text_file", { path }),
   importJson: (path: string) =>
     invoke<{ total: number; counts: Record<string, number> }>("import_json", { path }),
   revealDataDir: () => invoke<void>("reveal_data_dir"),

@@ -5,11 +5,13 @@ import { Database, Download, FolderOpen, Loader2, Puzzle, Upload } from "lucide-
 import { useState } from "react";
 import { api } from "@/lib/ipc";
 import { Button } from "@/components/ui";
+import { CsvImportWizard } from "@/components/CsvImportWizard";
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [showCsvImport, setShowCsvImport] = useState(false);
 
   const { data: apiStatus, error: statusError } = useQuery({
     queryKey: ["local-api"],
@@ -42,6 +44,22 @@ export default function SettingsPage() {
       setMsg({ kind: "err", text: String(e) });
     } finally {
       setBusy(false);
+    }
+  };
+
+  const doExportCsv = async () => {
+    setMsg(null);
+    const path = await save({
+      title: "导出 CSV（飞书表格兼容）",
+      defaultPath: `findyourjob-${new Date().toISOString().slice(0, 10)}.csv`,
+      filters: [{ name: "CSV", extensions: ["csv"] }],
+    });
+    if (!path) return;
+    try {
+      const n = await api.exportCsv(path);
+      setMsg({ kind: "ok", text: `已导出 ${n} 条投递 → ${path}` });
+    } catch (e) {
+      setMsg({ kind: "err", text: String(e) });
     }
   };
 
@@ -90,6 +108,12 @@ export default function SettingsPage() {
           <Button onClick={doImport} disabled={busy} variant="default">
             {busy ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
             从备份恢复
+          </Button>
+          <Button onClick={doExportCsv} disabled={busy}>
+            <Download className="size-4" /> 导出 CSV
+          </Button>
+          <Button onClick={() => setShowCsvImport(true)} disabled={busy}>
+            <Upload className="size-4" /> 从 CSV 导入
           </Button>
           <Button variant="ghost" onClick={() => api.revealDataDir()}>
             <FolderOpen className="size-4" /> 在 Finder 中打开数据目录
@@ -161,6 +185,7 @@ export default function SettingsPage() {
           更多设置（提醒、邮件解析）将在后续版本提供。
         </p>
       </section>
+      <CsvImportWizard open={showCsvImport} onClose={() => setShowCsvImport(false)} />
     </div>
   );
 }

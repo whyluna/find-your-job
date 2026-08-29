@@ -17,6 +17,22 @@ use crate::error::{Error, Result};
 use crate::models::{EventResult, EventType, InterviewOutcome, InterviewStatus, ProjectionEffect};
 use crate::state_machine::{self, TimelineItem, TimelineKind};
 
+fn status_label(s: crate::models::Status) -> String {
+    match s {
+        crate::models::Status::Saved => "已保存".into(),
+        crate::models::Status::Applied => "已投递".into(),
+        crate::models::Status::Assessment => "测评中".into(),
+        crate::models::Status::Written => "笔试中".into(),
+        crate::models::Status::Interviewing => "面试中".into(),
+        crate::models::Status::Oc => "已OC".into(),
+        crate::models::Status::Intent => "意向书".into(),
+        crate::models::Status::Offer => "offer".into(),
+        crate::models::Status::Signed => "已签约".into(),
+        crate::models::Status::Rejected => "已挂".into(),
+        crate::models::Status::Withdrawn => "已放弃".into(),
+    }
+}
+
 fn new_id() -> String {
     Uuid::new_v4().to_string()
 }
@@ -702,6 +718,82 @@ impl Services {
                 at: r.try_get("at").unwrap_or_default(),
             })
             .collect())
+    }
+
+    // ---------- CSV 导出（P1-e，飞书模板兼容列） ----------
+
+    pub async fn export_csv(&self, path: &str) -> Result<u64> {
+        let rows = sqlx::query(
+            "SELECT c.name AS company_name, a.position_title, a.department, a.work_location, \
+             a.channel, a.batch, a.priority, a.status, a.applied_date, a.tags, \
+             (SELECT GROUP_CONCAT(e.deadline) FROM application_event e \
+                WHERE e.application_id = a.id AND e.deadline IS NOT NULL) AS deadlines, \
+             (SELECT COUNT(*) FROM interview iv WHERE iv.application_id = a.id) AS interview_count, \
+             rv.name AS resume_name, a.job_url, a.notes \
+             FROM application a \
+             JOIN company c ON c.id = a.company_id \
+             LEFT JOIN resume_version rv ON rv.id = a.resume_version_id \
+             ORDER BY a.applied_date DESC",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        fn esc(v: &str) -> String {
+            if v.contains(',') || v.contains('"') || v.contains('\n') {
+                format!("\"{}\"", v.replace('"', "\"\""))
+            } else {
+                v.to_string()
+            }
+        }
+        let label = |map: &std::collections::HashMap<String, String>, key: &str| {
+            map.get(key).cloned().unwrap_or_else(|| key.to_string())
+        };
+        let dicts = sqlx::query_as::<_, (String, String, String)>(
+            "SELECT category, key, label FROM dictionary WHERE is_active = 1",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        let mut dict_map: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+        for (cat, k, v) in dicts {
+            dict_map.insert(format!("{cat}:{k}"), v);
+        }
+        let status_cn = |s: &str| -> String {
+            crate::models::Status::parse(s)
+                .map(status_label)
+                .unwrap_or_else(|| s.to_string())
+        };
+
+        let mut out = String::from("公司,岗位,部门,Base城市,渠道,批次,优先级,当前状态,投递日期,最近截止,面试轮数,简历版本,岗位链接,标签,备注\n");
+        for r in &rows {
+            let get = |col: &str| r.try_get::<Option<String>, _>(col).ok().flatten().unwrap_or_default();
+            let deadline = get("deadlines")
+                .split(',')
+                .filter_map(crate::entities::parse_ts)
+                .max()
+                .map(|d| crate::entities::ts(&d))
+                .unwrap_or_default();
+            let row = vec![
+                get("company_name"),
+                get("position_title"),
+                get("department"),
+                get("work_location"),
+                label(&dict_map, &format!("CHANNEL:{}", get("channel"))),
+                label(&dict_map, &format!("BATCH:{}", get("batch"))),
+                get("priority"),
+                status_cn(&get("status")),
+                get("applied_date"),
+                deadline,
+                r.try_get::<i64, _>("interview_count").unwrap_or(0).to_string(),
+                get("resume_name"),
+                get("job_url"),
+                get("tags"),
+                get("notes"),
+            ];
+            out.push_str(&row.iter().map(|c| esc(c)).collect::<Vec<_>>().join(","));
+            out.push('\n');
+        }
+        std::fs::write(path, out)?;
+        Ok(rows.len() as u64)
     }
 
     // ---------- 统计（P1-c） ----------

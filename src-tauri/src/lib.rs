@@ -527,6 +527,17 @@ async fn delete_attachment(state: tauri::State<'_, AppState>, id: String) -> Cmd
 }
 
 #[tauri::command]
+async fn export_csv(state: tauri::State<'_, AppState>, path: String) -> CmdResult<u64> {
+    state.0.export_csv(&path).await.map_err(e2s)
+}
+
+/// 读取文本文件（仅用于 CSV 导入向导，路径来自系统文件对话框）
+#[tauri::command]
+async fn read_text_file(path: String) -> CmdResult<String> {
+    std::fs::read_to_string(&path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 async fn get_stats(
     state: tauri::State<'_, AppState>,
 ) -> CmdResult<fyj_core::services::StatsDto> {
@@ -616,6 +627,8 @@ pub fn run() {
             delete_resume_file,
             list_dictionary,
             list_custom_event_types,
+            export_csv,
+            read_text_file,
             get_stats,
             get_upcoming,
             local_api_status,
