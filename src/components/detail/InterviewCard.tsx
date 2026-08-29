@@ -288,16 +288,20 @@ function QuestionItem({
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
           <div className="text-xs font-medium leading-relaxed">{question.question}</div>
-          {question.myAnswer && (
-            <div className="mt-1 text-[11px] leading-relaxed text-slate-500">
-              <span className="mr-1 rounded bg-slate-100 px-1 py-0.5 text-[10px] text-slate-400 dark:bg-slate-800 dark:text-slate-500">我的回答</span>
-              {question.myAnswer}
-            </div>
-          )}
-          {question.reflection && (
-            <div className="mt-1 rounded bg-amber-50 px-2 py-1 text-[11px] leading-relaxed text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
-              <span className="mr-1 rounded bg-white/70 px-1 py-0.5 text-[10px] dark:bg-slate-900/50">理想回答</span>
-              {question.reflection}
+          {(question.myAnswer || question.reflection) && (
+            <div className="mt-1.5 space-y-1 border-l-2 border-slate-200 pl-2.5 dark:border-slate-700/70">
+              {question.myAnswer && (
+                <div className="text-[11px] leading-relaxed text-slate-500">
+                  <span className="mr-1.5 select-none text-[10px] font-medium text-slate-400 dark:text-slate-500">我的回答</span>
+                  {question.myAnswer}
+                </div>
+              )}
+              {question.reflection && (
+                <div className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300">
+                  <span className="mr-1.5 select-none text-[10px] font-medium text-amber-600 dark:text-amber-400">理想回答</span>
+                  {question.reflection}
+                </div>
+              )}
             </div>
           )}
           {question.tags.length > 0 && (

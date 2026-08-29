@@ -180,16 +180,20 @@ export default function ReviewPage() {
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0 flex-1">
                             <div className="text-[13px] font-medium leading-relaxed">{q.question}</div>
-                            {q.myAnswer && (
-                              <div className="mt-1.5 text-[13px] leading-relaxed text-slate-500 dark:text-slate-400">
-                                <span className="mr-1.5 rounded bg-slate-100 px-1 py-0.5 text-[10px] text-slate-400 dark:bg-slate-800 dark:text-slate-500">我的回答</span>
-                                {q.myAnswer}
-                              </div>
-                            )}
-                            {q.reflection && (
-                              <div className="mt-1.5 border-l-2 border-amber-300/80 pl-2.5 text-[13px] leading-relaxed text-slate-600 dark:border-amber-500/50 dark:text-slate-300">
-                                <span className="mr-1.5 rounded bg-amber-50 px-1 py-0.5 text-[10px] text-amber-600 dark:bg-amber-900/30 dark:text-amber-300">理想回答</span>
-                                {q.reflection}
+                            {(q.myAnswer || q.reflection) && (
+                              <div className="mt-2 space-y-1.5 border-l-2 border-slate-200 pl-3 dark:border-slate-700/70">
+                                {q.myAnswer && (
+                                  <div className="text-[13px] leading-relaxed text-slate-500 dark:text-slate-400">
+                                    <span className="mr-1.5 select-none text-[10px] font-medium text-slate-400 dark:text-slate-500">我的回答</span>
+                                    {q.myAnswer}
+                                  </div>
+                                )}
+                                {q.reflection && (
+                                  <div className="text-[13px] leading-relaxed text-slate-600 dark:text-slate-300">
+                                    <span className="mr-1.5 select-none text-[10px] font-medium text-amber-600 dark:text-amber-400">理想回答</span>
+                                    {q.reflection}
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>
