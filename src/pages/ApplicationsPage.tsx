@@ -158,7 +158,7 @@ export default function ApplicationsPage() {
           {isLoading ? (
             <div className="py-16 text-center text-sm text-slate-400">加载中…</div>
           ) : (
-            <KanbanView items={items} />
+            <KanbanView items={items} canReorder={canReorder} />
           )}
         </div>
       ) : (
