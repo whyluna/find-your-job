@@ -1,10 +1,11 @@
 import { defineConfig } from "wxt";
 
 export default defineConfig({
+  outDir: "build",
   manifest: {
-    name: "FindYourJob 剪藏",
+    name: "FindYourJob 收录",
     description:
-      "在招聘网站一键剪藏岗位到本地 FindYourJob 应用（需在应用设置中开启「浏览器扩展接入」）",
+      "在招聘网站一键收录岗位到本地 FindYourJob 应用（需在应用设置中开启「浏览器扩展接入」）",
     version: "0.1.0",
     permissions: ["activeTab", "scripting", "storage", "contextMenus"],
     action: {

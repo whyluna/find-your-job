@@ -565,51 +565,6 @@ async fn delete_attachment(state: tauri::State<'_, AppState>, id: String) -> Cmd
     Ok(())
 }
 
-// ---------- 邮件（P2-c） ----------
-
-#[tauri::command]
-async fn import_eml_file(state: tauri::State<'_, AppState>, path: String) -> CmdResult<Option<String>> {
-    state
-        .0
-        .import_eml("manual", &path)
-        .await
-        .map_err(e2s)
-}
-
-#[tauri::command]
-async fn list_mail_logs(
-    state: tauri::State<'_, AppState>,
-    status: Option<String>,
-) -> CmdResult<Vec<fyj_core::services::MailLogItem>> {
-    state.0.list_mail_logs(status.as_deref()).await.map_err(e2s)
-}
-
-#[tauri::command]
-async fn decide_mail(
-    state: tauri::State<'_, AppState>,
-    id: String,
-    action: String,
-    application_id: String,
-) -> CmdResult<()> {
-    state
-        .0
-        .decide_mail(&id, &action, &application_id)
-        .await
-        .map_err(e2s)
-}
-
-#[tauri::command]
-async fn candidate_applications(
-    state: tauri::State<'_, AppState>,
-    company_hint: String,
-) -> CmdResult<Vec<fyj_core::entities::Application>> {
-    state
-        .0
-        .candidate_applications(&company_hint)
-        .await
-        .map_err(e2s)
-}
-
 // ---------- PIN（P2-d） ----------
 
 #[tauri::command]
@@ -765,10 +720,6 @@ pub fn run() {
             delete_resume_file,
             list_dictionary,
             list_custom_event_types,
-            import_eml_file,
-            list_mail_logs,
-            decide_mail,
-            candidate_applications,
             set_pin,
             verify_pin,
             clear_pin,

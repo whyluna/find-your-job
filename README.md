@@ -10,12 +10,11 @@ macOS 本地求职投递记录与面试复盘应用。状态由事件时间线�
 - **结构化面试复盘**：每轮面试逐题记录（题目/回答/表现/复盘/知识点标签），面经知识库按标签聚合，≥3 次标红为高频考点，错题本收集所有"答得差"
 - **多简历版本**：投递必须标注所用版本，统计页可看各版本到面试/到 OC 率
 - **JD 快照**：粘贴原文永久保存（招聘链接会过期）
-- **浏览器扩展剪藏**：Boss直聘/牛客/猎聘/实习僧适配 + 公司官网 JobPosting 结构化数据，一键剪藏为「已保存」（仅监听 127.0.0.1 + Bearer token）
+- **浏览器扩展收录**：Boss直聘/牛客/猎聘/实习僧适配 + 公司官网 JobPosting 结构化数据，一键收录为「已保存」（仅监听 127.0.0.1 + Bearer token）
 - **提醒**：3 天内截止 + 7 天内面试的今日待办；截止 24h 内/面试前 2h 系统通知
 - **日历**：月历三色（面试/截止/投递）
 - **统计**：阶段漏斗、渠道/批次分布、近 8 周投递曲线、沉默投递（14 天无动静）、简历版本表现
 - **offer 对比**：五维加权评分（权重可调）
-- **邮件解析**（纯规则无 AI）：导入 .eml → 识别测评/笔试/面试/意向书/offer/感谢信 + 提取截止时间 + 匹配公司库 → 人工确认后写入时间线
 - **数据主权**：全部数据本地 SQLite + 应用数据目录；JSON 全量导出/导入、CSV（飞书兼容）导入导出、PIN 应用锁
 
 ## 安装与使用
@@ -28,7 +27,7 @@ pnpm tauri build          # 产物: src-tauri/target/release/bundle/macos/FindYo
 
 或直接使用 `FindYourJob_0.1.0_aarch64.dmg`（Apple Silicon）。首次打开如遇 Gatekeeper：右键 → 打开。
 
-**浏览器扩展**：`apps/extension` 下 `pnpm build`，Chrome/Edge 打开 `chrome://extensions` → 开发者模式 → 加载已解压的 `apps/extension/.output/chrome-mv3`；在应用 设置 → 浏览器扩展接入 开启并复制 Token 填入扩展。
+**浏览器扩展**：`apps/extension` 下 `pnpm build`，Chrome/Edge 打开 `chrome://extensions` → 开发者模式 → 加载已解压的 `apps/extension/build/chrome-mv3`（注意是 build 目录，非隐藏）；在应用 设置 → 浏览器扩展接入 开启并复制 Token 填入扩展。
 
 ## 开发
 

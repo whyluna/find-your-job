@@ -61,7 +61,7 @@ export default function App() {
         }),
       });
       if (r.ok) {
-        setMsg({ kind: "ok", text: "已剪藏到 FindYourJob（已保存状态）" });
+        setMsg({ kind: "ok", text: "已收录到 FindYourJob（已保存状态）" });
       } else if (r.status === 401) {
         setMsg({ kind: "err", text: "Token 无效：请在应用设置页重置后更新" });
         setShowSettings(true);
@@ -84,7 +84,7 @@ export default function App() {
     <>
       <header>
         <span className="logo">F</span>
-        剪藏岗位到 FindYourJob
+        收录岗位到 FindYourJob
       </header>
       <section>
         {showSettings ? (
@@ -129,7 +129,7 @@ export default function App() {
             <textarea value={clip.jdText ?? ""} onChange={(e) => set({ jdText: e.target.value })} />
             <div className="hint" style={{ marginTop: 4 }}>提取层：{clip.source}</div>
             <button className="primary" onClick={submit} disabled={saving || !clip.companyName.trim() || !clip.positionTitle.trim()}>
-              {saving ? "保存中…" : "确认剪藏"}
+              {saving ? "保存中…" : "确认收录"}
             </button>
           </>
         ) : (

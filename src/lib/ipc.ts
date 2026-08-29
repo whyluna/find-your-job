@@ -128,30 +128,6 @@ export const api = {
     invoke<import("@shared").Attachment>("upload_attachment", { parentType, parentId, sourcePath }),
   deleteAttachment: (id: string) => invoke<void>("delete_attachment", { id }),
 
-  importEmlFile: (path: string) => invoke<string | null>("import_eml_file", { path }),
-  listMailLogs: (status: string | null) =>
-    invoke<
-      {
-        id: string;
-        messageId: string;
-        receivedAt: string;
-        fromAddress: string;
-        fromName?: string | null;
-        subject: string;
-        snippet?: string | null;
-        status: string;
-        suggestedEventType?: string | null;
-        suggestedDeadline?: string | null;
-        matchedApplicationId?: string | null;
-        companyName?: string | null;
-        matchReason?: string | null;
-      }[]
-    >("list_mail_logs", { status }),
-  decideMail: (id: string, action: "import" | "ignore", applicationId: string) =>
-    invoke<void>("decide_mail", { id, action, applicationId }),
-  candidateApplications: (companyHint: string) =>
-    invoke<import("@shared").Application[]>("candidate_applications", { companyHint }),
-
   setPin: (pin: string) => invoke<void>("set_pin", { pin }),
   verifyPin: (pin: string) => invoke<boolean>("verify_pin", { pin }),
   clearPin: () => invoke<void>("clear_pin"),

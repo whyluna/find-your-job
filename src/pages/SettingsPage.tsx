@@ -6,7 +6,6 @@ import { useState } from "react";
 import { api } from "@/lib/ipc";
 import { Button } from "@/components/ui";
 import { CsvImportWizard } from "@/components/CsvImportWizard";
-import { MailReviewPanel } from "@/components/MailReviewPanel";
 import { Lock } from "lucide-react";
 
 export default function SettingsPage() {
@@ -141,7 +140,7 @@ export default function SettingsPage() {
         </h2>
         <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
           开启后应用在本机监听 127.0.0.1:{apiStatus?.port ?? 37321}
-          ，配合浏览器扩展可在招聘网站一键剪藏岗位，剪藏落为「已保存」状态。
+          ，配合浏览器扩展可在招聘网站一键收录岗位，收录落为「已保存」状态。
         </p>
         {statusError && <div className="mt-2 text-xs text-red-500">{String(statusError)}</div>}
         {apiStatus && (
@@ -181,16 +180,13 @@ export default function SettingsPage() {
       {/* PIN */}
       <PinSection />
 
-      {/* 邮件解析 */}
-      <MailReviewPanel />
-
       {/* 关于 */}
       <section className="mt-4 max-w-2xl rounded-xl border border-slate-200 p-5 dark:border-slate-800">
         <h2 className="text-sm font-semibold">关于</h2>
         <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
           FindYourJob v0.1.0 · 状态由事件时间线推导的本地求职记录工具。
           <br />
-          更多设置（提醒、邮件解析）将在后续版本提供。
+          提醒增强等将在后续版本提供。
         </p>
       </section>
       <CsvImportWizard open={showCsvImport} onClose={() => setShowCsvImport(false)} />

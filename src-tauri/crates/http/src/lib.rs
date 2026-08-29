@@ -86,7 +86,7 @@ async fn clip(
             job_url: input.job_url,
             jd_text: input.jd_text,
             salary_range: None,
-            tags: vec!["剪藏".into()],
+            tags: vec!["收录".into()],
             resume_version_id: None,
             notes: None,
         })
@@ -187,7 +187,7 @@ mod tests {
         let created: Application = serde_json::from_slice(&bytes).unwrap();
         assert_eq!(created.company_name, "剪藏科技");
         assert_eq!(created.status, fyj_core::models::Status::Saved);
-        assert_eq!(created.tags, vec!["剪藏".to_string()]);
+        assert_eq!(created.tags, vec!["收录".to_string()]);
 
         let list = state
             .services

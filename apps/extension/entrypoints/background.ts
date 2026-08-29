@@ -1,8 +1,8 @@
-/** 右键菜单"剪藏到 FindYourJob"：提取 → 直接 POST → badge 反馈 */
+/** 右键菜单"收录到 FindYourJob"：提取 → 直接 POST → badge 反馈 */
 export default defineBackground(() => {
   browser.contextMenus.create({
     id: "fyj-clip",
-    title: "剪藏到 FindYourJob",
+    title: "收录到 FindYourJob",
     contexts: ["page"],
   });
 
