@@ -1,6 +1,7 @@
 import { NavLink } from "react-router";
 import {
   BarChart3,
+  CalendarDays,
   BriefcaseBusiness,
   Building2,
   FileText,
@@ -14,6 +15,7 @@ const NAV_ITEMS = [
   { to: "/", label: "仪表盘", icon: LayoutDashboard, end: true },
   { to: "/applications", label: "投递", icon: BriefcaseBusiness, end: false },
   { to: "/stats", label: "统计", icon: BarChart3, end: false },
+  { to: "/calendar", label: "日历", icon: CalendarDays, end: false },
   { to: "/resumes", label: "简历库", icon: FileText, end: false },
   { to: "/companies", label: "公司", icon: Building2, end: false },
   { to: "/settings", label: "设置", icon: Settings, end: false },
