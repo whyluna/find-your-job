@@ -1,6 +1,6 @@
-/** 投递列表：P0-4 表格视图（搜索/状态筛选/新建）；P0-5 加看板 */
+/** 投递列表：看板（拖拽→事件确认）+ 表格双视图 */
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Search, TriangleAlert } from "lucide-react";
+import { KanbanSquare, Table2, Plus, Search, TriangleAlert } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { api } from "@/lib/ipc";
@@ -9,10 +9,14 @@ import { BATCH_LABELS, CHANNEL_LABELS, STATUS_LABELS, STATUS_LIST, EVENT_TYPE_DE
 import type { ApplicationListItem } from "@shared";
 import { Button, StatusBadge, TextInput, Select } from "@/components/ui";
 import { CreateApplicationDialog } from "@/components/CreateApplicationDialog";
+import { KanbanView } from "@/components/KanbanView";
 import { cn } from "@/lib/utils";
 
 export default function ApplicationsPage() {
   const navigate = useNavigate();
+  const [view, setView] = useState<"board" | "table">(
+    () => (localStorage.getItem("fyj-view") as "board" | "table") || "board",
+  );
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<"ALL" | Status>("ALL");
   const [showCreate, setShowCreate] = useState(false);
@@ -26,6 +30,11 @@ export default function ApplicationsPage() {
         statuses: status === "ALL" ? [] : [status],
       }),
   });
+
+  function switchView(v: "board" | "table") {
+    setView(v);
+    localStorage.setItem("fyj-view", v);
+  }
 
   const items = useMemo(() => data ?? [], [data]);
   const missingResume = items.filter((i) => !i.resumeVersionId);
@@ -46,6 +55,30 @@ export default function ApplicationsPage() {
       </div>
 
       <div className="mt-4 flex gap-2">
+        <div className="flex overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
+          <button
+            onClick={() => switchView("board")}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors",
+              view === "board"
+                ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
+                : "text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800",
+            )}
+          >
+            <KanbanSquare className="size-3.5" /> 看板
+          </button>
+          <button
+            onClick={() => switchView("table")}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors",
+              view === "table"
+                ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
+                : "text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800",
+            )}
+          >
+            <Table2 className="size-3.5" /> 表格
+          </button>
+        </div>
         <div className="relative w-72">
           <Search className="absolute left-3 top-2.5 size-4 text-slate-400" />
           <TextInput
@@ -69,7 +102,17 @@ export default function ApplicationsPage() {
         </Select>
       </div>
 
-      {showYellowBar && (
+      {view === "board" ? (
+        <div className="mt-4">
+          {isLoading ? (
+            <div className="py-16 text-center text-sm text-slate-400">加载中…</div>
+          ) : (
+            <KanbanView items={items} />
+          )}
+        </div>
+      ) : (
+        <>
+          {showYellowBar && (
         <div className="mt-3 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
           <TriangleAlert className="size-4 shrink-0" />
           <span>
@@ -126,6 +169,8 @@ export default function ApplicationsPage() {
           </tbody>
         </table>
       </div>
+        </>
+      )}
 
       <CreateApplicationDialog
         open={showCreate}
