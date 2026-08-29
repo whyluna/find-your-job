@@ -9,7 +9,7 @@ import { api } from "@/lib/ipc";
 import { EVENT_TYPE_DEFS, type EventType, type Status } from "@shared";
 import type { ApplicationListItem } from "@shared";
 import { Button, Field, Modal, Select } from "@/components/ui";
-import { DateTimePicker } from "@/components/DateTimePicker";
+import { DatePicker } from "@/components/DatePicker";
 import { EVENT_RESULT_LABELS } from "@shared";
 
 /** 目标列 → 预填事件类型（面试列由调用方特殊处理，不进本弹窗） */
@@ -91,11 +91,11 @@ export function EventConfirmDialog({
           「{def.label}」将写入时间线，投递状态随后自动更新
         </div>
         <Field label="发生时间">
-          <DateTimePicker value={occurredAt} onChange={(iso) => setOccurredAt(iso ?? new Date().toISOString())} withTime />
+          <DatePicker value={occurredAt} onChange={(iso) => setOccurredAt(iso ?? new Date().toISOString())} withTime />
         </Field>
         {def.needsDeadline && (
           <Field label="截止时间 *（测评/笔试链接有效期）">
-            <DateTimePicker value={deadline} onChange={setDeadline} withTime />
+            <DatePicker value={deadline} onChange={setDeadline} withTime minIso={occurredAt} />
           </Field>
         )}
         {def.needsResult && (

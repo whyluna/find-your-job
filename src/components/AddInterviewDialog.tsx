@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/ipc";
 import { INTERVIEW_FORMAT_LABELS, ROUND_LABEL_PRESETS } from "@shared";
 import { Button, Field, Modal, Select, TextInput } from "@/components/ui";
-import { DateTimePicker } from "@/components/DateTimePicker";
+import { DatePicker } from "@/components/DatePicker";
 
 /** 第 N 轮的默认标签 */
 function presetFor(round: number): string {
@@ -88,7 +88,7 @@ export function AddInterviewDialog({
         </Field>
         <div className="col-span-2">
           <Field label="时间">
-            <DateTimePicker value={scheduledAt} onChange={setScheduledAt} withTime />
+            <DatePicker value={scheduledAt} onChange={setScheduledAt} withTime />
           </Field>
         </div>
         <Field label="时长（分钟）">

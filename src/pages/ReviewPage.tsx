@@ -1,6 +1,6 @@
 /** 面经：按岗位→轮次两级分组，顶部横排知识点筛选，添加/编辑统一 QuestionModal */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { ChevronDown, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { api } from "@/lib/ipc";
@@ -32,6 +32,7 @@ export default function ReviewPage() {
   const [tag, setTag] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [editing, setEditing] = useState<BankItem | null>(null);
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
   const { data, isLoading } = useQuery({
     queryKey: ["question-bank", search],
@@ -96,7 +97,7 @@ export default function ReviewPage() {
     <div className="px-6 py-5">
       <PageHeader
         title="面经"
-        subtitle={`${data?.length ?? 0} 道面试题 · 按岗位与轮次整理`}
+        subtitle={`${data?.length ?? 0} 道面试题`}
         actions={
           <Button variant="primary" onClick={() => setAddOpen(true)}>
             <Plus className="size-4" /> 添加面经
@@ -148,24 +149,36 @@ export default function ReviewPage() {
           >
             <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 dark:border-slate-800/80">
               <button
-                onClick={() => navigate(`/applications/${g.applicationId}`)}
-                className="min-w-0 text-left"
+                onClick={() => setCollapsed((c) => ({ ...c, [g.applicationId]: !c[g.applicationId] }))}
+                className="flex min-w-0 items-center gap-2 text-left"
               >
+                <ChevronDown
+                  className={cn(
+                    "size-4 shrink-0 text-slate-400 transition-transform",
+                    collapsed[g.applicationId] && "-rotate-90",
+                  )}
+                />
                 <div className="truncate text-[15px] font-semibold tracking-tight">
                   {g.companyName}
                   {g.department && <span className="font-normal text-slate-500"> · {g.department}</span>}
                   <span> · {g.positionTitle}</span>
                 </div>
               </button>
-              <button
-                onClick={() => navigate(`/applications/${g.applicationId}`)}
-                className="shrink-0 text-[13px] text-slate-400 hover:text-indigo-500"
-              >
-                {[...g.rounds.values()].flat().length} 道题 · 查看投递 →
-              </button>
+              <div className="flex shrink-0 items-center gap-3">
+                <span className="text-[13px] tabular-nums text-slate-400">
+                  {[...g.rounds.values()].flat().length} 道题
+                </span>
+                <button
+                  onClick={() => navigate(`/applications/${g.applicationId}`)}
+                  className="text-[13px] text-slate-400 hover:text-indigo-500"
+                >
+                  查看投递 →
+                </button>
+              </div>
             </div>
 
-            {[...g.rounds.entries()]
+            {!collapsed[g.applicationId] &&
+            [...g.rounds.entries()]
               .sort((a, b) => +b[0] - +a[0])
               .map(([roundKey, qs]) => (
                 <div key={roundKey} className="border-b border-slate-100/90 last:border-0 dark:border-slate-800/70">

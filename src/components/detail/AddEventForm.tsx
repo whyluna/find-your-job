@@ -12,7 +12,7 @@ import {
 } from "@shared";
 import type { CustomEventType } from "@shared";
 import { Button, Select, TextInput } from "@/components/ui";
-import { DateTimePicker } from "@/components/DateTimePicker";
+import { DatePicker } from "@/components/DatePicker";
 
 /** 事件菜单（收敛后的心智模型）：面试作为事件，轮次自动推断 */
 const GROUPS: { name: string; items: { type: EventType | "INTERVIEW"; label: string }[] }[] = [
@@ -231,9 +231,13 @@ export function AddEventForm({
           <div className="mb-1.5 text-[13px] font-medium text-slate-500">
             {isInterview ? "面试时间" : "发生时间"}
           </div>
-          <DateTimePicker
+          <DatePicker
             value={occurredAt}
-            onChange={(iso) => setOccurredAt(iso ?? new Date().toISOString())}
+            onChange={(iso) => {
+              setOccurredAt(iso ?? new Date().toISOString());
+              // 发生时间变更后，截止若早于它则同步抬升
+              if (iso && deadline && new Date(deadline) < new Date(iso)) setDeadline(iso);
+            }}
             withTime
           />
         </div>
@@ -288,7 +292,7 @@ export function AddEventForm({
             {needsDeadline && (
               <div>
                 <div className="mb-1.5 text-[13px] font-medium text-slate-500">截止时间 *</div>
-                <DateTimePicker value={deadline} onChange={setDeadline} withTime />
+                <DatePicker value={deadline} onChange={setDeadline} withTime minIso={occurredAt} />
               </div>
             )}
             {needsResult && (
