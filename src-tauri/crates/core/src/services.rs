@@ -1397,18 +1397,29 @@ impl Services {
     pub async fn add_interview(&self, input: AddInterviewInput) -> Result<Interview> {
         let mut tx = self.pool.begin().await?;
         ensure_application(&mut *tx, &input.application_id).await?;
+        // 逐轮约束：上一轮必须已完结（完成/取消），新轮次必须恰好为最大轮次 + 1
+        let (max_round, pending): (i64, i64) = sqlx::query_as(
+            "SELECT COALESCE(MAX(round), 0), \
+             COALESCE(SUM(CASE WHEN status = 'SCHEDULED' THEN 1 ELSE 0 END), 0) \
+             FROM interview WHERE application_id = ?",
+        )
+        .bind(&input.application_id)
+        .fetch_one(&mut *tx)
+        .await?;
+        if pending > 0 {
+            return Err(Error::Invalid(
+                "还有已约未进行的面试，请先完成或取消该轮，再添加下一轮".into(),
+            ));
+        }
         let round = match input.round {
-            Some(r) if r >= 1 => r,
-            Some(_) => return Err(Error::Invalid("轮次必须 ≥ 1".into())),
-            // 未指定轮次时接在最大轮次之后
-            None => {
-                let max: Option<i64> =
-                    sqlx::query_scalar("SELECT MAX(round) FROM interview WHERE application_id = ?")
-                        .bind(&input.application_id)
-                        .fetch_one(&mut *tx)
-                        .await?;
-                max.unwrap_or(0) + 1
+            Some(r) if r == max_round + 1 => r,
+            Some(_) => {
+                return Err(Error::Invalid(format!(
+                    "面试需逐轮添加：当前到第 {max_round} 轮，应添加第 {} 轮",
+                    max_round + 1
+                )))
             }
+            None => max_round + 1,
         };
         let id = new_id();
         let status = input

@@ -1,4 +1,4 @@
-/** 弹窗：抓页面原文 → 本机 LLM 智能识别（失败回落启发式）→ 确认表单 → 收录 */
+/** 弹窗：启发式即时回填 → 手动点「AI 识别」用 LLM 精修（公司/岗位/Base + JD 清洗）→ 确认收录 */
 import { useEffect, useState } from "react";
 import {
   extractJobInPage,
@@ -19,7 +19,7 @@ const CHANNELS: [string, string][] = [
 
 const API = "http://127.0.0.1:37321";
 
-type LlmState =
+type AiState =
   | { tag: "idle" }
   | { tag: "loading" }
   | { tag: "ok" }
@@ -27,7 +27,7 @@ type LlmState =
 
 export default function App() {
   const [clip, setClip] = useState<ExtractResult | null>(null);
-  const [llm, setLlm] = useState<LlmState>({ tag: "idle" });
+  const [ai, setAi] = useState<AiState>({ tag: "idle" });
   const [token, setToken] = useState("");
   const [showSettings, setShowSettings] = useState(false);
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
@@ -40,8 +40,7 @@ export default function App() {
       setShowSettings(!token);
       const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
       if (!tab?.id) return;
-
-      // ① 本地启发式立即回填（快速反馈）
+      // 打开时只跑本地启发式（毫秒级），LLM 由按钮手动触发
       const [heu] = await browser.scripting.executeScript({
         target: { tabId: tab.id },
         func: extractJobInPage,
@@ -52,52 +51,55 @@ export default function App() {
           current.channel === "OTHER" ? channelFromUrl(current.jobUrl ?? "") : current.channel;
         setClip(current);
       }
-
-      // ② 智能识别：页面原文 → 本机应用 → LLM → 结构化回填
-      if (!token.trim()) return;
-      setLlm({ tag: "loading" });
-      try {
-        const [ctx] = await browser.scripting.executeScript({
-          target: { tabId: tab.id },
-          func: extractPageContextInPage,
-        });
-        const page = ctx?.result as { title: string; url: string; text: string } | undefined;
-        if (!page) throw new Error("无法读取页面内容");
-        const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), 90000);
-        const r = await fetch(`${API}/api/ext/extract`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token.trim()}` },
-          body: JSON.stringify(page),
-          signal: ctrl.signal,
-        });
-        clearTimeout(timer);
-        if (!r.ok) {
-          const body = await r.json().catch(() => ({ error: String(r.status) }));
-          throw new Error(body.error ?? `HTTP ${r.status}`);
-        }
-        const j = (await r.json()) as {
-          companyName: string;
-          positionTitle: string;
-          workLocation: string;
-          jdText: string;
-        };
-        setClip((c) => ({
-          companyName: j.companyName || c?.companyName || "",
-          positionTitle: j.positionTitle || c?.positionTitle || "",
-          department: c?.department,
-          workLocation: j.workLocation || c?.workLocation || "",
-          jobUrl: c?.jobUrl ?? page.url,
-          jdText: j.jdText || c?.jdText || "",
-          channel: c?.channel ?? channelFromUrl(page.url),
-          source: "llm",
-        }));
-        setLlm({ tag: "ok" });
-      } catch (e) {
-        setLlm({ tag: "fail", hint: String((e as Error).message ?? e) });
-      }
     })();
   }, []);
+
+  async function runAi() {
+    setAi({ tag: "loading" });
+    setMsg(null);
+    try {
+      const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+      if (!tab?.id) throw new Error("找不到当前标签页");
+      const [ctx] = await browser.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: extractPageContextInPage,
+      });
+      const page = ctx?.result as { title: string; url: string; text: string } | undefined;
+      if (!page) throw new Error("无法读取页面内容");
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 90000);
+      const r = await fetch(`${API}/api/ext/extract`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token.trim()}` },
+        body: JSON.stringify(page),
+        signal: ctrl.signal,
+      });
+      clearTimeout(timer);
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({ error: String(r.status) }));
+        throw new Error(body.error ?? `HTTP ${r.status}`);
+      }
+      const j = (await r.json()) as {
+        companyName: string;
+        positionTitle: string;
+        workLocation: string;
+        jdText: string;
+      };
+      setClip((c) => ({
+        companyName: j.companyName || c?.companyName || "",
+        positionTitle: j.positionTitle || c?.positionTitle || "",
+        department: c?.department,
+        workLocation: j.workLocation || c?.workLocation || "",
+        jobUrl: c?.jobUrl ?? page.url,
+        jdText: j.jdText || c?.jdText || "",
+        channel: c?.channel ?? channelFromUrl(page.url),
+        source: "llm",
+      }));
+      setAi({ tag: "ok" });
+    } catch (e) {
+      setAi({ tag: "fail", hint: String((e as Error).message ?? e) });
+    }
+  }
 
   async function saveToken() {
     await browser.storage.local.set({ token: token.trim() });
@@ -143,14 +145,14 @@ export default function App() {
   const set = (patch: Partial<ExtractResult>) => setClip((c) => (c ? { ...c, ...patch } : c));
 
   const sourceLabel =
-    llm.tag === "loading"
-      ? "智能识别中…（约几秒到十几秒）"
-      : llm.tag === "ok"
-        ? "智能识别（LLM）"
-        : llm.tag === "fail"
-          ? `启发式提取（智能识别未生效：${llm.hint.slice(0, 60)}）`
+    ai.tag === "loading"
+      ? "AI 识别中…"
+      : ai.tag === "ok"
+        ? "✨ AI 识别结果（可修改）"
+        : ai.tag === "fail"
+          ? `启发式结果 · AI 识别失败：${ai.hint.slice(0, 50)}`
           : clip
-            ? `启发式提取 · ${clip.source}`
+            ? `启发式结果 · ${clip.source}`
             : "";
 
   return (
@@ -174,6 +176,26 @@ export default function App() {
           </>
         ) : clip ? (
           <>
+            <button
+              id="aiBtn"
+              onClick={runAi}
+              disabled={ai.tag === "loading"}
+              style={{
+                width: "100%",
+                padding: "7px",
+                marginBottom: "8px",
+                background: "linear-gradient(135deg,#6366f1,#06b6d4)",
+                color: "#fff",
+                border: 0,
+                borderRadius: 8,
+                fontSize: 13,
+                fontWeight: 500,
+                cursor: ai.tag === "loading" ? "default" : "pointer",
+                opacity: ai.tag === "loading" ? 0.7 : 1,
+              }}
+            >
+              {ai.tag === "loading" ? "✨ AI 识别中…（数秒）" : "✨ AI 识别（公司/岗位/JD 清洗）"}
+            </button>
             <div className="row">
               <div>
                 <label>公司 *</label>

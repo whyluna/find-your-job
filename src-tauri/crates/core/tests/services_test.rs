@@ -164,6 +164,57 @@ async fn interview_lifecycle_recompute() {
 }
 
 #[tokio::test]
+async fn interview_rounds_are_sequential_and_pending_blocks() {
+    let (_dir, s) = setup().await;
+    let app = s.create_application(create_input("网易", "游戏客户端")).await.unwrap();
+
+    // 跳轮被拒：直接加第 3 轮
+    let skip = s.add_interview(AddInterviewInput {
+        application_id: app.id.clone(),
+        round: Some(3),
+        round_label: None, format: None, scheduled_at: Some(dt(7, 10)),
+        duration_min: None, location_or_link: None, interviewer_note: None,
+        status: None, outcome: None,
+    }).await;
+    assert!(skip.is_err());
+
+    // 第 1 轮待进行时，禁止加第 2 轮
+    s.add_interview(AddInterviewInput {
+        application_id: app.id.clone(),
+        round: Some(1),
+        round_label: Some("一面".into()), format: None, scheduled_at: Some(dt(7, 10)),
+        duration_min: None, location_or_link: None, interviewer_note: None,
+        status: None, outcome: None,
+    }).await.unwrap();
+    let blocked = s.add_interview(AddInterviewInput {
+        application_id: app.id.clone(),
+        round: Some(2),
+        round_label: None, format: None, scheduled_at: Some(dt(9, 10)),
+        duration_min: None, location_or_link: None, interviewer_note: None,
+        status: None, outcome: None,
+    }).await;
+    assert!(blocked.is_err(), "上一轮未完成时不应允许加下一轮");
+
+    // 完成第 1 轮后，第 2 轮放行
+    let ivs = s.get_application_detail(&app.id).await.unwrap().interviews;
+    let iv1 = &ivs[0];
+    s.update_interview(&iv1.interview.id, UpdateInterviewInput {
+        status: Some(InterviewStatus::Completed),
+        outcome: Some(InterviewOutcome::Pass),
+        ..Default::default()
+    }).await.unwrap();
+    s.add_interview(AddInterviewInput {
+        application_id: app.id.clone(),
+        round: Some(2),
+        round_label: Some("二面".into()), format: None, scheduled_at: Some(dt(9, 10)),
+        duration_min: None, location_or_link: None, interviewer_note: None,
+        status: None, outcome: None,
+    }).await.unwrap();
+    let detail = s.get_application_detail(&app.id).await.unwrap();
+    assert_eq!(detail.interviews.len(), 2);
+}
+
+#[tokio::test]
 async fn delete_event_recomputes_backward() {
     let (_dir, s) = setup().await;
     let app = s.create_application(create_input("百度", "搜索算法")).await.unwrap();

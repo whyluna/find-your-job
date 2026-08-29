@@ -104,22 +104,41 @@ fn client() -> reqwest::Client {
 
 async fn chat(cfg: &LlmConfig, user_content: &str, max_tokens: u32) -> Result<String> {
     let url = format!("{}/chat/completions", cfg.base_url.trim_end_matches('/'));
-    let body = serde_json::json!({
-        "model": cfg.model,
-        "temperature": 0,
-        "max_tokens": max_tokens,
-        "messages": [
-            {"role": "system", "content": system_prompt()},
-            {"role": "user", "content": user_content}
-        ]
-    });
-    let resp = client()
-        .post(&url)
-        .bearer_auth(&cfg.api_key)
-        .json(&body)
-        .send()
-        .await
-        .map_err(|e| Error::Msg(format!("LLM 请求失败: {e}")))?;
+    let make_body = |no_think: bool| {
+        let mut v = serde_json::json!({
+            "model": cfg.model,
+            "temperature": 0,
+            "max_tokens": max_tokens,
+            "messages": [
+                {"role": "system", "content": system_prompt()},
+                {"role": "user", "content": user_content}
+            ]
+        });
+        if no_think {
+            // 关闭思考模式提速：DeepSeek/Qwen 系用 enable_thinking，OpenAI 系用 reasoning_effort。
+            // 服务端一般忽略不认识的字段；个别实现会 4xx，此时去掉扩展参数重试一次。
+            v["enable_thinking"] = serde_json::json!(false);
+            v["reasoning_effort"] = serde_json::json!("none");
+        }
+        v
+    };
+    let send = |body: serde_json::Value| {
+        let url = url.clone();
+        let key = cfg.api_key.clone();
+        async move {
+            client()
+                .post(&url)
+                .bearer_auth(&key)
+                .json(&body)
+                .send()
+                .await
+                .map_err(|e| Error::Msg(format!("LLM 请求失败: {e}")))
+        }
+    };
+    let mut resp = send(make_body(true)).await?;
+    if matches!(resp.status().as_u16(), 400 | 422) {
+        resp = send(make_body(false)).await?;
+    }
     if !resp.status().is_success() {
         let status = resp.status();
         let text = resp.text().await.unwrap_or_default();

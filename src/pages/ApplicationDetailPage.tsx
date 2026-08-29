@@ -24,6 +24,9 @@ import { fmtDate, fmtDateTime } from "@/lib/format";
 import {
   BATCH_LABELS,
   CHANNEL_LABELS,
+  INTERVIEW_FORMAT_LABELS,
+  INTERVIEW_OUTCOME_LABELS,
+  INTERVIEW_STATUS_LABELS,
   PRIORITY_LABELS,
 } from "@shared";
 import { Button, StatusBadge } from "@/components/ui";
@@ -89,6 +92,17 @@ export default function ApplicationDetailPage() {
 
   const app = data!;
   const nextRound = app.interviews.reduce((max, iv) => Math.max(max, iv.round), 0) + 1;
+  // 上一轮已约未进行时，禁止添加下一轮（服务端同样强制）
+  const hasScheduled = app.interviews.some((iv) => iv.status === "SCHEDULED");
+  // 时间线 = 事件 + 面试合并倒序（面试也是时间线的一等公民）
+  const timeline = [
+    ...app.events.map((e) => ({ kind: "event" as const, at: e.occurredAt, ...e })),
+    ...app.interviews.map((iv) => ({
+      kind: "interview" as const,
+      at: iv.scheduledAt ?? iv.createdAt,
+      ...iv,
+    })),
+  ].sort((a, b) => (a.at < b.at ? 1 : -1));
 
   return (
     <div className="p-8">
@@ -107,6 +121,11 @@ export default function ApplicationDetailPage() {
               {app.companyName} · {app.positionTitle}
             </h1>
             <StatusBadge status={app.status} />
+            {app.status === "INTERVIEWING" && app.interviews.length > 0 && (
+              <span className="rounded bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
+                第 {app.interviews[0].round} 轮
+              </span>
+            )}
             <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">
               {BATCH_LABELS[app.batch as keyof typeof BATCH_LABELS] ?? app.batch}
             </span>
@@ -199,18 +218,59 @@ export default function ApplicationDetailPage() {
         <div className="mt-5 grid grid-cols-[1fr_320px] gap-6">
           <div className="space-y-3">
             <AddEventForm applicationId={app.id} />
-            {app.events.map((e) => (
-              <div key={e.id} className="flex gap-3">
-                <div className="mt-2 size-[9px] shrink-0 rounded-full bg-slate-300 dark:bg-slate-600" />
-                <div className="min-w-0 flex-1">
-                  <EventItem event={e} applicationId={app.id} />
-                </div>
-              </div>
-            ))}
-            {app.events.length === 0 && (
+            {timeline.length === 0 && (
               <div className="rounded-xl border border-dashed border-slate-300 py-8 text-center text-sm text-slate-400 dark:border-slate-700">
-                还没有事件，用上方表单记录第一笔
+                还没有记录，用上方表单记录第一笔
               </div>
+            )}
+            {timeline.map((t) =>
+              t.kind === "event" ? (
+                <div key={`e-${t.id}`} className="flex gap-3">
+                  <div className="mt-2 size-[9px] shrink-0 rounded-full bg-slate-300 dark:bg-slate-600" />
+                  <div className="min-w-0 flex-1">
+                    <EventItem event={t} applicationId={app.id} />
+                  </div>
+                </div>
+              ) : (
+                <div key={`iv-${t.id}`} className="flex gap-3">
+                  <div className="mt-2 size-[9px] shrink-0 rounded-full border-2 border-indigo-400 bg-white dark:bg-slate-900" />
+                  <div className="min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700">
+                    <div className="flex flex-wrap items-center gap-2 text-sm">
+                      <span className="font-medium text-indigo-600 dark:text-indigo-400">
+                        第 {t.round} 轮面试{t.roundLabel ? `（${t.roundLabel}）` : ""}
+                      </span>
+                      {t.format && (
+                        <span className="text-xs text-slate-400">
+                          {INTERVIEW_FORMAT_LABELS[t.format as keyof typeof INTERVIEW_FORMAT_LABELS] ?? t.format}
+                        </span>
+                      )}
+                      <span
+                        className={cn(
+                          "text-xs",
+                          t.outcome === "PASS"
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : t.outcome === "FAIL"
+                              ? "text-red-500"
+                              : "text-slate-400",
+                        )}
+                      >
+                        {INTERVIEW_STATUS_LABELS[t.status]}
+                        {t.status === "COMPLETED" && ` · ${INTERVIEW_OUTCOME_LABELS[t.outcome]}`}
+                      </span>
+                    </div>
+                    <div className="mt-0.5 flex items-center gap-2 text-xs text-slate-400">
+                      <span>{fmtDateTime(t.scheduledAt)}</span>
+                      {t.questionCount > 0 && <span>{t.questionCount} 道题</span>}
+                      <button
+                        onClick={() => setTab("interviews")}
+                        className="text-indigo-500 hover:underline"
+                      >
+                        查看 →
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ),
             )}
           </div>
           <div className="rounded-xl border border-slate-200 p-4 text-xs text-slate-500 dark:border-slate-800">
@@ -229,7 +289,13 @@ export default function ApplicationDetailPage() {
                 ))}
               </div>
             )}
-            <Button size="sm" className="w-full" onClick={() => setShowAddInterview(true)}>
+            <Button
+              size="sm"
+              className="w-full"
+              disabled={hasScheduled}
+              title={hasScheduled ? "还有已约未进行的面试，先完成或取消该轮" : undefined}
+              onClick={() => setShowAddInterview(true)}
+            >
               <Plus className="size-3.5" /> 添加面试
             </Button>
           </div>
@@ -240,7 +306,13 @@ export default function ApplicationDetailPage() {
       {tab === "interviews" && (
         <div className="mt-5 space-y-3">
           <div className="flex justify-end">
-            <Button size="sm" variant="primary" onClick={() => setShowAddInterview(true)}>
+            <Button
+              size="sm"
+              variant="primary"
+              disabled={hasScheduled}
+              title={hasScheduled ? "还有已约未进行的面试，先完成或取消该轮" : undefined}
+              onClick={() => setShowAddInterview(true)}
+            >
               <Plus className="size-3.5" /> 添加第 {nextRound} 轮面试
             </Button>
           </div>

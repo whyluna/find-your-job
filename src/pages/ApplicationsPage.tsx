@@ -213,7 +213,14 @@ function Row({ item, onClick }: { item: ApplicationListItem; onClick: () => void
       </td>
       <td className="max-w-52 truncate px-4 py-2.5">{item.positionTitle}</td>
       <td className="px-4 py-2.5">
-        <StatusBadge status={item.status} />
+        <div className="flex items-center gap-1.5">
+          <StatusBadge status={item.status} />
+          {item.status === "INTERVIEWING" && item.interviewCount > 0 && (
+            <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
+              第 {item.interviewCount} 轮
+            </span>
+          )}
+        </div>
       </td>
       <td className="px-4 py-2.5 text-slate-500">
         {BATCH_LABELS[item.batch as keyof typeof BATCH_LABELS] ?? item.batch}
