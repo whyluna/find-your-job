@@ -108,7 +108,6 @@ export function CsvImportWizard({ open: isOpen, onClose }: { open: boolean; onCl
 
   const run = useMutation({
     mutationFn: async () => {
-      const header = rows[0];
       const dataRows = rows.slice(1);
       let ok = 0;
       let fail = 0;
