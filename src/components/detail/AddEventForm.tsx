@@ -162,9 +162,12 @@ export function AddEventForm({
     return (
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 px-3 py-1.5 text-[13px] text-slate-500 transition-colors hover:border-indigo-400 hover:text-indigo-500 dark:border-slate-600 dark:text-slate-400"
+        className="inline-flex h-8 items-center gap-2 rounded-[7px] border border-[var(--fyj-border)] bg-[var(--fyj-surface-solid)] px-3 text-[13px] font-medium text-[var(--fyj-secondary)] shadow-[var(--fyj-control-shadow)] transition-[background,border-color,color] hover:border-blue-300 hover:bg-[var(--fyj-accent-soft)] hover:text-[var(--fyj-accent)]"
       >
-        <Plus className="size-3.5" /> 添加事件
+        <span className="flex size-4 items-center justify-center rounded-full bg-[var(--fyj-accent-soft)] text-[var(--fyj-accent)]">
+          <Plus className="size-3" strokeWidth={2.2} />
+        </span>
+        添加事件
       </button>
     );
   }

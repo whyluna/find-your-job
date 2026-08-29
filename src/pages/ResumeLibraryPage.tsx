@@ -5,7 +5,7 @@ import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { ExternalLink, FileText, FolderSearch, Loader2, Plus, Star, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { api } from "@/lib/ipc";
-import { Button, Field, Modal, Select, TextInput } from "@/components/ui";
+import { Button, Field, Modal, PageHeader, Select, TextInput } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
 const TARGET_ROLES = ["", "算法", "后端", "前端", "客户端", "测试", "数据", "产品", "其他"];
@@ -67,17 +67,11 @@ export default function ResumeLibraryPage() {
 
   return (
     <div className="px-6 pb-10 pt-0">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-[17px] font-semibold tracking-tight">简历库</h1>
-          <p className="mt-0.5 text-[13px] text-slate-500">
-            不同方向用不同版本；每条投递都会记录所用版本，P1 可统计各版本过筛率
-          </p>
-        </div>
-        <Button variant="primary" onClick={pickFile}>
-          <Plus className="size-4" /> 上传简历
-        </Button>
-      </div>
+      <PageHeader
+        title="简历库"
+        subtitle="按方向维护版本，并追踪各版本的投递表现"
+        actions={<Button variant="primary" onClick={pickFile}><Plus className="size-4" /> 上传简历</Button>}
+      />
 
       <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-3">
         {isLoading && <div className="col-span-3 py-10 text-center text-sm text-slate-400">加载中…</div>}
@@ -90,14 +84,14 @@ export default function ResumeLibraryPage() {
           <div
             key={r.id}
             className={cn(
-              "rounded-xl border bg-white p-4 transition-shadow hover:shadow-md dark:bg-slate-900",
-              r.isDefault ? "border-amber-300 dark:border-amber-700" : "border-slate-200 dark:border-slate-800/80",
+              "rounded-xl border bg-white p-4 transition-[border-color,box-shadow] hover:shadow-sm dark:bg-slate-900",
+              r.isDefault ? "border-blue-300 dark:border-blue-700" : "border-slate-200 dark:border-slate-800/80",
             )}
           >
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="flex size-10 items-center justify-center rounded-lg bg-gradient-to-br from-sky-500 to-indigo-500 text-white">
-                  <FileText className="size-5" />
+                <div className="flex size-10 items-center justify-center rounded-[9px] bg-blue-500/10 text-[var(--fyj-accent)]">
+                  <FileText className="size-5" strokeWidth={1.8} />
                 </div>
                 <div>
                   <div className="flex items-center gap-1.5 text-sm font-semibold">

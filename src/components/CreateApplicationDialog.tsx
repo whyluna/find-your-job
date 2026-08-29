@@ -231,7 +231,7 @@ export function CreateApplicationDialog({
               type="checkbox"
               checked={applied}
               onChange={(e) => setApplied(e.target.checked)}
-              className="size-4 accent-indigo-600"
+              className="size-4 accent-[var(--fyj-accent)]"
             />
             已完成投递（记录投递事件）
           </label>

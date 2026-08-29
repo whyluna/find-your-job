@@ -2,46 +2,202 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+:root {
+  color-scheme: light;
+  --fyj-accent: #0a76e8;
+  --fyj-accent-hover: #0068d5;
+  --fyj-accent-soft: rgba(10, 118, 232, 0.11);
+  --fyj-canvas: #f6f6f8;
+  --fyj-sidebar: rgba(232, 233, 237, 0.88);
+  --fyj-surface: rgba(255, 255, 255, 0.88);
+  --fyj-surface-solid: #ffffff;
+  --fyj-surface-muted: #f2f2f5;
+  --fyj-border: rgba(16, 24, 40, 0.12);
+  --fyj-separator: rgba(16, 24, 40, 0.085);
+  --fyj-text: #1d1d1f;
+  --fyj-secondary: #5f6066;
+  --fyj-tertiary: #7f8087;
+  --fyj-control-shadow:
+    0 1px 1px rgba(0, 0, 0, 0.04), 0 0 0 0.5px rgba(0, 0, 0, 0.04);
+  --fyj-panel-shadow: 0 1px 2px rgba(0, 0, 0, 0.035);
+}
+
+.dark {
+  color-scheme: dark;
+  --fyj-accent: #5aa7ff;
+  --fyj-accent-hover: #70b3ff;
+  --fyj-accent-soft: rgba(90, 167, 255, 0.16);
+  --fyj-canvas: #1c1c1e;
+  --fyj-sidebar: rgba(43, 43, 46, 0.9);
+  --fyj-surface: rgba(45, 45, 48, 0.88);
+  --fyj-surface-solid: #2c2c2e;
+  --fyj-surface-muted: #37373a;
+  --fyj-border: rgba(255, 255, 255, 0.13);
+  --fyj-separator: rgba(255, 255, 255, 0.09);
+  --fyj-text: #f5f5f7;
+  --fyj-secondary: #b0b0b6;
+  --fyj-tertiary: #86868c;
+  --fyj-control-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);
+  --fyj-panel-shadow: 0 1px 2px rgba(0, 0, 0, 0.24);
+}
+
 html,
 body,
 #root {
   height: 100%;
 }
 
-body {
-  font-family:
-    -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
-    "Microsoft YaHei", "Segoe UI", sans-serif;
-  font-size: 14px;
-  @apply bg-white text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
+html {
+  background: var(--fyj-canvas);
 }
 
-/* 细滚动条，贴近 macOS 原生观感 */
+body {
+  margin: 0;
+  overflow: hidden;
+  background: var(--fyj-canvas);
+  color: var(--fyj-text);
+  font-family:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", sans-serif;
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--fyj-accent) 56%, transparent);
+  outline-offset: 2px;
+}
+
 *::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
 }
+
 *::-webkit-scrollbar-thumb {
-  @apply rounded-full bg-slate-300/80;
+  min-height: 34px;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: rgba(92, 92, 98, 0.35);
+  background-clip: padding-box;
 }
-.dark *::-webkit-scrollbar-thumb {
-  @apply bg-slate-700/80;
-}
+
 *::-webkit-scrollbar-track {
   background: transparent;
 }
 
-/* 原生风格吸附工具栏 */
 @layer components {
+  .app-shell {
+    background: var(--fyj-canvas);
+    color: var(--fyj-text);
+  }
+
+  .app-sidebar {
+    background: var(--fyj-sidebar);
+    border-color: var(--fyj-border);
+  }
+
+  .app-main {
+    padding-top: 0;
+    background:
+      radial-gradient(circle at 52% -20%, rgba(255, 255, 255, 0.75), transparent 34%),
+      var(--fyj-canvas);
+  }
+
+  .dark .app-main {
+    background: var(--fyj-canvas);
+  }
+
   .toolbar-sticky {
-    @apply sticky top-0 z-20 -mx-6 border-b border-slate-200/70 bg-white/80 px-6 py-3 backdrop-blur-xl dark:border-slate-800/70 dark:bg-slate-950/70;
+    @apply sticky z-30 -mx-6 flex min-h-[48px] items-center px-6 py-2;
+    top: 0;
+    isolation: isolate;
+    transform: translateZ(0);
+    border-bottom: 1px solid var(--fyj-separator);
+    background: var(--fyj-canvas);
+    box-shadow: 0 1px 0 color-mix(in srgb, var(--fyj-separator) 45%, transparent);
+  }
+
+  .page-header {
+    min-height: 60px;
+    padding-top: 20px;
+  }
+
+  .native-panel {
+    border: 1px solid var(--fyj-border);
+    border-radius: 10px;
+    background: var(--fyj-surface);
+    box-shadow: var(--fyj-panel-shadow);
+  }
+
+  .native-inset {
+    border-radius: 8px;
+    background: var(--fyj-surface-muted);
+  }
+
+  .native-separator {
+    border-color: var(--fyj-separator);
   }
 }
 
-/* 表单元素继承字号 */
-input,
-select,
-textarea,
-button {
-  font: inherit;
+/* A single readable type scale across pages. Review keeps its larger text-base content. */
+.app-main .text-\[11px\] {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.app-main .text-\[12px\] {
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.app-main .text-\[13px\] {
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.app-main .text-slate-500 {
+  color: var(--fyj-secondary);
+}
+
+.app-main .text-slate-400 {
+  color: var(--fyj-tertiary);
+}
+
+/* Give legacy page surfaces the same quiet macOS material while pages migrate. */
+.app-main :is(section, div).rounded-xl.border {
+  border-color: var(--fyj-border);
+  border-radius: 10px;
+  background-color: var(--fyj-surface);
+  box-shadow: var(--fyj-panel-shadow);
+}
+
+.app-main table thead tr {
+  border-color: var(--fyj-separator);
+  background: var(--fyj-surface-muted);
+}
+
+.app-main table tbody tr {
+  border-color: var(--fyj-separator);
+}
+
+::selection {
+  background: color-mix(in srgb, var(--fyj-accent) 25%, transparent);
 }

@@ -6,7 +6,9 @@
 
 use chrono::{DateTime, Utc};
 
-use crate::models::{EventResult, EventType, InterviewOutcome, InterviewStatus, ProjectionEffect, Status};
+use crate::models::{
+    EventResult, EventType, InterviewOutcome, InterviewStatus, ProjectionEffect, Status,
+};
 
 /// 时间线条目：事件或面试的统一抽象（排序键由服务层解析为单一时间）
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -202,16 +204,31 @@ mod tests {
     #[test]
     fn done_events_keep_stage_unless_fail() {
         assert_eq!(
-            derive_status(&[ev(0, E::Applied), ev(5, E::AssessmentInvited), ev_r(9, E::AssessmentDone, EventResult::Pending)]).status,
+            derive_status(&[
+                ev(0, E::Applied),
+                ev(5, E::AssessmentInvited),
+                ev_r(9, E::AssessmentDone, EventResult::Pending)
+            ])
+            .status,
             Status::Assessment
         );
         assert_eq!(
-            derive_status(&[ev(0, E::Applied), ev(5, E::WrittenInvited), ev_r(9, E::WrittenDone, EventResult::Pass)]).status,
+            derive_status(&[
+                ev(0, E::Applied),
+                ev(5, E::WrittenInvited),
+                ev_r(9, E::WrittenDone, EventResult::Pass)
+            ])
+            .status,
             Status::Written
         );
         // 完成但结果为 FAIL → 视同挂掉
         assert_eq!(
-            derive_status(&[ev(0, E::Applied), ev(5, E::WrittenInvited), ev_r(9, E::WrittenDone, EventResult::Fail)]).status,
+            derive_status(&[
+                ev(0, E::Applied),
+                ev(5, E::WrittenInvited),
+                ev_r(9, E::WrittenDone, EventResult::Fail)
+            ])
+            .status,
             Status::Rejected
         );
     }
@@ -264,17 +281,34 @@ mod tests {
 
     #[test]
     fn offer_chain_statuses() {
-        assert_eq!(derive_status(&[ev(0, E::Applied), ev(9, E::Oc)]).status, Status::Oc);
-        assert_eq!(derive_status(&[ev(0, E::Applied), ev(9, E::Oc), ev(19, E::IntentLetter)]).status, Status::Intent);
+        assert_eq!(
+            derive_status(&[ev(0, E::Applied), ev(9, E::Oc)]).status,
+            Status::Oc
+        );
+        assert_eq!(
+            derive_status(&[ev(0, E::Applied), ev(9, E::Oc), ev(19, E::IntentLetter)]).status,
+            Status::Intent
+        );
         for et in [E::Offer, E::DualAgreement, E::Tripartite] {
             assert_eq!(
-                derive_status(&[ev(0, E::Applied), ev(9, E::Offer.clone()), ev(19, et.clone())]).status,
+                derive_status(&[
+                    ev(0, E::Applied),
+                    ev(9, E::Offer.clone()),
+                    ev(19, et.clone())
+                ])
+                .status,
                 Status::Offer,
                 "{et:?} 应停在 OFFER"
             );
         }
         assert_eq!(
-            derive_status(&[ev(0, E::Applied), ev(9, E::Offer), ev(19, E::Tripartite), ev(29, E::Signed)]).status,
+            derive_status(&[
+                ev(0, E::Applied),
+                ev(9, E::Offer),
+                ev(19, E::Tripartite),
+                ev(29, E::Signed)
+            ])
+            .status,
             Status::Signed
         );
     }
@@ -408,7 +442,11 @@ mod tests {
 
     #[test]
     fn rejected_stage_none_when_not_rejected() {
-        let d = derive_status(&[ev(0, E::Applied), iv(5, IS::Completed, IO::Fail), ev(99, E::Withdrawn)]);
+        let d = derive_status(&[
+            ev(0, E::Applied),
+            iv(5, IS::Completed, IO::Fail),
+            ev(99, E::Withdrawn),
+        ]);
         assert_eq!(d.status, Status::Withdrawn);
         assert_eq!(d.rejected_stage, None, "WITHDRAWN 不算挂");
     }

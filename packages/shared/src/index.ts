@@ -106,7 +106,7 @@ export const EVENT_TYPE_DEFS: Record<EventType, EventTypeDef> = {
 export const EVENT_RESULT_LABELS = {
   PENDING: "待定",
   PASS: "通过",
-  FAIL: "未过",
+  FAIL: "未通过",
   UNKNOWN: "不明",
 } as const;
 export type EventResult = keyof typeof EVENT_RESULT_LABELS;
@@ -158,8 +158,8 @@ export type InterviewStatus = keyof typeof INTERVIEW_STATUS_LABELS;
 
 export const INTERVIEW_OUTCOME_LABELS = {
   PENDING: "待定",
-  PASS: "过",
-  FAIL: "未过",
+  PASS: "通过",
+  FAIL: "未通过",
   UNKNOWN: "不明",
 } as const;
 export type InterviewOutcome = keyof typeof INTERVIEW_OUTCOME_LABELS;

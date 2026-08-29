@@ -1,12 +1,13 @@
 /** 日历视图：月历三色点（面试=蓝 / 截止=红 / 投递=灰），点击日查看明细 */
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useMemo, useState } from "react";
+import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { api } from "@/lib/ipc";
 import { fmtDate, fmtDateTime } from "@/lib/format";
 import { EVENT_TYPE_DEFS, type EventType } from "@shared";
 import { cn } from "@/lib/utils";
+import { Button, PageHeader } from "@/components/ui";
 
 interface CalendarEntry {
   date: string; // YYYY-MM-DD
@@ -28,39 +29,25 @@ export default function CalendarPage() {
   });
   const [selected, setSelected] = useState<string>(fmtDate(new Date().toISOString()));
 
-  const { data: apps } = useQuery({
-    queryKey: ["cal-applications"],
-    queryFn: () => api.listApplications({ includeArchived: true }),
-  });
-
-  const entries = useMemo<CalendarEntry[]>(() => {
-    const list: CalendarEntry[] = [];
-    for (const a of apps ?? []) {
-      if (a.appliedDate)
-        list.push({
-          date: a.appliedDate.slice(0, 10),
-          kind: "applied",
-          applicationId: a.id,
-          companyName: a.companyName,
-          positionTitle: a.positionTitle,
-          at: a.appliedDate,
-        });
-    }
-    return list;
-  }, [apps]);
-
-  const { data: upcoming } = useQuery({
-    queryKey: ["cal-upcoming"],
-    queryFn: () => api.getUpcoming(60, 90),
+  const range = useMemo(
+    () => ({
+      start: new Date(cursor.y, cursor.m, 1).toISOString(),
+      end: new Date(cursor.y, cursor.m + 1, 1).toISOString(),
+    }),
+    [cursor],
+  );
+  const { data: calendarItems } = useQuery({
+    queryKey: ["calendar-items", range.start, range.end],
+    queryFn: () => api.getCalendarItems(range.start, range.end),
     staleTime: 5 * 60 * 1000,
   });
-  const calEvents = useMemo<CalendarEntry[]>(() => {
+  const all = useMemo<CalendarEntry[]>(() => {
     const list: CalendarEntry[] = [];
-    for (const u of upcoming ?? []) {
+    for (const u of calendarItems ?? []) {
       if (!u.at) continue;
       list.push({
-        date: u.at.slice(0, 10),
-        kind: u.kind === "deadline" ? "deadline" : "interview",
+        date: fmtDate(u.at),
+        kind: u.kind,
         applicationId: u.applicationId,
         companyName: u.companyName,
         positionTitle: u.positionTitle,
@@ -69,9 +56,12 @@ export default function CalendarPage() {
       });
     }
     return list;
-  }, [upcoming]);
+  }, [calendarItems]);
 
-  const all = useMemo(() => [...entries, ...calEvents], [entries, calEvents]);
+  useEffect(() => {
+    const monthPrefix = `${cursor.y}-${String(cursor.m + 1).padStart(2, "0")}-`;
+    if (!selected.startsWith(monthPrefix)) setSelected(`${monthPrefix}01`);
+  }, [cursor, selected]);
   const byDate = useMemo(() => {
     const map = new Map<string, CalendarEntry[]>();
     for (const e of all) {
@@ -100,52 +90,73 @@ export default function CalendarPage() {
 
   const todayStr = fmtDate(new Date().toISOString());
   const selectedEntries = byDate.get(selected) ?? [];
+  const selectedLabel = new Intl.DateTimeFormat("zh-CN", {
+    month: "long",
+    day: "numeric",
+    weekday: "long",
+    timeZone: "UTC",
+  }).format(new Date(`${selected}T00:00:00Z`));
 
   return (
     <div className="px-6 pb-10 pt-0">
-      <div className="flex items-center justify-between">
-        <h1 className="text-[17px] font-semibold tracking-tight">
-          {cursor.y} 年 {cursor.m + 1} 月
-        </h1>
-        <div className="flex items-center gap-1">
-          <button
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
-            onClick={() =>
-              setCursor((c) => (c.m === 0 ? { y: c.y - 1, m: 11 } : { y: c.y, m: c.m - 1 }))
-            }
-          >
-            <ChevronLeft className="size-4" />
-          </button>
-          <button
-            className="rounded-lg px-2 py-1 text-[13px] text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
-            onClick={() => {
-              const n = new Date();
-              setCursor({ y: n.getFullYear(), m: n.getMonth() });
-              setSelected(todayStr);
-            }}
-          >
-            今天
-          </button>
-          <button
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
-            onClick={() =>
-              setCursor((c) => (c.m === 11 ? { y: c.y + 1, m: 0 } : { y: c.y, m: c.m + 1 }))
-            }
-          >
-            <ChevronRight className="size-4" />
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="日历"
+        subtitle="面试、截止日期与投递记录"
+        actions={
+          <div className="flex items-center gap-1">
+            <Button
+              size="sm"
+              variant="ghost"
+              aria-label="上个月"
+              onClick={() =>
+                setCursor((c) => (c.m === 0 ? { y: c.y - 1, m: 11 } : { y: c.y, m: c.m - 1 }))
+              }
+            >
+              <ChevronLeft className="size-4" />
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                const n = new Date();
+                setCursor({ y: n.getFullYear(), m: n.getMonth() });
+                setSelected(todayStr);
+              }}
+            >
+              今天
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              aria-label="下个月"
+              onClick={() =>
+                setCursor((c) => (c.m === 11 ? { y: c.y + 1, m: 0 } : { y: c.y, m: c.m + 1 }))
+              }
+            >
+              <ChevronRight className="size-4" />
+            </Button>
+          </div>
+        }
+      />
 
-      <div className="mt-4 grid grid-cols-[1fr_280px] gap-4">
+      <div className="mx-auto mt-5 grid max-w-[1120px] grid-cols-[minmax(520px,1fr)_290px] gap-4">
         {/* 月历 */}
-        <div className="rounded-xl border border-slate-200/80 p-3 dark:border-slate-800/80">
-          <div className="mb-1 grid grid-cols-7 text-center text-[13px] text-slate-400">
+        <div className="native-panel p-4">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-[15px] font-semibold tracking-[-0.01em]">
+              {cursor.y} 年 {cursor.m + 1} 月
+            </h2>
+            <div className="flex gap-3 text-[11px] text-[var(--fyj-tertiary)]">
+              <Legend color="bg-blue-500" label="面试" />
+              <Legend color="bg-red-500" label="截止" />
+              <Legend color="bg-slate-400" label="投递" />
+            </div>
+          </div>
+          <div className="mb-1 grid grid-cols-7 text-center text-[11px] font-medium text-[var(--fyj-tertiary)]">
             {WEEKDAYS.map((w) => (
-              <div key={w} className="py-1">{w}</div>
+              <div key={w} className="py-1.5">{w}</div>
             ))}
           </div>
-          <div className="grid grid-cols-7 gap-1">
+          <div className="grid grid-cols-7 gap-1.5">
             {grid.map((date, i) => {
               if (!date) return <div key={i} />;
               const dayEntries = byDate.get(date) ?? [];
@@ -158,23 +169,23 @@ export default function CalendarPage() {
                   key={date}
                   onClick={() => setSelected(date)}
                   className={cn(
-                    "flex h-16 flex-col items-center rounded-lg border pt-1.5 transition-colors",
+                    "group flex h-[68px] flex-col items-center rounded-[8px] pt-2 transition-colors",
                     selected === date
-                      ? "border-indigo-400 bg-indigo-50/60 dark:border-indigo-500 dark:bg-indigo-900/20"
-                      : "border-transparent hover:border-slate-200 dark:hover:border-slate-700",
-                    isToday && "ring-1 ring-indigo-300 dark:ring-indigo-600",
+                      ? "bg-[var(--fyj-accent-soft)]"
+                      : "hover:bg-black/[0.035] dark:hover:bg-white/[0.055]",
                   )}
                 >
                   <span
                     className={cn(
-                      "text-[13px]",
-                      isToday ? "font-bold text-indigo-600 dark:text-indigo-400" : "text-slate-600 dark:text-slate-300",
+                      "flex size-6 items-center justify-center rounded-full text-[12px] tabular-nums text-[var(--fyj-secondary)]",
+                      isToday && "bg-[var(--fyj-accent)] font-semibold text-white",
+                      selected === date && !isToday && "font-semibold text-[var(--fyj-accent)]",
                     )}
                   >
                     {+date.slice(8)}
                   </span>
-                  <span className="mt-1 flex gap-0.5">
-                    {hasInterview && <span className="size-1.5 rounded-full bg-indigo-500" title="面试" />}
+                  <span className="mt-1.5 flex gap-1">
+                    {hasInterview && <span className="size-1.5 rounded-full bg-blue-500" title="面试" />}
                     {hasDeadline && <span className="size-1.5 rounded-full bg-red-500" title="截止" />}
                     {hasApplied && <span className="size-1.5 rounded-full bg-slate-400" title="投递" />}
                   </span>
@@ -182,37 +193,38 @@ export default function CalendarPage() {
               );
             })}
           </div>
-          <div className="mt-2 flex justify-end gap-3 text-xs text-slate-400">
-            <span className="flex items-center gap-1"><span className="size-1.5 rounded-full bg-indigo-500" />面试</span>
-            <span className="flex items-center gap-1"><span className="size-1.5 rounded-full bg-red-500" />截止</span>
-            <span className="flex items-center gap-1"><span className="size-1.5 rounded-full bg-slate-400" />投递</span>
-          </div>
         </div>
 
         {/* 当日明细 */}
-        <div className="rounded-xl border border-slate-200/80 p-4 dark:border-slate-800/80">
-          <h2 className="text-sm font-semibold">{selected}</h2>
+        <div className="native-panel min-h-[460px] overflow-hidden">
+          <div className="border-b border-[var(--fyj-separator)] px-4 py-3.5">
+            <h2 className="text-[14px] font-semibold">{selectedLabel}</h2>
+            <p className="mt-0.5 text-[11px] tabular-nums text-[var(--fyj-tertiary)]">{selected}</p>
+          </div>
           {selectedEntries.length === 0 ? (
-            <div className="mt-4 text-[13px] text-slate-400">当天没有安排</div>
+            <div className="flex min-h-[330px] flex-col items-center justify-center px-6 text-center">
+              <CalendarDays className="size-8 text-[var(--fyj-tertiary)] opacity-45" strokeWidth={1.4} />
+              <div className="mt-3 text-[13px] font-medium text-[var(--fyj-secondary)]">当天没有安排</div>
+              <div className="mt-1 text-[11px] leading-relaxed text-[var(--fyj-tertiary)]">
+                投递、面试和流程截止日期会自动出现在这里
+              </div>
+            </div>
           ) : (
-            <div className="mt-3 space-y-2">
+            <div className="divide-y divide-[var(--fyj-separator)] px-2 py-1.5">
               {selectedEntries.map((e, i) => (
                 <button
                   key={i}
                   onClick={() => navigate(`/applications/${e.applicationId}`)}
-                  className={cn(
-                    "w-full rounded-lg border p-2.5 text-left transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50",
-                    e.kind === "deadline"
-                      ? "border-red-200 dark:border-red-900/50"
-                      : e.kind === "interview"
-                        ? "border-indigo-200 dark:border-indigo-900/50"
-                        : "border-slate-200 dark:border-slate-700",
-                  )}
+                  className="group relative w-full rounded-[7px] px-3 py-3 text-left transition-colors hover:bg-black/[0.035] dark:hover:bg-white/[0.055]"
                 >
-                  <div className="text-sm font-medium">
+                  <span className={cn(
+                    "absolute bottom-3 left-0 top-3 w-0.5 rounded-full",
+                    e.kind === "deadline" ? "bg-red-500" : e.kind === "interview" ? "bg-blue-500" : "bg-slate-400",
+                  )} />
+                  <div className="truncate text-[13px] font-medium">
                     {e.companyName} · {e.positionTitle}
                   </div>
-                  <div className="mt-0.5 text-[13px] text-slate-400">
+                  <div className="mt-1 text-[11px] text-[var(--fyj-tertiary)]">
                     {e.kind === "applied"
                       ? "投递日"
                       : e.kind === "deadline"
@@ -226,5 +238,14 @@ export default function CalendarPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function Legend({ color, label }: { color: string; label: string }) {
+  return (
+    <span className="flex items-center gap-1.5">
+      <span className={cn("size-1.5 rounded-full", color)} />
+      {label}
+    </span>
   );
 }

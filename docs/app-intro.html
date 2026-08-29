@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FindYourJob · App Overview</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", sans-serif;
+        background: #eaf1fb;
+        color: #182033;
+      }
+      * { box-sizing: border-box; }
+      html, body { width: 1600px; height: 900px; margin: 0; overflow: hidden; }
+      body { display: grid; place-items: center; }
+      .canvas {
+        position: relative;
+        width: 1600px;
+        height: 900px;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at 12% 8%, rgba(84, 153, 255, .25), transparent 32%),
+          radial-gradient(circle at 92% 92%, rgba(46, 105, 220, .18), transparent 34%),
+          linear-gradient(145deg, #f7faff 0%, #edf4fe 48%, #e8f0fb 100%);
+      }
+      .grid {
+        position: absolute; inset: 0; opacity: .25;
+        background-image:
+          linear-gradient(rgba(53, 102, 180, .08) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(53, 102, 180, .08) 1px, transparent 1px);
+        background-size: 44px 44px;
+        mask-image: linear-gradient(to right, black, transparent 52%);
+      }
+      .orb { position: absolute; border-radius: 999px; filter: blur(2px); }
+      .orb.one { width: 220px; height: 220px; left: -72px; top: 594px; background: rgba(61, 134, 242, .13); }
+      .orb.two { width: 160px; height: 160px; left: 490px; top: -74px; background: rgba(110, 170, 255, .13); }
+      .hero {
+        position: absolute;
+        left: 72px;
+        top: 66px;
+        width: 495px;
+        z-index: 2;
+      }
+      .brand { display: flex; align-items: center; gap: 15px; margin-bottom: 52px; }
+      .brand img {
+        width: 60px; height: 60px; border-radius: 15px;
+        box-shadow: 0 14px 30px rgba(28, 88, 181, .22);
+      }
+      .brand strong { display: block; font-size: 27px; letter-spacing: -.7px; }
+      .brand span { display: block; margin-top: 3px; color: #6d7890; font-size: 15px; }
+      .eyebrow {
+        display: inline-flex; align-items: center; gap: 8px;
+        border: 1px solid rgba(23, 111, 211, .16);
+        border-radius: 999px;
+        padding: 7px 12px;
+        background: rgba(255, 255, 255, .62);
+        color: #176fd3;
+        font-size: 14px;
+        font-weight: 650;
+        letter-spacing: .6px;
+      }
+      .eyebrow::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #1680ee; box-shadow: 0 0 0 5px rgba(22, 128, 238, .1); }
+      h1 {
+        margin: 20px 0 0;
+        max-width: 480px;
+        font-size: 61px;
+        line-height: 1.09;
+        letter-spacing: -3.4px;
+        font-weight: 760;
+      }
+      h1 em { color: #0b73e0; font-style: normal; }
+      .lead {
+        margin: 25px 0 0;
+        max-width: 450px;
+        color: #657189;
+        font-size: 21px;
+        line-height: 1.65;
+      }
+      .features {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-top: 36px;
+      }
+      .feature {
+        padding: 15px 16px;
+        border: 1px solid rgba(45, 91, 157, .12);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, .7);
+        box-shadow: 0 8px 24px rgba(45, 81, 136, .055);
+        backdrop-filter: blur(16px);
+      }
+      .feature b { display: block; font-size: 16px; }
+      .feature span { display: block; margin-top: 4px; color: #778197; font-size: 13px; }
+      .local {
+        display: inline-flex; align-items: center; gap: 9px;
+        margin-top: 22px;
+        color: #526077;
+        font-size: 14px;
+      }
+      .local svg { width: 17px; color: #1477de; }
+      .window {
+        position: absolute;
+        z-index: 3;
+        top: 58px;
+        right: -60px;
+        width: 1000px;
+        height: 784px;
+        overflow: hidden;
+        border: 1px solid rgba(17, 44, 83, .16);
+        border-radius: 24px;
+        background: #f7f7f9;
+        box-shadow:
+          0 42px 80px rgba(34, 68, 118, .19),
+          0 8px 24px rgba(34, 68, 118, .10),
+          inset 0 1px 0 rgba(255, 255, 255, .8);
+      }
+      .chrome {
+        height: 42px;
+        display: flex;
+        align-items: center;
+        padding: 0 18px;
+        border-bottom: 1px solid rgba(30, 43, 65, .08);
+        background: rgba(245, 246, 249, .94);
+      }
+      .lights { display: flex; gap: 8px; }
+      .lights i { width: 12px; height: 12px; border-radius: 50%; display: block; }
+      .lights i:nth-child(1) { background: #ff5f57; }
+      .lights i:nth-child(2) { background: #febc2e; }
+      .lights i:nth-child(3) { background: #28c840; }
+      .chrome-title { margin: auto; padding-right: 58px; color: #8a909b; font-size: 12px; font-weight: 550; }
+      .app { display: grid; grid-template-columns: 186px 1fr; height: calc(100% - 42px); }
+      .sidebar {
+        padding: 23px 13px;
+        border-right: 1px solid rgba(25, 37, 57, .09);
+        background: rgba(232, 234, 239, .86);
+      }
+      .appbrand { display: flex; align-items: center; gap: 9px; margin: 0 7px 24px; font-size: 14px; font-weight: 700; }
+      .plane {
+        width: 28px; height: 28px; display: grid; place-items: center;
+        border-radius: 8px; background: linear-gradient(150deg, #5595f4, #1555bf); color: white;
+      }
+      .plane svg { width: 18px; }
+      .group { margin: 20px 8px 6px; color: #969ba6; font-size: 9px; font-weight: 750; letter-spacing: .7px; }
+      .nav { height: 30px; display: flex; align-items: center; gap: 9px; padding: 0 10px; margin: 2px 0; border-radius: 8px; color: #606875; font-size: 12px; }
+      .nav::before { content: ""; width: 11px; height: 11px; border: 1.5px solid currentColor; border-radius: 3px; opacity: .75; }
+      .nav.active { color: #0b73e0; background: rgba(11, 115, 224, .12); font-weight: 650; }
+      .main { padding: 0 22px 24px; overflow: hidden; }
+      .toolbar {
+        height: 67px; margin: 0 -22px; padding: 20px 22px 10px;
+        display: flex; align-items: center; justify-content: space-between;
+        border-bottom: 1px solid rgba(24, 38, 60, .08);
+        background: #f7f7f9;
+      }
+      .toolbar h2 { margin: 0; font-size: 18px; letter-spacing: -.2px; }
+      .toolbar p { margin: 2px 0 0; color: #878d99; font-size: 11px; }
+      .primary { padding: 9px 14px; border-radius: 8px; background: #0a76e8; color: white; font-size: 11px; font-weight: 650; box-shadow: 0 3px 8px rgba(10, 118, 232, .2); }
+      .filters { display: flex; gap: 8px; padding: 14px 0 12px; }
+      .segmented, .search, .select {
+        height: 29px; display: flex; align-items: center; border: 1px solid rgba(28, 43, 66, .1);
+        border-radius: 8px; background: white; color: #737b88; font-size: 10px;
+      }
+      .segmented { padding: 2px; }
+      .segmented span { padding: 5px 10px; }
+      .segmented .on { border-radius: 6px; background: #f1f2f5; color: #272e39; font-weight: 650; }
+      .search { width: 208px; padding: 0 12px; }
+      .select { width: 98px; padding: 0 12px; }
+      .notice { padding: 9px 12px; border: 1px solid #f3dca2; border-radius: 9px; background: #fff9e9; color: #ab761d; font-size: 10px; }
+      .board { margin-top: 12px; display: grid; gap: 9px; }
+      .lane {
+        min-height: 91px; padding: 10px 12px;
+        border: 1px solid rgba(28, 43, 66, .10); border-radius: 12px;
+        background: rgba(255, 255, 255, .78);
+        box-shadow: 0 1px 2px rgba(20, 34, 55, .035);
+      }
+      .lane-head { display: flex; align-items: center; gap: 7px; color: #647086; font-size: 11px; font-weight: 700; }
+      .lane-head small { color: #9aa1ad; font-weight: 500; }
+      .lane-head::after { content: ""; height: 1px; flex: 1; background: #e5e9f0; }
+      .cards { display: flex; gap: 8px; margin-top: 9px; }
+      .card {
+        width: 191px; padding: 10px 11px; border: 1px solid rgba(35, 61, 99, .11);
+        border-radius: 9px; background: white; box-shadow: 0 2px 6px rgba(25, 53, 94, .055);
+      }
+      .card b { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 11px; }
+      .card p { margin: 4px 0 8px; color: #778197; font-size: 10px; }
+      .tag { display: inline-block; margin-right: 4px; padding: 3px 6px; border-radius: 5px; background: #eef4ff; color: #256fd0; font-size: 8px; font-weight: 650; }
+      .tag.gray { background: #f0f1f4; color: #6f7785; }
+      .footer-card {
+        position: absolute; right: 44px; bottom: 25px; width: 410px; padding: 15px 17px;
+        border: 1px solid rgba(28, 73, 140, .14); border-radius: 14px;
+        background: rgba(255, 255, 255, .92); box-shadow: 0 18px 40px rgba(23, 58, 112, .16);
+      }
+      .footer-card .row { display: flex; align-items: center; justify-content: space-between; }
+      .footer-card b { font-size: 12px; }
+      .footer-card small { color: #1676dc; font-size: 9px; font-weight: 650; }
+      .timeline { display: flex; align-items: center; gap: 7px; margin-top: 11px; }
+      .timeline i { width: 8px; height: 8px; border: 2px solid #4d97ef; border-radius: 50%; background: white; }
+      .timeline span { height: 1px; flex: 1; background: #c9d9ee; }
+      .timeline label { color: #717b8b; font-size: 9px; }
+      .version {
+        position: absolute; left: 72px; bottom: 50px; display: flex; align-items: center; gap: 8px;
+        color: #778398; font-size: 13px; font-weight: 550;
+      }
+      .version i { width: 8px; height: 8px; border-radius: 50%; background: #25b46b; box-shadow: 0 0 0 5px rgba(37, 180, 107, .1); }
+    </style>
+  </head>
+  <body>
+    <main class="canvas">
+      <div class="grid"></div>
+      <div class="orb one"></div>
+      <div class="orb two"></div>
+
+      <section class="hero">
+        <div class="brand">
+          <img src="../scripts/app-icon.png" alt="FindYourJob icon" />
+          <div><strong>FindYourJob</strong><span>求职投递记录与面试复盘</span></div>
+        </div>
+        <div class="eyebrow">MACOS · LOCAL FIRST</div>
+        <h1>投出去，<br /><em>更要跟得住。</em></h1>
+        <p class="lead">把散落在招聘网站、日历和笔记里的求职进度，收拢成一条清晰、可回看、可复盘的时间线。</p>
+        <div class="features">
+          <div class="feature"><b>流程看板</b><span>投递状态一眼掌握</span></div>
+          <div class="feature"><b>事件时间线</b><span>每一步都有依据</span></div>
+          <div class="feature"><b>面试复盘</b><span>按岗位与轮次沉淀</span></div>
+          <div class="feature"><b>日历与统计</b><span>截止、面试不遗漏</span></div>
+        </div>
+        <div class="local">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg>
+          数据默认只保存在你的 Mac
+        </div>
+      </section>
+
+      <section class="window" aria-label="FindYourJob app mockup">
+        <div class="chrome"><div class="lights"><i></i><i></i><i></i></div><div class="chrome-title">FindYourJob</div></div>
+        <div class="app">
+          <aside class="sidebar">
+            <div class="appbrand"><span class="plane"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 8.5 20 3.8l-7.7 15.1-2.1-6.4L4 8.5Z"/></svg></span>FindYourJob</div>
+            <div class="nav">仪表盘</div><div class="nav active">投递</div><div class="nav">统计</div><div class="nav">日历</div>
+            <div class="group">沉淀</div><div class="nav">面经</div><div class="nav">offer 对比</div>
+            <div class="group">资料</div><div class="nav">简历库</div><div class="nav">公司</div>
+            <div class="group">系统</div><div class="nav">设置</div>
+          </aside>
+          <div class="main">
+            <header class="toolbar"><div><h2>投递</h2><p>共 6 条</p></div><div class="primary">＋ 新建投递</div></header>
+            <div class="filters"><div class="segmented"><span class="on">看板</span><span>表格</span></div><div class="search">⌕　搜索公司 / 岗位…</div><div class="select">全部状态　⌄</div></div>
+            <div class="notice">△　有 2 条投递需要补充简历版本</div>
+            <div class="board">
+              <div class="lane"><div class="lane-head">已投递 <small>2</small></div><div class="cards"><div class="card"><b>星海科技 · 基础架构</b><p>平台工程师</p><span class="tag">正式批</span><span class="tag gray">官网网申</span></div><div class="card"><b>云帆网络 · 客户端</b><p>macOS 工程师</p><span class="tag">春招</span><span class="tag gray">内推</span></div></div></div>
+              <div class="lane"><div class="lane-head">面试中 <small>2</small></div><div class="cards"><div class="card"><b>远山智能 · AI 平台</b><p>AI 应用研发</p><span class="tag">第 2 轮</span><span class="tag gray">视频</span></div><div class="card"><b>北辰数据 · 搜索推荐</b><p>算法工程师</p><span class="tag">第 1 轮</span><span class="tag gray">现场</span></div></div></div>
+              <div class="lane"><div class="lane-head">已 OC <small>1</small></div><div class="cards"><div class="card"><b>青岚科技 · 云平台</b><p>后端研发工程师</p><span class="tag">2 轮面试</span><span class="tag gray">正式批</span></div></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="footer-card"><div class="row"><b>流程始终有迹可循</b><small>事件驱动状态</small></div><div class="timeline"><i></i><label>投递</label><span></span><i></i><label>面试</label><span></span><i></i><label>OC</label><span></span><i></i><label>签约</label></div></div>
+      </section>
+      <div class="version"><i></i>v0.1.0 · Apple Silicon</div>
+    </main>
+  </body>
+</html>

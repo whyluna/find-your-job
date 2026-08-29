@@ -140,7 +140,7 @@ export function InterviewCard({
                 className="text-emerald-600 dark:text-emerald-400"
                 onClick={() => setOutcome.mutate({ status: "COMPLETED", outcome: "PASS" })}
               >
-                完成·过
+                通过
               </Button>
               <Button
                 size="sm"
@@ -148,7 +148,7 @@ export function InterviewCard({
                 className="text-red-500"
                 onClick={() => setOutcome.mutate({ status: "COMPLETED", outcome: "FAIL" })}
               >
-                完成·未过
+                未通过
               </Button>
               <Button
                 size="sm"
@@ -166,7 +166,7 @@ export function InterviewCard({
               className="text-emerald-600 dark:text-emerald-400"
               onClick={() => setOutcome.mutate({ outcome: "PASS" })}
             >
-              改判·过
+              改为通过
             </Button>
           )}
           <button

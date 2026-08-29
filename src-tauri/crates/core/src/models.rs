@@ -153,7 +153,10 @@ pub enum EventType {
     Withdrawn,
     Note,
     /// key 为字典值（custom_event_type.id）；projection 为配置的状态投影
-    Custom { key: String, projection: ProjectionEffect },
+    Custom {
+        key: String,
+        projection: ProjectionEffect,
+    },
 }
 
 /// 状态投影效果：内置类型由 state_machine::projection_of 推导，
@@ -238,7 +241,10 @@ impl EventType {
     }
 
     /// 从数据库键解析；custom: 前缀必须提供其投影配置
-    pub fn parse_db_key(key: &str, custom_projection: Option<ProjectionEffect>) -> Option<EventType> {
+    pub fn parse_db_key(
+        key: &str,
+        custom_projection: Option<ProjectionEffect>,
+    ) -> Option<EventType> {
         if let Some(id) = key.strip_prefix("custom:") {
             let projection = custom_projection?;
             Some(EventType::Custom {

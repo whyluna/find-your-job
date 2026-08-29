@@ -40,7 +40,13 @@ struct ErrorBody {
 }
 
 fn err(status: StatusCode, msg: &str) -> Response {
-    (status, Json(ErrorBody { error: msg.to_string() })).into_response()
+    (
+        status,
+        Json(ErrorBody {
+            error: msg.to_string(),
+        }),
+    )
+        .into_response()
 }
 
 async fn auth(
@@ -74,10 +80,7 @@ pub struct ExtractInput {
 }
 
 /// 智能识别：页面原文 → 应用内 LLM → 结构化字段（未配置 LLM 时返回 400 提示）
-async fn extract(
-    State(state): State<Arc<HttpState>>,
-    Json(input): Json<ExtractInput>,
-) -> Response {
+async fn extract(State(state): State<Arc<HttpState>>, Json(input): Json<ExtractInput>) -> Response {
     let Some(cfg) = fyj_core::llm::config_from_settings(&state.services).await else {
         return err(
             StatusCode::BAD_REQUEST,
@@ -90,10 +93,7 @@ async fn extract(
     }
 }
 
-async fn clip(
-    State(state): State<Arc<HttpState>>,
-    Json(input): Json<ClipInput>,
-) -> Response {
+async fn clip(State(state): State<Arc<HttpState>>, Json(input): Json<ClipInput>) -> Response {
     let app: Result<Application, _> = state
         .services
         .create_application(CreateApplicationInput {
@@ -131,22 +131,21 @@ pub fn router(state: Arc<HttpState>) -> Router {
         .with_state(state)
 }
 
-/// 在 127.0.0.1:port 上启动服务，返回可 abort 的 JoinHandle。
-pub fn serve(port: u16, state: Arc<HttpState>) -> tokio::task::JoinHandle<()> {
+/// 在 127.0.0.1:port 上运行服务。
+///
+/// 调用方必须持有并等待这个 Future；取消调用方任务会直接关闭 listener。
+/// 不在这里再次 spawn，避免真实服务句柄丢失。
+pub async fn serve(port: u16, state: Arc<HttpState>) -> std::io::Result<()> {
     let addr = std::net::SocketAddr::from(([127, 0, 0, 1], port));
-    tokio::spawn(async move {
-        let listener = match tokio::net::TcpListener::bind(addr).await {
-            Ok(l) => l,
-            Err(e) => {
-                eprintln!("本地 API 端口绑定失败 {addr}: {e}");
-                return;
-            }
-        };
-        let app = router(state);
-        if let Err(e) = axum::serve(listener, app).await {
-            eprintln!("本地 API 退出: {e}");
-        }
-    })
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    serve_with_listener(listener, state).await
+}
+
+pub async fn serve_with_listener(
+    listener: tokio::net::TcpListener,
+    state: Arc<HttpState>,
+) -> std::io::Result<()> {
+    axum::serve(listener, router(state)).await
 }
 
 #[cfg(test)]
@@ -158,7 +157,9 @@ mod tests {
 
     async fn setup() -> (Arc<HttpState>, tempfile::TempDir) {
         let dir = tempfile::tempdir().unwrap();
-        let pool = fyj_core::db::init_pool(&dir.path().join("t.db")).await.unwrap();
+        let pool = fyj_core::db::init_pool(&dir.path().join("t.db"))
+            .await
+            .unwrap();
         (
             Arc::new(HttpState {
                 services: Services::new(pool),
@@ -186,7 +187,12 @@ mod tests {
         let app = router(state);
         let res = app
             .clone()
-            .oneshot(Request::builder().uri("/api/health").body(Body::empty()).unwrap())
+            .oneshot(
+                Request::builder()
+                    .uri("/api/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap();
         assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
@@ -235,7 +241,8 @@ mod tests {
                     .header("authorization", "Bearer test-token")
                     .header("content-type", "application/json")
                     .body(Body::from(
-                        serde_json::json!({"title":"t","url":"https://x","text":"正文"}).to_string(),
+                        serde_json::json!({"title":"t","url":"https://x","text":"正文"})
+                            .to_string(),
                     ))
                     .unwrap(),
             )
@@ -264,5 +271,22 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn serving_task_owns_listener_and_abort_releases_port() {
+        let (state, _d) = setup().await;
+        let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+            .await
+            .unwrap();
+        let addr = listener.local_addr().unwrap();
+        let task = tokio::spawn(serve_with_listener(listener, state));
+        let stream = tokio::net::TcpStream::connect(addr).await.unwrap();
+        drop(stream);
+
+        task.abort();
+        let _ = task.await;
+        let rebound = tokio::net::TcpListener::bind(addr).await.unwrap();
+        drop(rebound);
     }
 }

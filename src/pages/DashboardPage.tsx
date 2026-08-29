@@ -21,10 +21,10 @@ export default function DashboardPage() {
       <PageHeader title="仪表盘" subtitle="最近的截止与面试安排" />
 
       {/* 今日待办 */}
-      <section className="mt-5 max-w-2xl rounded-xl border border-slate-200/80 bg-white p-5 dark:border-slate-800/80 dark:bg-slate-900/60">
+      <section className="mt-5 max-w-3xl rounded-xl border border-slate-200/80 bg-white p-5 dark:border-slate-800/80 dark:bg-slate-900/60">
         <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <CalendarClock className="size-4 text-indigo-500" /> 最近待办
-          <span className="text-[13px] font-normal text-slate-400">3 天内截止 · 7 天内面试</span>
+          <CalendarClock className="size-4 text-[var(--fyj-accent)]" /> 最近待办
+          <span className="text-[12px] font-normal text-[var(--fyj-tertiary)]">3 天内截止 · 7 天内面试</span>
         </h2>
         {isLoading && (
           <div className="mt-3 text-sm text-slate-400">加载中…</div>
@@ -39,14 +39,14 @@ export default function DashboardPage() {
             <button
               key={i}
               onClick={() => navigate(`/applications/${item.applicationId}`)}
-              className="flex w-full items-center gap-3 rounded-lg border border-transparent px-2.5 py-2 text-left transition-colors hover:border-slate-200/80 hover:bg-slate-50 dark:hover:border-slate-700 dark:hover:bg-slate-800/50"
+              className="flex w-full items-center gap-3 rounded-[7px] px-2.5 py-2.5 text-left transition-colors hover:bg-black/[0.035] dark:hover:bg-white/[0.055]"
             >
               <span
                 className={cn(
-                  "flex size-6 shrink-0 items-center justify-center rounded-md",
+                  "flex size-6 shrink-0 items-center justify-center rounded-[6px]",
                   item.kind === "deadline"
                     ? "bg-red-50 text-red-500 dark:bg-red-900/30 dark:text-red-300"
-                    : "bg-indigo-50 text-indigo-500 dark:bg-indigo-900/30 dark:text-indigo-300",
+                    : "bg-blue-50 text-blue-500 dark:bg-blue-900/30 dark:text-blue-300",
                 )}
               >
                 {item.kind === "deadline" ? (
@@ -74,12 +74,12 @@ export default function DashboardPage() {
       </section>
 
       {/* 概况 */}
-      <section className="mt-4 flex max-w-2xl gap-3">
+      <section className="mt-4 flex max-w-3xl gap-3">
         <div className="flex-1 rounded-xl border border-slate-200/80 bg-white p-4 dark:border-slate-800/80 dark:bg-slate-900/60">
           <div className="text-2xl font-semibold tabular-nums tracking-tight">{db?.applications ?? "—"}</div>
           <div className="mt-0.5 text-[13px] text-slate-400">
             投递总数 ·{" "}
-            <Link to="/applications" className="text-indigo-500 hover:underline">
+            <Link to="/applications" className="text-[var(--fyj-accent)] hover:underline">
               去列表
             </Link>
           </div>

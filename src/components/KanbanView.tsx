@@ -3,12 +3,14 @@
 import {
   DndContext,
   DragOverlay,
+  KeyboardSensor,
   PointerSensor,
   pointerWithin,
   useDroppable,
   useSensor,
   useSensors,
   closestCenter,
+  type KeyboardCoordinateGetter,
   type CollisionDetection,
   type DragEndEvent,
   type DragOverEvent,
@@ -18,6 +20,7 @@ import {
   SortableContext,
   arrayMove,
   horizontalListSortingStrategy,
+  sortableKeyboardCoordinates,
   useSortable,
 } from "@dnd-kit/sortable";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -62,15 +65,47 @@ export function KanbanView({ items, canReorder }: { items: ApplicationListItem[]
     staleTime: Infinity,
   });
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
-
   // 指针命中检测：指针在行内任意位置（含前半段）都能命中该行；悬停卡片时优先命中卡片
-  const base = boardColumns ?? (Object.keys(STATUS_LABELS) as Status[]);
-  const present = new Set(items.map((i) => i.status));
-  const extra = (Object.keys(STATUS_LABELS) as Status[]).filter(
-    (s) => !base.includes(s) && present.has(s),
+  const allRows = useMemo(() => {
+    const base = boardColumns ?? (Object.keys(STATUS_LABELS) as Status[]);
+    const present = new Set(items.map((i) => i.status));
+    const extra = (Object.keys(STATUS_LABELS) as Status[]).filter(
+      (s) => !base.includes(s) && present.has(s),
+    );
+    return [...base, ...extra];
+  }, [boardColumns, items]);
+
+  // 同一行左右键排序；上下键直接跨到相邻流程行，键盘与鼠标获得同样的目标反馈。
+  const keyboardCoordinates = useMemo<KeyboardCoordinateGetter>(() => {
+    return (event, args) => {
+      if (event.code === "ArrowUp" || event.code === "ArrowDown") {
+        event.preventDefault();
+        const overId = args.context.over?.id ? String(args.context.over.id) : null;
+        const overItem = overId ? items.find((item) => item.id === overId) : null;
+        const activeStatus = args.context.active?.data.current?.status as Status | undefined;
+        const currentStatus = overId && allRows.includes(overId as Status)
+          ? (overId as Status)
+          : overItem?.status ?? activeStatus;
+        const currentIndex = currentStatus ? allRows.indexOf(currentStatus) : -1;
+        const step = event.code === "ArrowUp" ? -1 : 1;
+        const targetStatus = allRows[currentIndex + step];
+        const targetRect = targetStatus ? args.context.droppableRects.get(targetStatus) : null;
+        const collisionRect = args.context.collisionRect;
+        if (targetRect && collisionRect) {
+          return {
+            x: targetRect.left + Math.max(0, (targetRect.width - collisionRect.width) / 2),
+            y: targetRect.top + Math.max(0, (targetRect.height - collisionRect.height) / 2),
+          };
+        }
+      }
+      return sortableKeyboardCoordinates(event, args);
+    };
+  }, [allRows, items]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: keyboardCoordinates }),
   );
-  const allRows = [...base, ...extra];
 
   const rows = showAllRows
     ? allRows
@@ -134,17 +169,24 @@ export function KanbanView({ items, canReorder }: { items: ApplicationListItem[]
 
   function handleDragOver(e: DragOverEvent) {
     const { active, over } = e;
-    if (!over || !canReorder) return;
+    if (!over || !canReorder) {
+      setOverStatus(null);
+      return;
+    }
     const activeId = String(active.id);
     const overId = String(over.id);
     const activeItem = items.find((i) => i.id === activeId);
-    if (!activeItem || activeId === overId) return;
+    if (!activeItem) {
+      setOverStatus(null);
+      return;
+    }
 
     const overIsRow = (allRows as string[]).includes(overId);
     const overItem = items.find((i) => i.id === overId);
 
     // 记录悬停目标行（用于行高亮与松手判定）
     setOverStatus(overIsRow ? (overId as Status) : (overItem?.status ?? null));
+    if (activeId === overId) return;
 
     // 同状态行内：实时重排缓存 → 兄弟卡片带过渡滑动
     if (!overIsRow && overItem && overItem.status === activeItem.status) {
@@ -158,6 +200,7 @@ export function KanbanView({ items, canReorder }: { items: ApplicationListItem[]
 
   function handleDragStart(e: DragStartEvent) {
     setDragActive(true);
+    setOverStatus(null);
     setActiveItem(items.find((i) => i.id === e.active.id) ?? null);
   }
 
@@ -242,16 +285,21 @@ export function KanbanView({ items, canReorder }: { items: ApplicationListItem[]
         }}
       >
         <div className="space-y-2.5">
-          {visible.map((row) => (
-            <SwimLane
-              key={row}
-              status={row}
-              colItems={byStatus.get(row) ?? []}
-              canReorder={canReorder}
-              highlighted={!!activeItem && overStatus === row && activeItem.status !== row}
-              onOpen={(id) => navigate(`/applications/${id}`)}
-            />
-          ))}
+          {visible.map((row) => {
+            const isCrossRowTarget = !!activeItem && overStatus === row && activeItem.status !== row;
+            const acceptsDrop = row === "INTERVIEWING" || columnToEventType(row) !== null;
+            return (
+              <SwimLane
+                key={row}
+                status={row}
+                colItems={byStatus.get(row) ?? []}
+                canReorder={canReorder}
+                highlighted={isCrossRowTarget && acceptsDrop}
+                blocked={isCrossRowTarget && !acceptsDrop}
+                onOpen={(id) => navigate(`/applications/${id}`)}
+              />
+            );
+          })}
         </div>
         <DragOverlay dropAnimation={null}>{activeItem && <Card item={activeItem} dragging />}</DragOverlay>
       </DndContext>
@@ -281,12 +329,14 @@ function SwimLane({
   colItems,
   canReorder,
   highlighted,
+  blocked,
   onOpen,
 }: {
   status: Status;
   colItems: ApplicationListItem[];
   canReorder: boolean;
   highlighted: boolean;
+  blocked: boolean;
   onOpen: (id: string) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
@@ -296,18 +346,28 @@ function SwimLane({
     <div
       ref={setNodeRef}
       className={cn(
-        "rounded-xl border px-3 py-2.5 transition-colors",
-        highlighted || isOver
-          ? "border-indigo-300 bg-indigo-50/70 dark:border-indigo-500/70 dark:bg-indigo-900/20"
+        "rounded-xl border px-3 py-2.5 transition-[background,border-color,box-shadow] duration-150",
+        highlighted
+          ? "border-blue-400 bg-blue-50/90 shadow-[0_0_0_3px_rgba(10,118,232,0.13)] dark:border-blue-400/80 dark:bg-blue-900/25"
+          : blocked
+            ? "border-slate-400 bg-slate-100/90 shadow-[0_0_0_3px_rgba(100,100,105,0.1)] dark:border-slate-500 dark:bg-slate-800/80"
+            : isOver
+              ? "border-blue-300 bg-blue-50/45 dark:border-blue-500/60 dark:bg-blue-900/15"
           : "border-slate-200/70 bg-slate-50/60 dark:border-slate-800/70 dark:bg-slate-900/40",
-        isTerminal && !highlighted && !isOver && "bg-slate-50/40 dark:bg-slate-950/30",
+        isTerminal && !highlighted && !blocked && !isOver && "bg-slate-50/40 dark:bg-slate-950/30",
       )}
     >
       <div className="mb-2 flex items-center gap-2">
         <span
           className={cn(
             "text-sm font-semibold",
-            isTerminal ? "text-slate-400 dark:text-slate-500" : "text-slate-500 dark:text-slate-400",
+            highlighted
+              ? "text-blue-700 dark:text-blue-300"
+              : blocked
+                ? "text-slate-600 dark:text-slate-300"
+                : isTerminal
+                  ? "text-slate-400 dark:text-slate-500"
+                  : "text-slate-500 dark:text-slate-400",
           )}
         >
           {STATUS_LABELS[status]}
@@ -315,14 +375,28 @@ function SwimLane({
         <span className="text-[13px] tabular-nums text-slate-400 dark:text-slate-500">
           {colItems.length}
         </span>
-        <div className="h-px flex-1 bg-slate-200/70 dark:bg-slate-800/70" />
+        <div className={cn(
+          "h-px flex-1",
+          highlighted ? "bg-blue-300/80 dark:bg-blue-500/50" : "bg-slate-200/70 dark:bg-slate-800/70",
+        )} />
+        {(highlighted || blocked) && (
+          <span
+            className={cn(
+              "flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-semibold",
+              highlighted
+                ? "bg-blue-500 text-white"
+                : "bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-200",
+            )}
+          >
+            <span className={cn("size-1.5 rounded-full", highlighted ? "bg-white animate-pulse" : "bg-slate-400")} />
+            {highlighted ? "松开以变更状态" : "该状态不能拖入"}
+          </span>
+        )}
       </div>
       <SortableContext items={colItems.map((i) => i.id)} strategy={horizontalListSortingStrategy}>
         <div className="flex flex-wrap gap-2">
           {colItems.length === 0 && (
-            <div className="rounded-lg border border-dashed border-slate-200 px-6 py-2.5 text-xs text-slate-300 dark:border-slate-700/60 dark:text-slate-600">
-              拖到这里
-            </div>
+            <div className="min-h-[68px] w-full" aria-hidden="true" />
           )}
           {colItems.map((item) => (
             <SortableCard key={item.id} item={item} canReorder={canReorder} onOpen={onOpen} />
@@ -345,6 +419,7 @@ function SortableCard({
   const { attributes, listeners, setNodeRef, transition, isDragging } = useSortable({
     id: item.id,
     disabled: !canReorder,
+    data: { status: item.status },
   });
   // 被拖卡片由 DragOverlay 渲染；占位本体只保留过渡动画（兄弟卡片滑动让位）
   return (
@@ -355,7 +430,7 @@ function SortableCard({
       {...listeners}
       className={cn("touch-none", isDragging && "opacity-30")}
     >
-      <Card item={item} onOpen={canReorder ? onOpen : undefined} />
+      <Card item={item} onOpen={onOpen} />
     </div>
   );
 }

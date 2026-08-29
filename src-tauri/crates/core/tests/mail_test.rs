@@ -48,19 +48,32 @@ async fn eml_import_review_and_event() {
     .unwrap();
 
     // 导入（account_id 用固定占位——.eml 手动导入场景）
-    let log_id = s.import_eml("manual", eml_path.to_str().unwrap()).await.unwrap();
+    let log_id = s
+        .import_eml("manual", eml_path.to_str().unwrap())
+        .await
+        .unwrap();
     assert!(log_id.is_some(), "应产出待审核记录");
 
     // 去重：再导入同一封 → None
-    let dup = s.import_eml("manual", eml_path.to_str().unwrap()).await.unwrap();
+    let dup = s
+        .import_eml("manual", eml_path.to_str().unwrap())
+        .await
+        .unwrap();
     assert!(dup.is_none());
 
     // 待审核列表：建议 = 测评邀请 + 公司命中
     let pending = s.list_mail_logs(Some("PENDING")).await.unwrap();
     assert_eq!(pending.len(), 1);
     let log = &pending[0];
-    assert_eq!(log.suggested_event_type.as_deref(), Some("ASSESSMENT_INVITED"));
-    assert!(log.subject.contains("Talent"),"主题应解码: {}", log.subject);
+    assert_eq!(
+        log.suggested_event_type.as_deref(),
+        Some("ASSESSMENT_INVITED")
+    );
+    assert!(
+        log.subject.contains("Talent"),
+        "主题应解码: {}",
+        log.subject
+    );
     assert_eq!(log.suggested_deadline.as_deref(), Some("2026-09-05"));
     assert!(log.match_reason.as_deref().unwrap_or("").contains("公司库"));
 
@@ -69,7 +82,9 @@ async fn eml_import_review_and_event() {
     assert_eq!(candidates.len(), 1);
 
     // 确认导入 → 事件写入 + 状态流转
-    s.decide_mail(log.id.as_str(), "import", &app.id).await.unwrap();
+    s.decide_mail(log.id.as_str(), "import", &app.id)
+        .await
+        .unwrap();
     let after = s.get_application(&app.id).await.unwrap();
     assert_eq!(after.status, fyj_core::models::Status::Assessment);
     let logs = s.list_mail_logs(Some("IMPORTED")).await.unwrap();
@@ -96,12 +111,20 @@ async fn eml_import_review_and_event() {
          全场五折\r\n",
     )
     .unwrap();
-    let noise = s.import_eml("manual", eml2.to_str().unwrap()).await.unwrap();
+    let noise = s
+        .import_eml("manual", eml2.to_str().unwrap())
+        .await
+        .unwrap();
     // 无规则命中仍入库（PENDING 但无建议）→ 忽略
     let pending2 = s.list_mail_logs(Some("PENDING")).await.unwrap();
-    let noise_log = pending2.iter().find(|l| l.subject == "shuangshiyi").unwrap();
+    let noise_log = pending2
+        .iter()
+        .find(|l| l.subject == "shuangshiyi")
+        .unwrap();
     assert!(noise_log.suggested_event_type.is_none());
-    s.decide_mail(noise_log.id.as_str(), "ignore", "").await.unwrap();
+    s.decide_mail(noise_log.id.as_str(), "ignore", "")
+        .await
+        .unwrap();
     let ignored = s.list_mail_logs(Some("IGNORED")).await.unwrap();
     assert_eq!(ignored.len(), 1);
     assert!(noise.is_some());

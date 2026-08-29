@@ -24,21 +24,35 @@ pub fn parse_ts(s: &str) -> Option<DateTime<Utc>> {
 
 /// 解析 YYYY-MM-DD（本地日终语义：当天 00:00 本地 → UTC）
 pub fn parse_date(s: &str) -> Option<DateTime<Utc>> {
-    use chrono::TimeZone;
-    chrono::Local
-        .datetime_from_str(&format!("{s} 00:00:00"), "%Y-%m-%d %H:%M:%S")
-        .ok()
+    chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d")
+        .ok()?
+        .and_hms_opt(0, 0, 0)?
+        .and_local_timezone(chrono::Local)
+        .single()
         .map(|d| d.with_timezone(&Utc))
 }
 
 // ---------- 开放枚举校验（内置键 + custom:% 前缀） ----------
 
 pub const CHANNEL_KEYS: &[&str] = &[
-    "COMPANY_SITE", "BOSS", "NOWCODER", "SHIXISENG", "LIEPIN", "REFERRAL", "EMAIL", "JOBFAIR",
+    "COMPANY_SITE",
+    "BOSS",
+    "NOWCODER",
+    "SHIXISENG",
+    "LIEPIN",
+    "REFERRAL",
+    "EMAIL",
+    "JOBFAIR",
     "OTHER",
 ];
 pub const BATCH_KEYS: &[&str] = &[
-    "EARLY", "FORMAL", "SPRING", "SUPPLEMENT", "DAILY_INTERN", "VACATION_INTERN", "OTHER",
+    "EARLY",
+    "FORMAL",
+    "SPRING",
+    "SUPPLEMENT",
+    "DAILY_INTERN",
+    "VACATION_INTERN",
+    "OTHER",
 ];
 pub const PRIORITY_KEYS: &[&str] = &["HIGH", "MEDIUM", "LOW"];
 
@@ -216,9 +230,7 @@ impl Application {
         Application {
             id: row.try_get("id").unwrap_or_default(),
             company_id: row.try_get("company_id").unwrap_or_default(),
-            company_name: row
-                .try_get::<String, _>("company_name")
-                .unwrap_or_default(),
+            company_name: row.try_get::<String, _>("company_name").unwrap_or_default(),
             position_title: row.try_get("position_title").unwrap_or_default(),
             department: row.try_get("department").ok().flatten(),
             work_location: row.try_get("work_location").ok().flatten(),

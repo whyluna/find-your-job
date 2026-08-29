@@ -2,11 +2,12 @@
 use fyj_core::services::*;
 
 #[tokio::test]
+#[ignore = "需要显式设置 FYJ_DB；不得在常规测试中访问真实用户数据"]
 async fn probe_real_db() {
-    let path = std::env::var("FYJ_DB").unwrap_or_else(|_| {
-        format!("{}/Library/Application Support/com.findyourjob/findyourjob.db", std::env::var("HOME").unwrap())
-    });
-    let pool = fyj_core::db::init_pool(std::path::Path::new(&path)).await.unwrap();
+    let path = std::env::var("FYJ_DB").expect("运行真实数据库探针前必须显式设置 FYJ_DB");
+    let pool = fyj_core::db::init_pool(std::path::Path::new(&path))
+        .await
+        .unwrap();
     let s = Services::new(pool);
     match s.list_applications(&Default::default()).await {
         Ok(list) => println!("list OK, count = {}", list.len()),

@@ -76,7 +76,7 @@ export default function ApplicationDetailPage() {
   if (isLoading) return <div className="p-8 text-slate-400">加载中…</div>;
   if (isError)
     return (
-      <div className="px-6 pb-10 pt-0">
+      <div className="px-6 pb-10 pt-3">
         <div className="text-red-500">加载失败：{String(error)}</div>
         <Link to="/applications" className="mt-2 inline-block text-sm text-indigo-500">
           返回列表
@@ -99,7 +99,7 @@ export default function ApplicationDetailPage() {
   ].sort((a, b) => (a.at < b.at ? 1 : -1));
 
   return (
-    <div className="px-6 pb-10 pt-0">
+    <div className="px-6 pb-10 pt-3">
       <Link
         to="/applications"
         className="inline-flex items-center gap-1 text-[13px] text-slate-400 hover:text-slate-600"
@@ -210,7 +210,12 @@ export default function ApplicationDetailPage() {
         <div className="mt-5">
           <div className="relative space-y-3">
             <div className="absolute bottom-3 left-[4px] top-3 w-px bg-slate-200/90 dark:bg-slate-700/60" />
-            <AddEventForm applicationId={app.id} nextRound={nextRound} hasScheduled={hasScheduled} />
+            <div className="flex gap-3">
+              <div className="relative z-10 mt-[11px] size-[9px] shrink-0 rounded-full border-2 border-[var(--fyj-accent)] bg-[var(--fyj-canvas)]" />
+              <div className="min-w-0 flex-1">
+                <AddEventForm applicationId={app.id} nextRound={nextRound} hasScheduled={hasScheduled} />
+              </div>
+            </div>
             {timeline.length === 0 && (
               <div className="rounded-xl border border-dashed border-slate-300 py-8 text-center text-sm text-slate-400 dark:border-slate-700">
                 还没有记录，用上方表单记录第一笔

@@ -24,7 +24,7 @@ export function parseCsv(text: string): string[][] {
       } else cell += c;
     } else if (c === '"') {
       inQuotes = true;
-    } else if (c === "," || c === "，") {
+    } else if (c === ",") {
       row.push(cell.trim());
       cell = "";
     } else if (c === "\n" || c === "\r") {

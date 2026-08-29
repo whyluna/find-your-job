@@ -4,20 +4,23 @@
 use tauri::Manager;
 
 use fyj_core::backup;
-use fyj_http::{self, HttpState};
-use fyj_core::entities::{Application, ApplicationListItem, Attachment, Company, CustomEventType, DictionaryItem, Interview, InterviewQuestion, ResumeVersion};
+use fyj_core::entities::{
+    Application, ApplicationListItem, Attachment, Company, CustomEventType, DictionaryItem,
+    Interview, InterviewQuestion, ResumeVersion,
+};
+use fyj_core::entities::{ApplicationDetail, ApplicationEvent};
 use fyj_core::services::{
     AddEventInput, AddInterviewInput, AddQuestionInput, CreateApplicationInput, ListFilter,
     Services, UpdateApplicationInput, UpdateEventInput, UpdateInterviewInput, UpdateQuestionInput,
 };
-use fyj_core::entities::{ApplicationDetail, ApplicationEvent};
+use fyj_http::{self, HttpState};
 
 pub struct AppState(pub Services);
 
 /// 本地 HTTP API 的运行句柄（P1：浏览器扩展剪藏入口）
 pub struct LocalApiHandle {
     pub task: tauri::async_runtime::JoinHandle<()>,
-    pub running: std::sync::atomic::AtomicBool,
+    pub running: std::sync::Arc<std::sync::atomic::AtomicBool>,
 }
 
 #[derive(serde::Serialize)]
@@ -44,40 +47,42 @@ async fn read_or_create_token(svc: &Services) -> Result<String, String> {
     Ok(token)
 }
 
-fn spawn_local_api(app: &tauri::AppHandle) -> Result<(), String> {
+async fn spawn_local_api(app: &tauri::AppHandle) -> Result<(), String> {
     let handle_slot: tauri::State<std::sync::Mutex<Option<LocalApiHandle>>> = app.state();
-    let mut slot = handle_slot.lock().unwrap();
-    if let Some(h) = slot.as_ref() {
+    if let Some(h) = handle_slot.lock().unwrap().as_ref() {
         if h.running.load(std::sync::atomic::Ordering::SeqCst) {
             return Ok(()); // 已在运行
         }
     }
-    let app2 = app.clone();
+    let svc = app.state::<AppState>().0.clone();
+    let token = read_or_create_token(&svc).await?;
+    let addr = std::net::SocketAddr::from(([127, 0, 0, 1], LOCAL_API_PORT));
+    let listener = tokio::net::TcpListener::bind(addr)
+        .await
+        .map_err(|e| format!("本地 API 端口 {LOCAL_API_PORT} 绑定失败: {e}"))?;
+    let http_state = std::sync::Arc::new(HttpState {
+        services: svc,
+        token,
+    });
+    let running = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+    let running_in_task = running.clone();
     let task = tauri::async_runtime::spawn(async move {
-        let svc = &app2.state::<AppState>().0;
-        let Ok(token) = read_or_create_token(svc).await else {
-            eprintln!("本地 API：读取 token 失败");
-            return;
-        };
-        let http_state = std::sync::Arc::new(HttpState {
-            services: svc.clone(),
-            token,
-        });
-        fyj_http::serve(LOCAL_API_PORT, http_state);
+        if let Err(e) = fyj_http::serve_with_listener(listener, http_state).await {
+            eprintln!("本地 API 退出: {e}");
+        }
+        running_in_task.store(false, std::sync::atomic::Ordering::SeqCst);
     });
-    *slot = Some(LocalApiHandle {
-        task,
-        running: std::sync::atomic::AtomicBool::new(true),
-    });
+    *handle_slot.lock().unwrap() = Some(LocalApiHandle { task, running });
     Ok(())
 }
 
-fn stop_local_api(app: &tauri::AppHandle) {
+async fn stop_local_api(app: &tauri::AppHandle) {
     let handle_slot: tauri::State<std::sync::Mutex<Option<LocalApiHandle>>> = app.state();
-    let mut slot = handle_slot.lock().unwrap();
-    if let Some(h) = slot.take() {
+    let handle = handle_slot.lock().unwrap().take();
+    if let Some(h) = handle {
         h.running.store(false, std::sync::atomic::Ordering::SeqCst);
         h.task.abort();
+        let _ = h.task.await;
     }
 }
 
@@ -109,31 +114,51 @@ async fn local_api_status(app: tauri::AppHandle) -> CmdResult<LocalApiStatus> {
 
 #[tauri::command]
 async fn local_api_set_enabled(app: tauri::AppHandle, enabled: bool) -> CmdResult<()> {
-    {
-        let svc = &app.state::<AppState>().0;
-        svc.set_setting("local_api_enabled", if enabled { "true" } else { "false" })
-            .await
-            .map_err(e2s)?;
-    }
     if enabled {
-        spawn_local_api(&app)?;
+        spawn_local_api(&app).await?;
     } else {
-        stop_local_api(&app);
+        stop_local_api(&app).await;
     }
+    let svc = &app.state::<AppState>().0;
+    svc.set_setting("local_api_enabled", if enabled { "true" } else { "false" })
+        .await
+        .map_err(e2s)?;
     Ok(())
 }
 
 #[tauri::command]
 async fn local_api_reset_token(app: tauri::AppHandle) -> CmdResult<()> {
-    {
-        let svc = &app.state::<AppState>().0;
-        let token = uuid::Uuid::new_v4().to_string();
-        svc.set_setting("local_api_token", &format!("\"{token}\""))
-            .await
-            .map_err(e2s)?;
+    let svc = app.state::<AppState>().0.clone();
+    let enabled = svc
+        .get_setting("local_api_enabled")
+        .await
+        .map_err(e2s)?
+        .as_deref()
+        == Some("true");
+    let old_token = read_or_create_token(&svc).await?;
+    if enabled {
+        stop_local_api(&app).await;
     }
-    stop_local_api(&app);
-    spawn_local_api(&app)?;
+
+    let token = uuid::Uuid::new_v4().to_string();
+    if let Err(e) = svc
+        .set_setting("local_api_token", &format!("\"{token}\""))
+        .await
+    {
+        if enabled {
+            let _ = spawn_local_api(&app).await;
+        }
+        return Err(e2s(e));
+    }
+    if enabled {
+        if let Err(e) = spawn_local_api(&app).await {
+            let _ = svc
+                .set_setting("local_api_token", &format!("\"{old_token}\""))
+                .await;
+            let _ = spawn_local_api(&app).await;
+            return Err(e);
+        }
+    }
     Ok(())
 }
 
@@ -163,21 +188,18 @@ async fn db_ready(
     let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     let db_path = dir.join("findyourjob.db").display().to_string();
     let pool = &state.0.pool;
-    let companies: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM company")
-            .fetch_one(pool)
-            .await
-            .map_err(|e| e.to_string())?;
-    let applications: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM application")
-            .fetch_one(pool)
-            .await
-            .map_err(|e| e.to_string())?;
-    let events: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM application_event")
-            .fetch_one(pool)
-            .await
-            .map_err(|e| e.to_string())?;
+    let companies: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM company")
+        .fetch_one(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    let applications: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM application")
+        .fetch_one(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    let events: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM application_event")
+        .fetch_one(pool)
+        .await
+        .map_err(|e| e.to_string())?;
     Ok(DbReadyInfo {
         ok: true,
         db_path,
@@ -274,7 +296,11 @@ async fn reorder_applications(
     state: tauri::State<'_, AppState>,
     ordered_ids: Vec<String>,
 ) -> CmdResult<()> {
-    state.0.reorder_applications(&ordered_ids).await.map_err(e2s)
+    state
+        .0
+        .reorder_applications(&ordered_ids)
+        .await
+        .map_err(e2s)
 }
 
 #[tauri::command]
@@ -304,10 +330,13 @@ async fn update_application(
 
 #[tauri::command]
 async fn delete_application(
+    app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
     id: String,
 ) -> CmdResult<()> {
-    state.0.delete_application(&id).await.map_err(e2s)
+    let paths = state.0.delete_application(&id).await.map_err(e2s)?;
+    remove_managed_files(&app, &paths).await;
+    Ok(())
 }
 
 #[tauri::command]
@@ -363,8 +392,14 @@ async fn update_interview(
 }
 
 #[tauri::command]
-async fn delete_interview(state: tauri::State<'_, AppState>, id: String) -> CmdResult<()> {
-    state.0.delete_interview(&id).await.map_err(e2s)
+async fn delete_interview(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    id: String,
+) -> CmdResult<()> {
+    let paths = state.0.delete_interview(&id).await.map_err(e2s)?;
+    remove_managed_files(&app, &paths).await;
+    Ok(())
 }
 
 // ---------- 面试题 ----------
@@ -436,14 +471,16 @@ async fn upload_resume(
         .map(|e| format!(".{e}"))
         .unwrap_or_default();
     let stored = dir.join(format!("{}{ext}", uuid::Uuid::new_v4()));
-    let size = tokio::fs::copy(src, &stored).await.map_err(|e| e.to_string())?;
+    let size = tokio::fs::copy(src, &stored)
+        .await
+        .map_err(|e| e.to_string())?;
 
     let file_name = src
         .file_name()
         .and_then(|n| n.to_str())
         .unwrap_or("resume")
         .to_string();
-    state
+    let inserted = state
         .0
         .insert_resume(
             &name,
@@ -453,8 +490,11 @@ async fn upload_resume(
             Some(size as i64),
             notes.as_deref(),
         )
-        .await
-        .map_err(e2s)
+        .await;
+    if inserted.is_err() {
+        let _ = tokio::fs::remove_file(&stored).await;
+    }
+    inserted.map_err(e2s)
 }
 
 #[tauri::command]
@@ -464,13 +504,14 @@ async fn set_default_resume(state: tauri::State<'_, AppState>, id: String) -> Cm
 
 /// 删除简历版本，同时清理应用目录内的文件（投递引用由 FK 置空）
 #[tauri::command]
-async fn delete_resume_file(state: tauri::State<'_, AppState>, id: String) -> CmdResult<()> {
+async fn delete_resume_file(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    id: String,
+) -> CmdResult<()> {
     let resume = state.0.get_resume(&id).await.map_err(e2s)?;
     state.0.delete_resume(&id).await.map_err(e2s)?;
-    let path = std::path::Path::new(&resume.file_path);
-    if path.starts_with("/") {
-        let _ = tokio::fs::remove_file(path).await;
-    }
+    remove_managed_files(&app, &[resume.file_path]).await;
     Ok(())
 }
 
@@ -494,18 +535,37 @@ async fn list_custom_event_types(
 // ---------- 备份 ----------
 
 #[tauri::command]
-async fn export_json(app: tauri::AppHandle, state: tauri::State<'_, AppState>, path: String) -> CmdResult<u64> {
-    let _ = &app;
+async fn export_json(state: tauri::State<'_, AppState>, path: String) -> CmdResult<u64> {
     backup::export_to_json(&state.0.pool, std::path::Path::new(&path))
         .await
         .map_err(e2s)
 }
 
 #[tauri::command]
-async fn import_json(state: tauri::State<'_, AppState>, path: String) -> CmdResult<backup::ImportSummary> {
-    backup::import_from_json(&state.0.pool, std::path::Path::new(&path))
+async fn import_json(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    path: String,
+) -> CmdResult<backup::ImportSummary> {
+    let data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let summary = backup::import_from_json(&state.0.pool, std::path::Path::new(&path), &data_dir)
         .await
-        .map_err(e2s)
+        .map_err(e2s)?;
+    // 备份会覆盖扩展 API 开关与 token，必须让运行态和恢复后设置重新对齐。
+    stop_local_api(&app).await;
+    let enabled = state
+        .0
+        .get_setting("local_api_enabled")
+        .await
+        .map_err(e2s)?
+        .as_deref()
+        == Some("true");
+    if enabled {
+        if let Err(e) = spawn_local_api(&app).await {
+            eprintln!("备份已恢复，但本地 API 重启失败: {e}");
+        }
+    }
+    Ok(summary)
 }
 
 /// 在 Finder 中打开应用数据目录
@@ -519,6 +579,25 @@ async fn reveal_data_dir(app: tauri::AppHandle) -> CmdResult<()> {
 
 fn opener_reveal(path: &str) -> CmdResult<()> {
     tauri_plugin_opener::open_path(path, None::<&str>).map_err(|e| e.to_string())
+}
+
+/// 仅删除当前应用 uploads 目录内的真实文件。
+/// 恢复文件中的绝对路径不能借删除操作越界到用户其他目录。
+async fn remove_managed_files(app: &tauri::AppHandle, paths: &[String]) {
+    let Ok(data_dir) = app.path().app_data_dir() else {
+        return;
+    };
+    let Ok(root) = tokio::fs::canonicalize(data_dir.join("uploads")).await else {
+        return;
+    };
+    for path in paths {
+        let Ok(canonical) = tokio::fs::canonicalize(path).await else {
+            continue;
+        };
+        if canonical.starts_with(&root) {
+            let _ = tokio::fs::remove_file(canonical).await;
+        }
+    }
 }
 
 // ---------- 附件 ----------
@@ -541,12 +620,24 @@ async fn upload_attachment(
         .map_err(|e| e.to_string())?
         .join("uploads")
         .join("attachments");
-    tokio::fs::create_dir_all(&dir).await.map_err(|e| e.to_string())?;
+    tokio::fs::create_dir_all(&dir)
+        .await
+        .map_err(|e| e.to_string())?;
 
-    let file_name = src.file_name().and_then(|n| n.to_str()).unwrap_or("file").to_string();
-    let ext = src.extension().and_then(|e| e.to_str()).map(|e| format!(".{e}")).unwrap_or_default();
+    let file_name = src
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("file")
+        .to_string();
+    let ext = src
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| format!(".{e}"))
+        .unwrap_or_default();
     let stored = dir.join(format!("{}{ext}", uuid::Uuid::new_v4()));
-    let size = tokio::fs::copy(src, &stored).await.map_err(|e| e.to_string())?;
+    let size = tokio::fs::copy(src, &stored)
+        .await
+        .map_err(|e| e.to_string())?;
     let mime = match ext.as_str() {
         ".pdf" => Some("application/pdf"),
         ".png" => Some("image/png"),
@@ -557,19 +648,31 @@ async fn upload_attachment(
         ".docx" => Some("application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
         _ => None,
     };
-    state
+    let inserted = state
         .0
-        .insert_attachment(&parent_type, &parent_id, &file_name, &stored.display().to_string(), mime, Some(size as i64))
-        .await
-        .map_err(e2s)
+        .insert_attachment(
+            &parent_type,
+            &parent_id,
+            &file_name,
+            &stored.display().to_string(),
+            mime,
+            Some(size as i64),
+        )
+        .await;
+    if inserted.is_err() {
+        let _ = tokio::fs::remove_file(&stored).await;
+    }
+    inserted.map_err(e2s)
 }
 
 #[tauri::command]
-async fn delete_attachment(state: tauri::State<'_, AppState>, id: String) -> CmdResult<()> {
+async fn delete_attachment(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    id: String,
+) -> CmdResult<()> {
     let path = state.0.delete_attachment(&id).await.map_err(e2s)?;
-    if !path.is_empty() && path.starts_with('/') {
-        let _ = tokio::fs::remove_file(&path).await;
-    }
+    remove_managed_files(&app, &[path]).await;
     Ok(())
 }
 
@@ -668,9 +771,7 @@ async fn read_text_file(path: String) -> CmdResult<String> {
 }
 
 #[tauri::command]
-async fn get_stats(
-    state: tauri::State<'_, AppState>,
-) -> CmdResult<fyj_core::services::StatsDto> {
+async fn get_stats(state: tauri::State<'_, AppState>) -> CmdResult<fyj_core::services::StatsDto> {
     state.0.get_stats().await.map_err(e2s)
 }
 
@@ -688,10 +789,16 @@ async fn get_upcoming(
 }
 
 #[tauri::command]
-async fn get_setting(
+async fn get_calendar_items(
     state: tauri::State<'_, AppState>,
-    key: String,
-) -> CmdResult<Option<String>> {
+    start: chrono::DateTime<chrono::Utc>,
+    end: chrono::DateTime<chrono::Utc>,
+) -> CmdResult<Vec<fyj_core::services::UpcomingItem>> {
+    state.0.get_calendar_items(start, end).await.map_err(e2s)
+}
+
+#[tauri::command]
+async fn get_setting(state: tauri::State<'_, AppState>, key: String) -> CmdResult<Option<String>> {
     state.0.get_setting(&key).await.map_err(e2s)
 }
 
@@ -726,7 +833,7 @@ pub fn run() {
                     .map(|v| v == "true")
                     .unwrap_or(false);
                 if enabled {
-                    let _ = spawn_local_api(app.handle());
+                    let _ = tauri::async_runtime::block_on(spawn_local_api(app.handle()));
                 }
             }
             Ok(())
@@ -769,6 +876,7 @@ pub fn run() {
             read_text_file,
             get_stats,
             get_upcoming,
+            get_calendar_items,
             local_api_status,
             local_api_set_enabled,
             local_api_reset_token,

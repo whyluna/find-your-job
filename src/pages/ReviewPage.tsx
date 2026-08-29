@@ -97,7 +97,6 @@ export default function ReviewPage() {
     <div className="px-6 pb-10 pt-0">
       <PageHeader
         title="面经"
-        subtitle={`${data?.length ?? 0} 道面试题`}
         actions={
           <Button variant="primary" onClick={() => setAddOpen(true)}>
             <Plus className="size-4" /> 添加面经

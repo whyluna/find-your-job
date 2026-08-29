@@ -38,7 +38,9 @@ async fn migrations_create_all_tables_and_seed_dictionaries() {
 
     drop(pool);
     // 二次初始化幂等（不重复插入种子、不报错）
-    let pool2 = init_pool(&db_path).await.expect("re-init should be idempotent");
+    let pool2 = init_pool(&db_path)
+        .await
+        .expect("re-init should be idempotent");
     let dict2: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM dictionary")
         .fetch_one(&pool2)
         .await

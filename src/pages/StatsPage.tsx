@@ -18,6 +18,7 @@ import {
   STATUS_LABELS,
   type Status,
 } from "@shared";
+import { PageHeader } from "@/components/ui";
 
 interface CountRow {
   key: string;
@@ -35,7 +36,6 @@ interface StatsDto {
     status: Status;
     updatedAt: string;
   }[];
-  resumeFunnel: { resumeName: string; total: number; interviewed: number; offered: number }[];
 }
 
 /** 漏斗正向阶段顺序（前一阶段包含后一阶段到达数由状态计数近似：以当前状态计数展示层级分布） */
@@ -53,7 +53,7 @@ export default function StatsPage() {
   const navigate = useNavigate();
   const { data, isLoading } = useQuery({ queryKey: ["stats"], queryFn: () => api.getStats() });
 
-  if (isLoading || !data) return <div className="p-8 text-slate-400">加载中…</div>;
+  if (isLoading || !data) return <div className="px-6 pb-10 pt-0"><PageHeader title="统计" /><div className="py-12 text-center text-[13px] text-[var(--fyj-tertiary)]">加载中…</div></div>;
   const s = data as StatsDto;
 
   const statusMap = new Map(s.statusCounts.map((r) => [r.key, r.count]));
@@ -74,12 +74,12 @@ export default function StatsPage() {
 
   return (
     <div className="px-6 pb-10 pt-0">
-      <h1 className="text-[17px] font-semibold tracking-tight">统计</h1>
-      <p className="mt-0.5 text-[13px] text-slate-500">
-        共 {totalAll} 条在追踪（不含归档）· 漏斗按当前所处阶段计数
-      </p>
+      <PageHeader
+        title="统计"
+        subtitle={`共 ${totalAll} 条在追踪（不含归档）· 漏斗按当前所处阶段计数`}
+      />
 
-      <div className="mt-5 grid grid-cols-2 gap-4">
+      <div className="mx-auto mt-5 grid max-w-[1120px] grid-cols-2 gap-4">
         {/* 漏斗 */}
         <section className="rounded-xl border border-slate-200/80 p-5 dark:border-slate-800/80">
           <h2 className="text-sm font-semibold">阶段漏斗</h2>
@@ -93,7 +93,7 @@ export default function StatsPage() {
                   </span>
                   <div className="h-5 flex-1 overflow-hidden rounded bg-slate-100 dark:bg-slate-800">
                     <div
-                      className="h-full rounded bg-gradient-to-r from-indigo-400 to-cyan-400"
+                      className="h-full rounded bg-[var(--fyj-accent)]"
                       style={{ width: `${(n / funnelMax) * 100}%` }}
                     />
                   </div>
@@ -117,13 +117,13 @@ export default function StatsPage() {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={weeks} margin={{ top: 4, right: 4, bottom: 0, left: -24 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.2)" />
-                <XAxis dataKey="week" fontSize={10} tickLine={false} />
-                <YAxis fontSize={10} tickLine={false} allowDecimals={false} />
+                <XAxis dataKey="week" fontSize={12} tickLine={false} />
+                <YAxis fontSize={12} tickLine={false} allowDecimals={false} />
                 <Tooltip
-                  contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                  contentStyle={{ fontSize: 13, borderRadius: 8 }}
                   formatter={(v) => [`${v} 条`, "投递"]}
                 />
-                <Bar dataKey="count" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="count" fill="#0a76e8" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -149,7 +149,7 @@ export default function StatsPage() {
                     </span>
                     <div className="h-3.5 flex-1 overflow-hidden rounded bg-slate-100 dark:bg-slate-800">
                       <div
-                        className="h-full rounded bg-indigo-400/80"
+                        className="h-full rounded bg-[var(--fyj-accent)] opacity-80"
                         style={{ width: `${(r.count / max) * 100}%` }}
                       />
                     </div>
@@ -161,37 +161,10 @@ export default function StatsPage() {
           );
         })}
 
-        {/* 简历版本过筛率 */}
-        <section className="rounded-xl border border-slate-200/80 p-5 dark:border-slate-800/80">
-          <h2 className="text-sm font-semibold">简历版本表现</h2>
-          <table className="mt-3 w-full text-sm">
-            <thead>
-              <tr className="text-left text-[13px] text-slate-400">
-                <th className="pb-2 font-medium">版本</th>
-                <th className="pb-2 font-medium">投递</th>
-                <th className="pb-2 font-medium">到面试</th>
-                <th className="pb-2 font-medium">到 OC+</th>
-              </tr>
-            </thead>
-            <tbody>
-              {s.resumeFunnel.length === 0 && (
-                <tr><td colSpan={4} className="py-4 text-center text-[13px] text-slate-400">上传简历并关联投递后显示</td></tr>
-              )}
-              {s.resumeFunnel.map((r) => (
-                <tr key={r.resumeName} className="border-t border-slate-100 dark:border-slate-800/80">
-                  <td className="py-1.5 pr-2 font-medium">{r.resumeName}</td>
-                  <td className="py-1.5 tabular-nums">{r.total}</td>
-                  <td className="py-1.5 tabular-nums">{r.interviewed}</td>
-                  <td className="py-1.5 tabular-nums text-emerald-600 dark:text-emerald-400">{r.offered}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
       </div>
 
       {/* 沉默投递 */}
-      <section className="mt-4 max-w-3xl rounded-xl border border-slate-200/80 p-5 dark:border-slate-800/80">
+      <section className="mx-auto mt-4 max-w-[1120px] rounded-xl border border-slate-200/80 p-5 dark:border-slate-800/80">
         <h2 className="text-sm font-semibold">
           沉默投递 <span className="text-[13px] font-normal text-slate-400">超过 14 天无动静且未到终态</span>
         </h2>

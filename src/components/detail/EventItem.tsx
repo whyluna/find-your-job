@@ -171,7 +171,7 @@ export function EventItem({ event, applicationId }: { event: AppEvent; applicati
                 onClick={() => markWithError("FAIL")}
                 className="rounded px-1.5 py-0.5 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30"
               >
-                未过
+                未通过
               </button>
             </>
           )}

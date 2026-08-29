@@ -1173,6 +1173,7 @@ checksum = "d45db016d36b838f563236e9193d0ee6ce38f3f68b6c94e914b4929c96bbb890"
 name = "find-your-job"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "fyj-core",
  "fyj-http",
  "serde",
@@ -1378,6 +1379,7 @@ dependencies = [
 name = "fyj-core"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "chrono",
  "mailparse",
  "reqwest 0.12.28",

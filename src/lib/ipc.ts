@@ -192,4 +192,16 @@ export const api = {
         at: string;
       }[]
     >("get_upcoming", { deadlineDays, interviewDays }),
+
+  getCalendarItems: (start: string, end: string) =>
+    call<
+      {
+        kind: "applied" | "deadline" | "interview";
+        applicationId: string;
+        companyName: string;
+        positionTitle: string;
+        detail?: string | null;
+        at: string;
+      }[]
+    >("get_calendar_items", { start, end }),
 };

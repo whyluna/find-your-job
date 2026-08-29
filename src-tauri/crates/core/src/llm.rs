@@ -45,22 +45,12 @@ pub async fn config_from_settings(svc: &Services) -> Option<LlmConfig> {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
+#[derive(Default)]
 pub struct ExtractedJob {
     pub company_name: String,
     pub position_title: String,
     pub work_location: String,
     pub jd_text: String,
-}
-
-impl Default for ExtractedJob {
-    fn default() -> Self {
-        Self {
-            company_name: String::new(),
-            position_title: String::new(),
-            work_location: String::new(),
-            jd_text: String::new(),
-        }
-    }
 }
 
 pub fn system_prompt() -> &'static str {
@@ -84,8 +74,12 @@ pub fn build_user_prompt(title: &str, url: &str, content: &str) -> String {
 /// 宽容解析：剥掉 markdown 围栏与前后杂质，取第一个完整 JSON 对象
 pub fn parse_extraction(raw: &str) -> Result<ExtractedJob> {
     let s = raw.trim();
-    let start = s.find('{').ok_or_else(|| Error::Msg("LLM 输出中没有 JSON".into()))?;
-    let end = s.rfind('}').ok_or_else(|| Error::Msg("LLM 输出 JSON 不完整".into()))?;
+    let start = s
+        .find('{')
+        .ok_or_else(|| Error::Msg("LLM 输出中没有 JSON".into()))?;
+    let end = s
+        .rfind('}')
+        .ok_or_else(|| Error::Msg("LLM 输出 JSON 不完整".into()))?;
     if end < start {
         return Err(Error::Msg("LLM 输出 JSON 不完整".into()));
     }
@@ -156,7 +150,12 @@ async fn chat(cfg: &LlmConfig, user_content: &str, max_tokens: u32) -> Result<St
 }
 
 /// 抽取招聘信息（联网调用）
-pub async fn extract(cfg: &LlmConfig, title: &str, url: &str, content: &str) -> Result<ExtractedJob> {
+pub async fn extract(
+    cfg: &LlmConfig,
+    title: &str,
+    url: &str,
+    content: &str,
+) -> Result<ExtractedJob> {
     let raw = chat(cfg, &build_user_prompt(title, url, content), 4000).await?;
     let mut job = parse_extraction(&raw)?;
     job.company_name = job.company_name.trim().to_string();
@@ -212,7 +211,11 @@ mod tests {
     #[test]
     fn config_requires_key() {
         // 无 key 时 config_from_settings 应返回 None——由集成环境验证；这里验证 is_configured
-        let cfg = LlmConfig { base_url: "https://x/v1".into(), api_key: String::new(), model: "m".into() };
+        let cfg = LlmConfig {
+            base_url: "https://x/v1".into(),
+            api_key: String::new(),
+            model: "m".into(),
+        };
         assert!(!cfg.is_configured());
     }
 }

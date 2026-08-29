@@ -10,6 +10,7 @@ thiserror = "2"
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1", features = ["v4"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+base64 = "0.22"
 
 [package]
 name = "find-your-job"
@@ -36,6 +37,7 @@ serde_json = { workspace = true }
 sqlx = { workspace = true }
 tokio = { workspace = true }
 uuid = { workspace = true }
+chrono = { workspace = true }
 
 [profile.release]
 lto = true

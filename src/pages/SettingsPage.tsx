@@ -4,10 +4,9 @@ import { save, open } from "@tauri-apps/plugin-dialog";
 import { Database, Download, FolderOpen, Loader2, Puzzle, Upload } from "lucide-react";
 import { useState } from "react";
 import { api } from "@/lib/ipc";
-import { Button } from "@/components/ui";
+import { Button, PageHeader } from "@/components/ui";
 import { CsvImportWizard } from "@/components/CsvImportWizard";
 import { LlmSettingsCard } from "@/components/LlmSettingsCard";
-import { } from "lucide-react";
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();
@@ -23,11 +22,13 @@ export default function SettingsPage() {
   const toggleApi = useMutation({
     mutationFn: (enabled: boolean) => api.localApiSetEnabled(enabled),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["local-api"] }),
+    onError: (e) => setMsg({ kind: "err", text: String(e) }),
   });
 
   const resetToken = useMutation({
     mutationFn: () => api.localApiResetToken(),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["local-api"] }),
+    onError: (e) => setMsg({ kind: "err", text: String(e) }),
   });
 
   const doExport = async () => {
@@ -91,16 +92,16 @@ export default function SettingsPage() {
 
   return (
     <div className="px-6 pb-10 pt-0">
-      <h1 className="text-[17px] font-semibold tracking-tight">设置</h1>
+      <PageHeader title="设置" subtitle="数据、浏览器扩展与智能识别" />
 
       {/* 数据 */}
-      <section className="mt-6 max-w-2xl rounded-xl border border-slate-200/80 p-5 dark:border-slate-800/80">
+      <section className="mt-5 max-w-2xl rounded-xl border border-slate-200/80 p-5 dark:border-slate-800/80">
         <h2 className="flex items-center gap-2 text-sm font-semibold">
           <Database className="size-4" /> 数据
         </h2>
         <p className="mt-1.5 text-[13px] leading-relaxed text-slate-500">
-          所有数据仅存于本机（SQLite + 应用数据目录）。建议在重要节点手动导出 JSON 备份；
-          导入为覆盖式恢复。
+          所有数据仅存于本机（SQLite + 应用数据目录）。JSON 备份会一并打包简历、附件和邮件原文；
+          导入为覆盖式恢复，建议在重要节点手动导出。
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
           <Button onClick={doExport} disabled={busy}>
@@ -149,7 +150,7 @@ export default function SettingsPage() {
             <label className="flex cursor-pointer items-center gap-2.5 text-sm">
               <input
                 type="checkbox"
-                className="size-4 accent-indigo-600"
+                className="size-4 accent-[var(--fyj-accent)]"
                 checked={apiStatus.enabled}
                 disabled={toggleApi.isPending}
                 onChange={(e) => toggleApi.mutate(e.target.checked)}

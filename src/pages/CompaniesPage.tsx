@@ -1,11 +1,11 @@
-/** 公司库：投递时沉淀的公司 + 别名/官网/招聘官网维护（官网域名用于邮件解析匹配） */
+/** 公司库：投递时沉淀的公司 + 别名、官网与招聘官网维护 */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Building2, ExternalLink, Loader2, Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { api } from "@/lib/ipc";
 import type { Company } from "@shared";
-import { Button, Field, Modal, Select, TextInput } from "@/components/ui";
+import { Button, Field, Modal, PageHeader, Select, TextInput } from "@/components/ui";
 
 const NATURES = ["", "互联网", "国企/央企", "外企", "民企", "银行/金融", "事业单位", "研究所", "其他"];
 const INDUSTRIES = ["", "互联网/软件", "硬件/半导体", "金融", "制造", "通信", "新能源", "消费", "教育", "其他"];
@@ -31,12 +31,10 @@ export default function CompaniesPage() {
 
   return (
     <div className="px-6 pb-10 pt-0">
-      <div>
-        <h1 className="text-[17px] font-semibold tracking-tight">公司</h1>
-        <p className="mt-0.5 text-[13px] text-slate-500">
-          投递时填写过的公司会自动沉淀到这里；维护「招聘官网」和「别名」可提升邮件解析的公司匹配准确度
-        </p>
-      </div>
+      <PageHeader
+        title="公司"
+        subtitle="维护公司别名、官网与招聘信息"
+      />
 
       {error && (
         <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-[13px] text-red-600 dark:bg-red-900/20 dark:text-red-300">
@@ -75,8 +73,8 @@ export default function CompaniesPage() {
               >
                 <td className="px-4 py-2.5">
                   <div className="flex items-center gap-2.5">
-                    <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-slate-500 to-slate-700 text-white">
-                      <Building2 className="size-4" />
+                    <div className="flex size-8 shrink-0 items-center justify-center rounded-[8px] bg-black/[0.045] text-[var(--fyj-secondary)] dark:bg-white/[0.07]">
+                      <Building2 className="size-4" strokeWidth={1.8} />
                     </div>
                     <div className="min-w-0">
                       <div className="font-medium">{c.name}</div>
@@ -192,7 +190,7 @@ function EditCompanyDialog({
         <Field label="公司名 *">
           <TextInput value={name} onChange={(e) => setName(e.target.value)} />
         </Field>
-        <Field label="别名（逗号分隔，用于邮件匹配）">
+        <Field label="别名（逗号分隔）">
           <TextInput value={aliases} onChange={(e) => setAliases(e.target.value)} placeholder="如：鹅厂, Tencent" />
         </Field>
         <Field label="性质">
@@ -209,7 +207,7 @@ function EditCompanyDialog({
             ))}
           </Select>
         </Field>
-        <Field label="官网域名（邮件匹配用）">
+        <Field label="官网域名">
           <TextInput value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="如：meituan.com" />
         </Field>
         <Field label="招聘官网（秋招反复回访查进度）">

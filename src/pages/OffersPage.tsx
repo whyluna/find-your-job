@@ -6,7 +6,7 @@ import { useNavigate } from "react-router";
 import { api } from "@/lib/ipc";
 import { fmtDate } from "@/lib/format";
 import { type Status } from "@shared";
-import { Button, StatusBadge, TextInput } from "@/components/ui";
+import { Button, PageHeader, StatusBadge, TextInput } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
 const DIMENSIONS = [
@@ -83,20 +83,16 @@ export default function OffersPage() {
 
   return (
     <div className="px-6 pb-10 pt-0">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="flex items-center gap-2 text-[17px] font-semibold tracking-tight">
-            <Scale className="size-5" /> offer 对比
-          </h1>
-          <p className="mt-0.5 text-[13px] text-slate-500">
-            五维加权评分，分数 1–10；改完记得保存（数据存本地）
-          </p>
-        </div>
-        <Button variant="primary" disabled={!dirty || save.isPending} onClick={() => save.mutate()}>
-          {save.isPending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-          保存{savedAt && !dirty ? `（${savedAt}）` : ""}
-        </Button>
-      </div>
+      <PageHeader
+        title={<span className="flex items-center gap-2"><Scale className="size-4" />offer 对比</span>}
+        subtitle="五维加权评分，数据只保存在本机"
+        actions={
+          <Button variant="primary" disabled={!dirty || save.isPending} onClick={() => save.mutate()}>
+            {save.isPending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+            保存{savedAt && !dirty ? `（${savedAt}）` : ""}
+          </Button>
+        }
+      />
 
       {/* 权重 */}
       <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200/80 px-4 py-3 dark:border-slate-800/80">
