@@ -67,7 +67,7 @@ export function AddEventForm({
   onDone?: () => void;
 }) {
   const queryClient = useQueryClient();
-  const [type, setType] = useState<EventType | "INTERVIEW" | string>("HR_CONTACT");
+  const [type, setType] = useState<EventType | "INTERVIEW" | string>("");
   const [occurredAt, setOccurredAt] = useState<string>(new Date().toISOString());
   const [deadline, setDeadline] = useState<string | null>(null);
   const [result, setResult] = useState<EventResult>("UNKNOWN");
@@ -91,6 +91,7 @@ export function AddEventForm({
   const customDef: CustomEventType | undefined = customTypes?.find(
     (c: CustomEventType) => `custom:${c.id}` === type,
   );
+  const hasType = type !== "";
   const needsDeadline =
     type === "ASSESSMENT_INVITED" || type === "WRITTEN_INVITED" || !!customDef?.deadlineRequired;
   const needsResult = !!customDef?.resultRequired;
@@ -98,6 +99,11 @@ export function AddEventForm({
   useEffect(() => {
     if (isInterview) setRoundLabel(ROUND_LABEL_PRESETS[Math.min(nextRound - 1, ROUND_LABEL_PRESETS.length - 1)]);
   }, [isInterview, nextRound]);
+
+  // 每次展开重置为未选择（默认空白，显式选择类型后才出现其余字段）
+  useEffect(() => {
+    if (open) setType("");
+  }, [open]);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["applications"] });
@@ -165,6 +171,10 @@ export function AddEventForm({
 
   function submit() {
     setError("");
+    if (!hasType) {
+      setError("请先选择事件类型");
+      return;
+    }
     if (needsDeadline && !deadline) {
       setError("该事件需要填写截止时间");
       return;
@@ -188,9 +198,11 @@ export function AddEventForm({
             onChange={(e) => {
               const v = e.target.value;
               setType(v);
+              setError("");
               if (v === "INTERVIEW") setOccurredAt(new Date().toISOString());
             }}
           >
+            <option value="">选择事件类型…</option>
             {GROUPS.map((g) => (
               <optgroup key={g.name} label={g.name}>
                 {g.items.map((it) => (
@@ -327,7 +339,7 @@ export function AddEventForm({
         <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>
           收起
         </Button>
-        <Button size="sm" variant="primary" disabled={busy} onClick={submit}>
+        <Button size="sm" variant="primary" disabled={busy || !hasType} onClick={submit}>
           {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
           写入时间线
         </Button>
