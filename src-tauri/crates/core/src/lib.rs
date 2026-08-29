@@ -7,6 +7,7 @@ pub mod backup;
 pub mod db;
 pub mod entities;
 pub mod error;
+pub mod mail_rules;
 pub mod models;
 pub mod services;
 pub mod state_machine;

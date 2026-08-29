@@ -181,6 +181,7 @@ mod tests {
             deadline: Some(chrono::Utc::now() + chrono::Duration::days(3)),
             result: None,
             note: Some("牛客笔试".into()),
+            source: None,
         })
         .await
         .unwrap();

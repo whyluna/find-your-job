@@ -106,6 +106,9 @@ pub struct AddEventInput {
     pub deadline: Option<DateTime<Utc>>,
     pub result: Option<EventResult>,
     pub note: Option<String>,
+    /// MANUAL / EMAIL（扩展走 HTTP 时也会置 EXTENSION）
+    #[serde(default)]
+    pub source: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -181,6 +184,24 @@ pub struct UpcomingItem {
     pub position_title: String,
     pub detail: Option<String>,
     pub at: chrono::DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MailLogItem {
+    pub id: String,
+    pub message_id: String,
+    pub received_at: chrono::DateTime<Utc>,
+    pub from_address: String,
+    pub from_name: Option<String>,
+    pub subject: String,
+    pub snippet: Option<String>,
+    pub status: String,
+    pub suggested_event_type: Option<String>,
+    pub suggested_deadline: Option<String>,
+    pub matched_application_id: Option<String>,
+    pub company_name: Option<String>,
+    pub match_reason: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -737,6 +758,203 @@ impl Services {
             .collect())
     }
 
+    // ---------- 邮件解析（P2-c） ----------
+
+    /// 导入 .eml 文件：解析 → 规则分类 → 待审核队列
+    pub async fn import_eml(&self, account_id: &str, path: &str) -> Result<Option<String>> {
+        // 保证账户存在（手动导入用占位账户）
+        sqlx::query(
+            "INSERT OR IGNORE INTO email_account (id, host, username, created_at) VALUES (?, 'manual', 'manual', ?)",
+        )
+        .bind(account_id)
+        .bind(now_ts())
+        .execute(&self.pool)
+        .await?;
+        let raw = std::fs::read_to_string(path)?;
+        use mailparse::MailHeaderMap;
+        let parsed = mailparse::parse_mail(raw.as_bytes())
+            .map_err(|e| Error::Invalid(format!("eml 解析失败: {e}")))?;
+        let headers = parsed.get_headers();
+        let get = |name: &str| {
+            headers
+                .get_first_value(name)
+                .unwrap_or_default()
+        };
+        let message_id = get("message-id").trim().to_string();
+        let from_address = get("from").trim().to_string();
+        let from_name = get("from").split('<').next().map(|s| s.trim().trim_matches('"').to_string()).filter(|s| !s.is_empty());
+        let subject = get("subject");
+        let body_snippet: String = parsed
+            .get_body()
+            .map(|b| b.chars().take(400).collect())
+            .unwrap_or_default();
+        let received_raw = get("date");
+        let received_at = mailparse::dateparse(&received_raw)
+            .ok()
+            .and_then(|ts| chrono::DateTime::from_timestamp(ts, 0))
+            .unwrap_or_else(Utc::now);
+
+        // 去重
+        let exists: Option<String> =
+            sqlx::query_scalar("SELECT id FROM email_parse_log WHERE message_id = ?")
+                .bind(&message_id)
+                .fetch_optional(&self.pool)
+                .await?
+                .flatten();
+        if exists.is_some() {
+            return Ok(None);
+        }
+
+        // 公司库
+        let companies: Vec<(String, String, Vec<String>)> = sqlx::query_as::<_, (String, Option<String>, String)>(
+            "SELECT name, website, aliases FROM company",
+        )
+        .fetch_all(&self.pool)
+        .await?
+        .into_iter()
+        .map(|(name, website, aliases)| {
+            (name, website.unwrap_or_default(), crate::entities::parse_json_strings(&aliases))
+        })
+        .collect();
+
+        let mail = crate::mail_rules::MailInput {
+            message_id: message_id.clone(),
+            from_address: from_address.clone(),
+            from_name: from_name.clone(),
+            subject: subject.clone(),
+            body_snippet: body_snippet.clone(),
+            received_at,
+            raw_path: Some(path.to_string()),
+        };
+        let suggestion = crate::mail_rules::classify(&mail, &companies);
+
+        let id = new_id();
+        sqlx::query(
+            "INSERT INTO email_parse_log (id, email_account_id, message_id, received_at, from_address, \
+             from_name, subject, snippet, raw_path, status, suggested_event_type, suggested_deadline, match_reason) \
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?)",
+        )
+        .bind(&id)
+        .bind(account_id)
+        .bind(&message_id)
+        .bind(crate::entities::ts(&received_at))
+        .bind(&from_address)
+        .bind(&from_name)
+        .bind(&subject)
+        .bind(&body_snippet)
+        .bind(path)
+        .bind(suggestion.as_ref().map(|s| s.event_type.clone()))
+        .bind(suggestion.as_ref().and_then(|s| s.deadline_hint.clone()))
+        .bind(suggestion.as_ref().map(|s| s.reason.clone()))
+        .execute(&self.pool)
+        .await?;
+        Ok(Some(id))
+    }
+
+    pub async fn list_mail_logs(&self, status: Option<&str>) -> Result<Vec<MailLogItem>> {
+        let sql = match status {
+            Some(_s) => "SELECT l.*, c.name AS company_name FROM email_parse_log l                         LEFT JOIN application a ON a.id = l.matched_application_id                         LEFT JOIN company c ON c.id = a.company_id                         WHERE l.status = ? ORDER BY l.received_at DESC LIMIT 200",
+            None => "SELECT l.*, c.name AS company_name FROM email_parse_log l                      LEFT JOIN application a ON a.id = l.matched_application_id                      LEFT JOIN company c ON c.id = a.company_id                      ORDER BY l.received_at DESC LIMIT 200",
+        };
+        let rows = if let Some(s) = status {
+            sqlx::query(sql).bind(s).fetch_all(&self.pool).await?
+        } else {
+            sqlx::query(sql).fetch_all(&self.pool).await?
+        };
+        Ok(rows
+            .iter()
+            .map(|r| MailLogItem {
+                id: r.try_get("id").unwrap_or_default(),
+                message_id: r.try_get("message_id").unwrap_or_default(),
+                received_at: r.try_get("received_at").unwrap_or_default(),
+                from_address: r.try_get("from_address").unwrap_or_default(),
+                from_name: r.try_get("from_name").ok().flatten(),
+                subject: r.try_get("subject").ok().flatten().unwrap_or_default(),
+                snippet: r.try_get("snippet").ok().flatten(),
+                status: r.try_get("status").unwrap_or_default(),
+                suggested_event_type: r.try_get("suggested_event_type").ok().flatten(),
+                suggested_deadline: r.try_get("suggested_deadline").ok().flatten(),
+                matched_application_id: r.try_get("matched_application_id").ok().flatten(),
+                company_name: r.try_get("company_name").ok().flatten(),
+                match_reason: r.try_get("match_reason").ok().flatten(),
+            })
+            .collect())
+    }
+
+    /// 审核决定：确认导入（写事件 source=EMAIL）或忽略
+    pub async fn decide_mail(
+        &self,
+        log_id: &str,
+        action: &str, // import | ignore
+        application_id: &str,
+    ) -> Result<()> {
+        let log: Option<(Option<String>, Option<String>)> = sqlx::query_as(
+            "SELECT suggested_event_type, suggested_deadline FROM email_parse_log WHERE id = ?",
+        )
+        .bind(log_id)
+        .fetch_optional(&self.pool)
+        .await?;
+        let Some((event_type, deadline)) = log else {
+            return Err(Error::NotFound("邮件记录不存在".into()));
+        };
+        match action {
+            "import" => {
+                let Some(event_type) = event_type else {
+                    return Err(Error::Invalid("该邮件没有事件建议，无法导入（可忽略）".into()));
+                };
+                let occurred_at = deadline
+                    .as_deref()
+                    .and_then(crate::entities::parse_date)
+                    .unwrap_or_else(Utc::now);
+                self.add_event(AddEventInput {
+                    application_id: application_id.to_string(),
+                    event_type: event_type.clone(),
+                    occurred_at: Some(occurred_at),
+                    deadline: deadline
+                        .as_deref()
+                        .and_then(crate::entities::parse_date)
+                        .map(|d| d + chrono::Duration::hours(23)),
+                    result: None,
+                    note: Some("邮件导入".into()),
+                    source: Some("EMAIL".into()),
+                })
+                .await?;
+                sqlx::query(
+                    "UPDATE email_parse_log SET status = 'IMPORTED', matched_application_id = ? WHERE id = ?",
+                )
+                .bind(application_id)
+                .bind(log_id)
+                .execute(&self.pool)
+                .await?;
+            }
+            "ignore" => {
+                sqlx::query("UPDATE email_parse_log SET status = 'IGNORED' WHERE id = ?")
+                    .bind(log_id)
+                    .execute(&self.pool)
+                    .await?;
+            }
+            _ => return Err(Error::Invalid("action 必须是 import|ignore".into())),
+        }
+        Ok(())
+    }
+
+    /// 绑定候选投递（按公司名匹配，供审核 UI 选择）
+    pub async fn candidate_applications(&self, company_hint: &str) -> Result<Vec<Application>> {
+        if company_hint.trim().is_empty() {
+            return Ok(vec![]);
+        }
+        let sql = format!(
+            "{APP_SELECT} WHERE c.name LIKE ? OR a.notes LIKE ? ORDER BY a.updated_at DESC LIMIT 10"
+        );
+        let like = format!("%{}%", company_hint.trim());
+        let rows = sqlx::query(&sql)
+            .bind(&like)
+            .bind(&like)
+            .fetch_all(&self.pool)
+            .await?;
+        Ok(rows.iter().map(Application::from_row).collect())
+    }
+
     // ---------- 面经知识库（P2-a） ----------
 
     pub async fn list_all_questions(&self, search: Option<&str>) -> Result<Vec<QuestionBankItem>> {
@@ -998,9 +1216,13 @@ impl Services {
         ensure_application(&mut *tx, &input.application_id).await?;
         let id = new_id();
         let occurred = input.occurred_at.unwrap_or_else(Utc::now);
+        let source = input
+            .source
+            .clone()
+            .unwrap_or_else(|| "MANUAL".into());
         sqlx::query(
             "INSERT INTO application_event (id, application_id, type, occurred_at, deadline, result, note, source, created_at) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, 'MANUAL', ?)",
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(&id)
         .bind(&input.application_id)
@@ -1009,6 +1231,7 @@ impl Services {
         .bind(input.deadline.map(|d| ts(&d)))
         .bind(input.result.map(|r| r.as_str().to_string()))
         .bind(input.note)
+        .bind(&source)
         .bind(now_ts())
         .execute(&mut *tx)
         .await?;

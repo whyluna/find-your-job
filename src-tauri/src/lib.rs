@@ -526,6 +526,90 @@ async fn delete_attachment(state: tauri::State<'_, AppState>, id: String) -> Cmd
     Ok(())
 }
 
+// ---------- 邮件（P2-c） ----------
+
+#[tauri::command]
+async fn import_eml_file(state: tauri::State<'_, AppState>, path: String) -> CmdResult<Option<String>> {
+    state
+        .0
+        .import_eml("manual", &path)
+        .await
+        .map_err(e2s)
+}
+
+#[tauri::command]
+async fn list_mail_logs(
+    state: tauri::State<'_, AppState>,
+    status: Option<String>,
+) -> CmdResult<Vec<fyj_core::services::MailLogItem>> {
+    state.0.list_mail_logs(status.as_deref()).await.map_err(e2s)
+}
+
+#[tauri::command]
+async fn decide_mail(
+    state: tauri::State<'_, AppState>,
+    id: String,
+    action: String,
+    application_id: String,
+) -> CmdResult<()> {
+    state
+        .0
+        .decide_mail(&id, &action, &application_id)
+        .await
+        .map_err(e2s)
+}
+
+#[tauri::command]
+async fn candidate_applications(
+    state: tauri::State<'_, AppState>,
+    company_hint: String,
+) -> CmdResult<Vec<fyj_core::entities::Application>> {
+    state
+        .0
+        .candidate_applications(&company_hint)
+        .await
+        .map_err(e2s)
+}
+
+// ---------- PIN（P2-d） ----------
+
+#[tauri::command]
+async fn set_pin(state: tauri::State<'_, AppState>, pin: String) -> CmdResult<()> {
+    use sha2::{Digest, Sha256};
+    if pin.len() < 4 {
+        return Err("PIN 至少 4 位".into());
+    }
+    let hash = format!("{:x}", Sha256::digest(pin.as_bytes()));
+    state
+        .0
+        .set_setting("pin_hash", &format!("\"{hash}\""))
+        .await
+        .map_err(e2s)
+}
+
+#[tauri::command]
+async fn verify_pin(state: tauri::State<'_, AppState>, pin: String) -> CmdResult<bool> {
+    use sha2::{Digest, Sha256};
+    let hash = format!("{:x}", Sha256::digest(pin.as_bytes()));
+    let stored = state.0.get_setting("pin_hash").await.map_err(e2s)?;
+    Ok(standoff(&stored.unwrap_or_default()) == hash)
+}
+
+#[tauri::command]
+async fn clear_pin(state: tauri::State<'_, AppState>) -> CmdResult<()> {
+    state.0.set_setting("pin_hash", "\"\"").await.map_err(e2s)
+}
+
+fn standoff(s: &str) -> String {
+    s.trim_matches('"').to_string()
+}
+
+#[tauri::command]
+async fn has_pin(state: tauri::State<'_, AppState>) -> CmdResult<bool> {
+    let stored = state.0.get_setting("pin_hash").await.map_err(e2s)?;
+    Ok(!standoff(&stored.unwrap_or_default()).is_empty())
+}
+
 #[tauri::command]
 async fn list_all_questions(
     state: tauri::State<'_, AppState>,
@@ -639,6 +723,14 @@ pub fn run() {
             delete_resume_file,
             list_dictionary,
             list_custom_event_types,
+            import_eml_file,
+            list_mail_logs,
+            decide_mail,
+            candidate_applications,
+            set_pin,
+            verify_pin,
+            clear_pin,
+            has_pin,
             list_all_questions,
             export_csv,
             read_text_file,

@@ -81,6 +81,7 @@ async fn full_journey_events_derive_status() {
         deadline: Some(dt(4, 23)),
         result: None,
         note: Some("测评链接".into()),
+        source: None,
     }).await.unwrap();
     assert_eq!(s.get_application(id).await.unwrap().status, Status::Assessment);
 
@@ -91,6 +92,7 @@ async fn full_journey_events_derive_status() {
         deadline: None,
         result: Some(EventResult::Pass),
         note: None,
+        source: None,
     }).await.unwrap();
 
     s.add_event(AddEventInput {
@@ -100,6 +102,7 @@ async fn full_journey_events_derive_status() {
         deadline: Some(dt(6, 23)),
         result: None,
         note: None,
+        source: None,
     }).await.unwrap();
     assert_eq!(s.get_application(id).await.unwrap().status, Status::Written);
 
@@ -110,6 +113,7 @@ async fn full_journey_events_derive_status() {
         deadline: None,
         result: None,
         note: Some("口头 offer".into()),
+        source: None,
     }).await.unwrap();
     assert_eq!(s.get_application(id).await.unwrap().status, Status::Oc);
 
@@ -120,6 +124,7 @@ async fn full_journey_events_derive_status() {
         deadline: None,
         result: None,
         note: None,
+        source: None,
     }).await.unwrap();
     assert_eq!(s.get_application(id).await.unwrap().status, Status::Signed);
 }
@@ -169,6 +174,7 @@ async fn delete_event_recomputes_backward() {
         deadline: None,
         result: None,
         note: None,
+        source: None,
     }).await.unwrap();
     assert_eq!(s.get_application(&app.id).await.unwrap().status, Status::Rejected);
     s.delete_event(&ev.id).await.unwrap();
@@ -188,6 +194,7 @@ async fn backfill_earlier_applied_updates_applied_date() {
         deadline: None,
         result: None,
         note: Some("补录官网投递时间".into()),
+        source: None,
     }).await.unwrap();
     let updated = s.get_application(&app.id).await.unwrap();
     assert_eq!(updated.applied_date, Some(dt(1, 3)));
@@ -208,6 +215,7 @@ async fn custom_event_type_uses_dictionary_projection() {
         deadline: None,
         result: None,
         note: None,
+        source: None,
     }).await.unwrap();
     assert_eq!(s.get_application(&app.id).await.unwrap().status, Status::Applied);
 
@@ -221,6 +229,7 @@ async fn custom_event_type_uses_dictionary_projection() {
         deadline: None,
         result: None,
         note: None,
+        source: None,
     }).await.unwrap();
     assert_eq!(s.get_application(&app.id).await.unwrap().status, Status::Interviewing);
 
@@ -232,6 +241,7 @@ async fn custom_event_type_uses_dictionary_projection() {
         deadline: None,
         result: None,
         note: None,
+        source: None,
     }).await;
     assert!(bad.is_err());
 }
@@ -275,6 +285,7 @@ async fn list_filter_and_search() {
         deadline: Some(Utc::now() + chrono::Duration::days(2)),
         result: None,
         note: None,
+        source: None,
     }).await.unwrap();
     let with_deadline = s.list_applications(&ListFilter {
         statuses: vec!["ASSESSMENT".into()],
@@ -398,7 +409,7 @@ async fn invalid_inputs_rejected() {
     let bad_event = s.add_event(AddEventInput {
         application_id: app.id.clone(),
         event_type: "NOT_A_TYPE".into(),
-        occurred_at: None, deadline: None, result: None, note: None,
+        occurred_at: None, deadline: None, result: None, note: None, source: None,
     }).await;
     assert!(bad_event.is_err());
 }

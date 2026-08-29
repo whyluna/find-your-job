@@ -6,6 +6,8 @@ import { useState } from "react";
 import { api } from "@/lib/ipc";
 import { Button } from "@/components/ui";
 import { CsvImportWizard } from "@/components/CsvImportWizard";
+import { MailReviewPanel } from "@/components/MailReviewPanel";
+import { Lock } from "lucide-react";
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();
@@ -176,6 +178,12 @@ export default function SettingsPage() {
         )}
       </section>
 
+      {/* PIN */}
+      <PinSection />
+
+      {/* 邮件解析 */}
+      <MailReviewPanel />
+
       {/* 关于 */}
       <section className="mt-4 max-w-2xl rounded-xl border border-slate-200 p-5 dark:border-slate-800">
         <h2 className="text-sm font-semibold">关于</h2>
@@ -187,5 +195,58 @@ export default function SettingsPage() {
       </section>
       <CsvImportWizard open={showCsvImport} onClose={() => setShowCsvImport(false)} />
     </div>
+  );
+}
+
+function PinSection() {
+  const queryClient = useQueryClient();
+  const [pin, setPin] = useState("");
+  const [msg, setMsg] = useState("");
+  const { data: has } = useQuery({ queryKey: ["has-pin"], queryFn: api.hasPin });
+
+  const save = async () => {
+    setMsg("");
+    try {
+      await api.setPin(pin);
+      setPin("");
+      setMsg("PIN 已设置，下次启动生效");
+      queryClient.invalidateQueries({ queryKey: ["has-pin"] });
+    } catch (e) {
+      setMsg(String(e));
+    }
+  };
+  const clear = async () => {
+    await api.clearPin();
+    setMsg("PIN 已关闭");
+    queryClient.invalidateQueries({ queryKey: ["has-pin"] });
+  };
+
+  return (
+    <section className="mt-4 max-w-2xl rounded-xl border border-slate-200 p-5 dark:border-slate-800">
+      <h2 className="flex items-center gap-2 text-sm font-semibold">
+        <Lock className="size-4" /> 应用锁（PIN）
+      </h2>
+      <p className="mt-1.5 text-xs text-slate-500">
+        面试记录是敏感数据；{has ? "已启用" : "未启用"}。仅本地比对，防同事瞄屏级别的保护。
+      </p>
+      <div className="mt-3 flex items-center gap-2">
+        <input
+          type="password"
+          value={pin}
+          onChange={(e) => setPin(e.target.value)}
+          placeholder="至少 4 位"
+          className="w-40 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
+        />
+        <Button size="sm" variant="primary" disabled={pin.length < 4} onClick={save}>
+          {has ? "重设" : "启用"}
+        </Button>
+        {has && (
+          <Button size="sm" variant="ghost" onClick={clear}>
+            关闭
+          </Button>
+        )}
+        {msg && <span className="text-xs text-emerald-600 dark:text-emerald-400">{msg}</span>}
+      </div>
+    </section>
   );
 }

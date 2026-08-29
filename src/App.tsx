@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Routes, Route } from "react-router";
 import { SidebarLayout } from "@/components/SidebarLayout";
 import { OnboardingGate } from "@/components/OnboardingGate";
+import { PinGate } from "@/components/PinGate";
 import { CommandPalette } from "@/components/CommandPalette";
 import { CreateApplicationDialog } from "@/components/CreateApplicationDialog";
 import DashboardPage from "@/pages/DashboardPage";
@@ -31,6 +32,7 @@ export default function App() {
   }, []);
 
   return (
+    <PinGate>
     <OnboardingGate>
       <SidebarLayout>
         <Routes>
@@ -53,5 +55,6 @@ export default function App() {
         <CreateApplicationDialog open={showCreate} onClose={() => setShowCreate(false)} defaultBatch="FORMAL" />
       </SidebarLayout>
     </OnboardingGate>
+    </PinGate>
   );
 }

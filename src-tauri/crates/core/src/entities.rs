@@ -22,6 +22,15 @@ pub fn parse_ts(s: &str) -> Option<DateTime<Utc>> {
         .map(|d| d.with_timezone(&Utc))
 }
 
+/// 解析 YYYY-MM-DD（本地日终语义：当天 00:00 本地 → UTC）
+pub fn parse_date(s: &str) -> Option<DateTime<Utc>> {
+    use chrono::TimeZone;
+    chrono::Local
+        .datetime_from_str(&format!("{s} 00:00:00"), "%Y-%m-%d %H:%M:%S")
+        .ok()
+        .map(|d| d.with_timezone(&Utc))
+}
+
 // ---------- 开放枚举校验（内置键 + custom:% 前缀） ----------
 
 pub const CHANNEL_KEYS: &[&str] = &[
