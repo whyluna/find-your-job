@@ -218,6 +218,7 @@ pub struct QuestionBankItem {
     pub application_id: String,
     pub company_name: String,
     pub position_title: String,
+    pub department: Option<String>,
     pub status: String,
 }
 
@@ -1031,7 +1032,7 @@ impl Services {
     pub async fn list_all_questions(&self, search: Option<&str>) -> Result<Vec<QuestionBankItem>> {
         const BASE_SQL: &str = "SELECT q.id AS question_id, q.question, q.my_answer, q.quality, q.reflection, q.tags, \
              iv.round, iv.round_label, a.id AS application_id, c.name AS company_name, \
-             a.position_title, a.status \
+             a.position_title, a.department, a.status \
              FROM interview_question q \
              JOIN interview iv ON iv.id = q.interview_id \
              JOIN application a ON a.id = iv.application_id \
@@ -1072,6 +1073,7 @@ impl Services {
                 application_id: r.try_get("application_id").unwrap_or_default(),
                 company_name: r.try_get("company_name").unwrap_or_default(),
                 position_title: r.try_get("position_title").unwrap_or_default(),
+                department: r.try_get("department").ok().flatten(),
                 status: r.try_get("status").unwrap_or_default(),
             })
             .collect())

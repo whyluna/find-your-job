@@ -21,6 +21,7 @@ interface BankItem {
   applicationId: string;
   companyName: string;
   positionTitle: string;
+  department?: string | null;
 }
 
 export default function ReviewPage() {
@@ -47,7 +48,7 @@ export default function ReviewPage() {
   const groups = useMemo(() => {
     const byApp = new Map<
       string,
-      { companyName: string; positionTitle: string; applicationId: string; rounds: Map<string, BankItem[]> }
+      { companyName: string; positionTitle: string; department?: string | null; applicationId: string; rounds: Map<string, BankItem[]> }
     >();
     for (const q of items) {
       let app = byApp.get(q.applicationId);
@@ -55,6 +56,7 @@ export default function ReviewPage() {
         app = {
           companyName: q.companyName,
           positionTitle: q.positionTitle,
+          department: q.department,
           applicationId: q.applicationId,
           rounds: new Map(),
         };
@@ -144,7 +146,8 @@ export default function ReviewPage() {
                   className="flex w-full items-center gap-2.5 border-b border-slate-100 bg-slate-50/70 px-4 py-3 text-left hover:bg-slate-100/70 dark:border-slate-800 dark:bg-slate-800/40 dark:hover:bg-slate-800/60"
                 >
                   <span className="text-sm font-semibold">
-                    {g.companyName} · {g.positionTitle}
+                    {g.companyName}
+                    {g.department && <span> · {g.department}</span>} · {g.positionTitle}
                   </span>
                   <span className="ml-auto text-[11px] text-slate-400">
                     {[...g.rounds.values()].flat().length} 道题 · 查看投递 →

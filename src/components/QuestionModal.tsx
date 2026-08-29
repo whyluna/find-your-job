@@ -129,7 +129,8 @@ export function QuestionModal({
                 <option value="">选择投递…</option>
                 {(apps ?? []).map((a) => (
                   <option key={a.id} value={a.id}>
-                    {a.companyName} · {a.positionTitle}
+                    {a.companyName}
+                    {a.department ? ` · ${a.department}` : ""} · {a.positionTitle}
                   </option>
                 ))}
               </Select>

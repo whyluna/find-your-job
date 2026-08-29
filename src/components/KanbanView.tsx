@@ -228,7 +228,10 @@ function Card({
     >
       <div className="flex items-start justify-between gap-1">
         <div className="min-w-0">
-          <div className="truncate text-[13px] font-semibold leading-tight">{item.companyName}</div>
+          <div className="truncate text-[13px] font-semibold leading-tight">
+            {item.companyName}
+            {item.department && <span className="font-normal"> · {item.department}</span>}
+          </div>
           <div className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400">
             {item.positionTitle}
           </div>
@@ -254,9 +257,6 @@ function Card({
           <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500 dark:bg-slate-700 dark:text-slate-300">
             {BATCH_LABELS[item.batch as keyof typeof BATCH_LABELS] ?? item.batch}
           </span>
-        )}
-        {item.department && (
-          <span className="truncate text-[10px] text-slate-400">{item.department}</span>
         )}
       </div>
     </div>

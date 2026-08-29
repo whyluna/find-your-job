@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { api } from "@/lib/ipc";
 import { fmtDate, deadlineLabel, isUrgent } from "@/lib/format";
-import { BATCH_LABELS, CHANNEL_LABELS, STATUS_LABELS, STATUS_LIST, EVENT_TYPE_DEFS, type Status } from "@shared";
+import { BATCH_LABELS, CHANNEL_LABELS, STATUS_LABELS, STATUS_LIST, type Status } from "@shared";
 import type { ApplicationListItem } from "@shared";
 import { Button, StatusBadge, TextInput, Select } from "@/components/ui";
 import { CreateApplicationDialog } from "@/components/CreateApplicationDialog";
@@ -119,7 +119,7 @@ export default function ApplicationsPage() {
             有 {missingResume.length} 条投递未标注简历版本
             {missingResume.length <= 3 && (
               <span className="ml-1 text-amber-600/80">
-                （{missingResume.map((m) => m.companyName).join("、")}）
+                （{missingResume.map((m) => (m.department ? `${m.companyName}·${m.department}` : m.companyName)).join("、")}）
               </span>
             )}
             ，统计各版本过筛率需要它。
@@ -134,7 +134,7 @@ export default function ApplicationsPage() {
       )}
 
       <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
-        <table className="w-full text-sm">
+        <table className="w-full whitespace-nowrap text-sm">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
               <th className="px-4 py-2.5 font-medium">公司</th>
@@ -145,20 +145,19 @@ export default function ApplicationsPage() {
               <th className="px-4 py-2.5 font-medium">Base</th>
               <th className="px-4 py-2.5 font-medium">投递日</th>
               <th className="px-4 py-2.5 font-medium">简历版本</th>
-              <th className="px-4 py-2.5 font-medium">最近动态</th>
             </tr>
           </thead>
           <tbody>
             {isLoading && (
               <tr>
-                <td colSpan={9} className="px-4 py-10 text-center text-slate-400">
+                <td colSpan={8} className="px-4 py-10 text-center text-slate-400">
                   加载中…
                 </td>
               </tr>
             )}
             {!isLoading && items.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-4 py-12 text-center text-slate-400">
+                <td colSpan={8} className="px-4 py-12 text-center text-slate-400">
                   还没有投递记录，点右上角「新建投递」开始
                 </td>
               </tr>
@@ -182,12 +181,6 @@ export default function ApplicationsPage() {
 }
 
 function Row({ item, onClick }: { item: ApplicationListItem; onClick: () => void }) {
-  const lastLabel =
-    item.lastEventType &&
-    (EVENT_TYPE_DEFS[item.lastEventType as keyof typeof EVENT_TYPE_DEFS]?.label ??
-      (item.lastEventType.startsWith("custom:")
-        ? "自定义事件"
-        : item.lastEventType));
   return (
     <tr
       onClick={onClick}
@@ -199,7 +192,10 @@ function Row({ item, onClick }: { item: ApplicationListItem; onClick: () => void
     >
       <td className="px-4 py-2.5">
         <div className="flex items-center gap-2">
-          <span className="font-medium">{item.companyName}</span>
+          <span className="whitespace-nowrap">
+            <span className="font-medium">{item.companyName}</span>
+            {item.department && <span> · {item.department}</span>}
+          </span>
           {isUrgent(item.nextDeadline) && (
             <span
               title={deadlineLabel(item.nextDeadline)}
@@ -207,9 +203,6 @@ function Row({ item, onClick }: { item: ApplicationListItem; onClick: () => void
             />
           )}
         </div>
-        {item.department && (
-          <div className="text-xs text-slate-400">{item.department}</div>
-        )}
       </td>
       <td className="max-w-52 truncate px-4 py-2.5">{item.positionTitle}</td>
       <td className="px-4 py-2.5">
@@ -238,9 +231,6 @@ function Row({ item, onClick }: { item: ApplicationListItem; onClick: () => void
         ) : (
           <span className={cn("text-xs text-amber-500")}>未标注</span>
         )}
-      </td>
-      <td className="px-4 py-2.5">
-        <div className="text-slate-500">{lastLabel ?? "—"}</div>
       </td>
     </tr>
   );

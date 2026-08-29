@@ -163,7 +163,7 @@ function OfferRow({
   onOpen,
 }: {
   rank: number;
-  app: { id: string; companyName: string; positionTitle: string; workLocation?: string | null; status: Status; salaryRange?: string | null; appliedDate?: string | null };
+  app: { id: string; companyName: string; positionTitle: string; department?: string | null; workLocation?: string | null; status: Status; salaryRange?: string | null; appliedDate?: string | null };
   scores: Record<string, number>;
   onScore: (dim: string, v: number) => void;
   total: number;
@@ -185,6 +185,7 @@ function OfferRow({
           <div className="font-medium">
             {rank === 0 && total > 0 && <span className="mr-1">🥇</span>}
             {app.companyName}
+            {app.department && <span className="font-normal"> · {app.department}</span>}
           </div>
           <div className="text-xs text-slate-400">{app.positionTitle}{app.workLocation ? ` · ${app.workLocation}` : ""}</div>
         </button>

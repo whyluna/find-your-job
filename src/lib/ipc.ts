@@ -115,6 +115,7 @@ export const api = {
         applicationId: string;
         companyName: string;
         positionTitle: string;
+        department?: string | null;
       }[]
     >("list_all_questions", { search }),
 
@@ -127,11 +128,6 @@ export const api = {
   uploadAttachment: (parentType: "APPLICATION" | "INTERVIEW", parentId: string, sourcePath: string) =>
     invoke<import("@shared").Attachment>("upload_attachment", { parentType, parentId, sourcePath }),
   deleteAttachment: (id: string) => invoke<void>("delete_attachment", { id }),
-
-  setPin: (pin: string) => invoke<void>("set_pin", { pin }),
-  verifyPin: (pin: string) => invoke<boolean>("verify_pin", { pin }),
-  clearPin: () => invoke<void>("clear_pin"),
-  hasPin: () => invoke<boolean>("has_pin"),
 
   llmGetSettings: () =>
     invoke<{ baseUrl: string; apiKey: string; model: string }>("llm_get_settings"),

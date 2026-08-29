@@ -636,45 +636,6 @@ async fn llm_test(state: tauri::State<'_, AppState>) -> CmdResult<String> {
     Ok(format!("连接成功，模型 {} 已响应：{reply}", cfg.model))
 }
 
-// ---------- PIN（P2-d） ----------
-
-#[tauri::command]
-async fn set_pin(state: tauri::State<'_, AppState>, pin: String) -> CmdResult<()> {
-    use sha2::{Digest, Sha256};
-    if pin.len() < 4 {
-        return Err("PIN 至少 4 位".into());
-    }
-    let hash = format!("{:x}", Sha256::digest(pin.as_bytes()));
-    state
-        .0
-        .set_setting("pin_hash", &format!("\"{hash}\""))
-        .await
-        .map_err(e2s)
-}
-
-#[tauri::command]
-async fn verify_pin(state: tauri::State<'_, AppState>, pin: String) -> CmdResult<bool> {
-    use sha2::{Digest, Sha256};
-    let hash = format!("{:x}", Sha256::digest(pin.as_bytes()));
-    let stored = state.0.get_setting("pin_hash").await.map_err(e2s)?;
-    Ok(standoff(&stored.unwrap_or_default()) == hash)
-}
-
-#[tauri::command]
-async fn clear_pin(state: tauri::State<'_, AppState>) -> CmdResult<()> {
-    state.0.set_setting("pin_hash", "\"\"").await.map_err(e2s)
-}
-
-fn standoff(s: &str) -> String {
-    s.trim_matches('"').to_string()
-}
-
-#[tauri::command]
-async fn has_pin(state: tauri::State<'_, AppState>) -> CmdResult<bool> {
-    let stored = state.0.get_setting("pin_hash").await.map_err(e2s)?;
-    Ok(!standoff(&stored.unwrap_or_default()).is_empty())
-}
-
 #[tauri::command]
 async fn list_all_questions(
     state: tauri::State<'_, AppState>,
@@ -794,10 +755,6 @@ pub fn run() {
             delete_resume_file,
             list_dictionary,
             list_custom_event_types,
-            set_pin,
-            verify_pin,
-            clear_pin,
-            has_pin,
             list_all_questions,
             export_csv,
             read_text_file,

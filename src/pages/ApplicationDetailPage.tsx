@@ -118,7 +118,8 @@ export default function ApplicationDetailPage() {
         <div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
             <h1 className="text-xl font-semibold">
-              {app.companyName} · {app.positionTitle}
+              {app.companyName}
+              {app.department && <span> · {app.department}</span>} · {app.positionTitle}
             </h1>
             <StatusBadge status={app.status} />
             {app.status === "INTERVIEWING" && app.interviews.length > 0 && (
@@ -140,7 +141,6 @@ export default function ApplicationDetailPage() {
           </div>
           <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
             <span>投递日 {fmtDate(app.appliedDate)}</span>
-            {app.department && <span>{app.department}</span>}
             {app.workLocation && <span>Base {app.workLocation}</span>}
             <span>优先级 {PRIORITY_LABELS[app.priority]}</span>
             <span>
