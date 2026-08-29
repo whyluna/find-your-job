@@ -1,5 +1,5 @@
 /** Tauri IPC 薄封装：类型安全入口，页面不直接 invoke */
-
+import { invoke } from "@tauri-apps/api/core";
 
 /** 底层技术错误 → 友好中文 */
 function friendly(e: unknown): Error {
@@ -15,7 +15,7 @@ function friendly(e: unknown): Error {
 
 async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   try {
-    return await call<T>(cmd, args);
+    return await invoke<T>(cmd, args);
   } catch (e) {
     throw friendly(e);
   }

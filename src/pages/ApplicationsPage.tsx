@@ -37,7 +37,7 @@ export default function ApplicationsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [noResumeDismissed, setNoResumeDismissed] = useState(false);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ["applications", search, status],
     queryFn: () =>
       api.listApplications({
@@ -153,6 +153,12 @@ export default function ApplicationsPage() {
           </button>
         </div>
       )}
+      {isError && (
+        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-600 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300">
+          加载失败：{String(error)}
+        </div>
+      )}
+
       {view === "board" ? (
         <div className="mt-4">
           {isLoading ? (
