@@ -1,7 +1,7 @@
 /** 投递详情页：时间线（行内加事件）/ 面试（逐题）/ JD / 材料占位 / 编辑与删除 */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { open as openFileDialog, revealItemInDir } from "@tauri-apps/plugin-dialog";
-import { openPath } from "@tauri-apps/plugin-opener";
+import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
+import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
 import {
   Archive,
   ArchiveRestore,

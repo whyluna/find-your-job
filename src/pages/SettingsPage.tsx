@@ -1,5 +1,5 @@
 /** 设置页：数据导出/导入、数据目录、关于 */
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { save, open } from "@tauri-apps/plugin-dialog";
 import { Database, Download, FolderOpen, Loader2, Upload } from "lucide-react";
 import { useState } from "react";
