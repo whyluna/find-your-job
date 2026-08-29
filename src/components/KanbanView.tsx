@@ -306,13 +306,13 @@ function SwimLane({
       <div className="mb-2 flex items-center gap-2">
         <span
           className={cn(
-            "text-xs font-semibold",
+            "text-[13px] font-semibold",
             isTerminal ? "text-slate-400 dark:text-slate-500" : "text-slate-500 dark:text-slate-400",
           )}
         >
           {STATUS_LABELS[status]}
         </span>
-        <span className="text-[11px] tabular-nums text-slate-400 dark:text-slate-500">
+        <span className="text-xs tabular-nums text-slate-400 dark:text-slate-500">
           {colItems.length}
         </span>
         <div className="h-px flex-1 bg-slate-200/70 dark:bg-slate-800/70" />
@@ -384,11 +384,11 @@ function Card({
     >
       <div className="flex items-start justify-between gap-1">
         <div className="min-w-0">
-          <div className="truncate text-[13px] font-semibold leading-tight">
+          <div className="truncate text-sm font-semibold leading-snug">
             {item.companyName}
             {item.department && <span className="font-normal"> · {item.department}</span>}
           </div>
-          <div className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400">
+          <div className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
             {item.positionTitle}
           </div>
         </div>
@@ -401,16 +401,16 @@ function Card({
       </div>
       <div className="mt-1.5 flex flex-wrap items-center gap-1">
         {item.status === "INTERVIEWING" && item.interviewCount > 0 ? (
-          <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
+          <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-[11px] font-medium text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
             第 {item.interviewCount} 轮
           </span>
         ) : item.interviewCount > 0 ? (
-          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-500 dark:bg-slate-800 dark:text-slate-400">
             {item.interviewCount} 轮面试
           </span>
         ) : null}
         {item.batch && item.batch !== "OTHER" && (
-          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500 dark:bg-slate-700 dark:text-slate-300">
+          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-500 dark:bg-slate-700 dark:text-slate-300">
             {BATCH_LABELS[item.batch as keyof typeof BATCH_LABELS] ?? item.batch}
           </span>
         )}

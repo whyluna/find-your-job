@@ -287,18 +287,18 @@ function QuestionItem({
     <div className="rounded-lg border border-slate-200/80 p-3 dark:border-slate-700">
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
-          <div className="text-xs font-medium leading-relaxed">{question.question}</div>
+          <div className="text-[13px] font-medium leading-relaxed">{question.question}</div>
           {(question.myAnswer || question.reflection) && (
             <div className="mt-1.5 space-y-1 border-l-2 border-slate-200 pl-2.5 dark:border-slate-700/70">
               {question.myAnswer && (
-                <div className="text-[11px] leading-relaxed text-slate-500">
-                  <span className="mr-1.5 select-none text-[10px] font-medium text-slate-400 dark:text-slate-500">我的回答</span>
+                <div className="text-[13px] leading-relaxed text-slate-600 dark:text-slate-300">
+                  <span className="mr-1.5 select-none text-[11px] font-medium text-slate-400 dark:text-slate-500">我的回答</span>
                   {question.myAnswer}
                 </div>
               )}
               {question.reflection && (
-                <div className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300">
-                  <span className="mr-1.5 select-none text-[10px] font-medium text-amber-600 dark:text-amber-400">理想回答</span>
+                <div className="text-[13px] leading-relaxed text-slate-700 dark:text-slate-200">
+                  <span className="mr-1.5 select-none text-[11px] font-medium text-amber-600 dark:text-amber-400">理想回答</span>
                   {question.reflection}
                 </div>
               )}

@@ -1,6 +1,6 @@
 /** 面经：按岗位→轮次两级分组，顶部横排知识点筛选，添加/编辑统一 QuestionModal */
-import { useQuery } from "@tanstack/react-query";
-import { Pencil, Plus, Search } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { api } from "@/lib/ipc";
@@ -26,9 +26,9 @@ interface BankItem {
 
 export default function ReviewPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [tag, setTag] = useState<string | null>(null);
-  const [onlyBad, setOnlyBad] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [editing, setEditing] = useState<BankItem | null>(null);
 
@@ -40,9 +40,8 @@ export default function ReviewPage() {
   const items = useMemo(() => {
     let list: BankItem[] = data ?? [];
     if (tag) list = list.filter((q) => q.tags.includes(tag));
-    if (onlyBad) list = list.filter((q) => q.quality === "BAD");
     return list;
-  }, [data, tag, onlyBad]);
+  }, [data, tag]);
 
   const groups = useMemo(() => {
     const byApp = new Map<
@@ -83,6 +82,15 @@ export default function ReviewPage() {
     return [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, 14);
   }, [data]);
 
+  const delQuestion = useMutation({
+    mutationFn: (id: string) => api.deleteQuestion(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["question-bank"] });
+      queryClient.invalidateQueries({ queryKey: ["application-detail"] });
+      queryClient.invalidateQueries({ queryKey: ["applications"] });
+    },
+  });
+
   return (
     <div className="px-6 py-5">
       <PageHeader
@@ -105,23 +113,12 @@ export default function ReviewPage() {
             className="pl-8"
           />
         </div>
-        <button
-          onClick={() => setOnlyBad((v) => !v)}
-          className={cn(
-            "h-8 rounded-lg border px-3 text-[13px] font-medium transition-colors",
-            onlyBad
-              ? "border-red-200 bg-red-50 text-red-600 dark:border-red-800/80 dark:bg-red-900/20 dark:text-red-300"
-              : "border-slate-200/90 bg-white text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700/80",
-          )}
-        >
-          错题本
-        </button>
         {tagCounts.map(([t, n]) => (
           <button
             key={t}
             onClick={() => setTag(t === tag ? null : t)}
             className={cn(
-              "h-8 rounded-lg border px-2.5 text-xs transition-colors",
+              "h-8 rounded-lg border px-2.5 text-[13px] transition-colors",
               t === tag
                 ? "border-indigo-300 bg-indigo-50 font-medium text-indigo-600 dark:border-indigo-500/60 dark:bg-indigo-900/30 dark:text-indigo-300"
                 : n >= 3
@@ -171,7 +168,7 @@ export default function ReviewPage() {
               .sort((a, b) => +b[0] - +a[0])
               .map(([roundKey, qs]) => (
                 <div key={roundKey} className="border-b border-slate-100/90 last:border-0 dark:border-slate-800/70">
-                  <div className="px-4 pb-1 pt-2.5 text-[11px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                  <div className="px-4 pb-1 pt-2.5 text-xs font-medium text-slate-400 dark:text-slate-500">
                     第 {roundKey} 轮{qs[0]?.roundLabel ? ` · ${qs[0].roundLabel}` : ""}
                   </div>
                   <div className="divide-y divide-slate-100/80 dark:divide-slate-800/60">
@@ -179,18 +176,18 @@ export default function ReviewPage() {
                       <div key={q.questionId} className="group px-4 py-3">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0 flex-1">
-                            <div className="text-[13px] font-medium leading-relaxed">{q.question}</div>
+                            <div className="text-sm font-medium leading-relaxed">{q.question}</div>
                             {(q.myAnswer || q.reflection) && (
                               <div className="mt-2 space-y-1.5 border-l-2 border-slate-200 pl-3 dark:border-slate-700/70">
                                 {q.myAnswer && (
-                                  <div className="text-[13px] leading-relaxed text-slate-500 dark:text-slate-400">
-                                    <span className="mr-1.5 select-none text-[10px] font-medium text-slate-400 dark:text-slate-500">我的回答</span>
+                                  <div className="text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+                                    <span className="mr-1.5 select-none text-[11px] font-medium text-slate-400 dark:text-slate-500">我的回答</span>
                                     {q.myAnswer}
                                   </div>
                                 )}
                                 {q.reflection && (
-                                  <div className="text-[13px] leading-relaxed text-slate-600 dark:text-slate-300">
-                                    <span className="mr-1.5 select-none text-[10px] font-medium text-amber-600 dark:text-amber-400">理想回答</span>
+                                  <div className="text-sm leading-relaxed text-slate-700 dark:text-slate-200">
+                                    <span className="mr-1.5 select-none text-[11px] font-medium text-amber-600 dark:text-amber-400">理想回答</span>
                                     {q.reflection}
                                   </div>
                                 )}
@@ -200,7 +197,7 @@ export default function ReviewPage() {
                           <div className="flex shrink-0 items-center gap-2">
                             <span
                               className={cn(
-                                "rounded-md px-1.5 py-0.5 text-[10px] font-medium",
+                                "rounded-md px-1.5 py-0.5 text-[11px] font-medium",
                                 q.quality === "GOOD"
                                   ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300"
                                   : q.quality === "BAD"
@@ -218,6 +215,15 @@ export default function ReviewPage() {
                               title="编辑"
                             >
                               <Pencil className="size-3.5" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (confirm("删除这道面经？")) delQuestion.mutate(q.questionId);
+                              }}
+                              className="rounded-md p-1 text-slate-300 opacity-0 transition-all hover:bg-red-50 hover:text-red-500 group-hover:opacity-100 dark:hover:bg-red-900/30"
+                              title="删除"
+                            >
+                              <Trash2 className="size-3.5" />
                             </button>
                           </div>
                         </div>
