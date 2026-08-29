@@ -16,3 +16,5 @@ data/
 .env
 .env.*
 *.log
+apps/extension/.output/
+apps/extension/.wxt/
