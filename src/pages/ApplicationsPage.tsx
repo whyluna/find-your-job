@@ -137,27 +137,28 @@ export default function ApplicationsPage() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
-              <th className="px-4 py-2.5 font-medium">公司</th>
-              <th className="px-4 py-2.5 font-medium">岗位</th>
-              <th className="px-4 py-2.5 font-medium">状态</th>
-              <th className="px-4 py-2.5 font-medium">批次</th>
-              <th className="px-4 py-2.5 font-medium">渠道</th>
-              <th className="px-4 py-2.5 font-medium">Base</th>
-              <th className="px-4 py-2.5 font-medium">投递日</th>
-              <th className="px-4 py-2.5 font-medium">简历版本</th>
+              <th className="whitespace-nowrap px-3 py-2.5 font-medium">公司</th>
+              <th className="whitespace-nowrap px-3 py-2.5 font-medium">部门</th>
+              <th className="whitespace-nowrap px-3 py-2.5 font-medium">岗位</th>
+              <th className="whitespace-nowrap px-3 py-2.5 font-medium">状态</th>
+              <th className="whitespace-nowrap px-3 py-2.5 font-medium">批次</th>
+              <th className="whitespace-nowrap px-3 py-2.5 font-medium">渠道</th>
+              <th className="whitespace-nowrap px-3 py-2.5 font-medium">Base</th>
+              <th className="whitespace-nowrap px-3 py-2.5 font-medium">投递日</th>
+              <th className="whitespace-nowrap px-3 py-2.5 font-medium">简历版本</th>
             </tr>
           </thead>
           <tbody>
             {isLoading && (
               <tr>
-                <td colSpan={8} className="px-4 py-10 text-center text-slate-400">
+                <td colSpan={9} className="px-4 py-10 text-center text-slate-400">
                   加载中…
                 </td>
               </tr>
             )}
             {!isLoading && items.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-12 text-center text-slate-400">
+                <td colSpan={9} className="px-4 py-12 text-center text-slate-400">
                   还没有投递记录，点右上角「新建投递」开始
                 </td>
               </tr>
@@ -190,10 +191,9 @@ function Row({ item, onClick }: { item: ApplicationListItem; onClick: () => void
       tabIndex={0}
       className="cursor-pointer border-b border-slate-100 transition-colors last:border-0 outline-none focus-visible:bg-indigo-50 hover:bg-slate-50 dark:border-slate-800/60 dark:hover:bg-slate-800/40 dark:focus-visible:bg-indigo-900/20"
     >
-      <td className="px-4 py-2.5">
+      <td className="whitespace-nowrap px-3 py-2.5">
         <div className="flex items-center gap-2">
           <span className="font-medium">{item.companyName}</span>
-          {item.department && <span> · {item.department}</span>}
           {isUrgent(item.nextDeadline) && (
             <span
               title={deadlineLabel(item.nextDeadline)}
@@ -202,8 +202,11 @@ function Row({ item, onClick }: { item: ApplicationListItem; onClick: () => void
           )}
         </div>
       </td>
-      <td className="max-w-52 truncate px-4 py-2.5">{item.positionTitle}</td>
-      <td className="px-4 py-2.5">
+      <td className="whitespace-nowrap px-3 py-2.5 text-slate-500">
+        {item.department ?? "—"}
+      </td>
+      <td className="max-w-44 truncate px-3 py-2.5">{item.positionTitle}</td>
+      <td className="whitespace-nowrap px-3 py-2.5">
         <div className="flex flex-nowrap items-center gap-1.5 whitespace-nowrap">
           <StatusBadge status={item.status} />
           {item.status === "INTERVIEWING" && item.interviewCount > 0 && (
@@ -213,20 +216,20 @@ function Row({ item, onClick }: { item: ApplicationListItem; onClick: () => void
           )}
         </div>
       </td>
-      <td className="px-4 py-2.5 text-slate-500">
+      <td className="whitespace-nowrap px-3 py-2.5 text-slate-500">
         {BATCH_LABELS[item.batch as keyof typeof BATCH_LABELS] ?? item.batch}
       </td>
-      <td className="px-4 py-2.5 text-slate-500">
+      <td className="whitespace-nowrap px-3 py-2.5 text-slate-500">
         {CHANNEL_LABELS[item.channel as keyof typeof CHANNEL_LABELS] ?? item.channel}
       </td>
       <td
-          className="max-w-44 break-words px-4 py-2.5 text-slate-500"
+          className="max-w-40 break-words px-3 py-2.5 text-slate-500"
           title={item.workLocation ?? undefined}
         >
           {item.workLocation ?? "—"}
         </td>
-      <td className="px-4 py-2.5 tabular-nums text-slate-500">{fmtDate(item.appliedDate)}</td>
-      <td className="px-4 py-2.5">
+      <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-slate-500">{fmtDate(item.appliedDate)}</td>
+      <td className="whitespace-nowrap px-3 py-2.5">
         {item.resumeVersionName ? (
           <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">
             {item.resumeVersionName}
