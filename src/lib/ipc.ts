@@ -100,4 +100,16 @@ export const api = {
   localApiSetEnabled: (enabled: boolean) =>
     invoke<void>("local_api_set_enabled", { enabled }),
   localApiResetToken: () => invoke<void>("local_api_reset_token"),
+
+  getUpcoming: (deadlineDays = 3, interviewDays = 7) =>
+    invoke<
+      {
+        kind: string;
+        applicationId: string;
+        companyName: string;
+        positionTitle: string;
+        detail?: string | null;
+        at: string;
+      }[]
+    >("get_upcoming", { deadlineDays, interviewDays }),
 };

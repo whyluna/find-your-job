@@ -527,6 +527,19 @@ async fn delete_attachment(state: tauri::State<'_, AppState>, id: String) -> Cmd
 }
 
 #[tauri::command]
+async fn get_upcoming(
+    state: tauri::State<'_, AppState>,
+    deadline_days: Option<i64>,
+    interview_days: Option<i64>,
+) -> CmdResult<Vec<fyj_core::services::UpcomingItem>> {
+    state
+        .0
+        .get_upcoming(deadline_days.unwrap_or(3), interview_days.unwrap_or(7))
+        .await
+        .map_err(e2s)
+}
+
+#[tauri::command]
 async fn get_setting(
     state: tauri::State<'_, AppState>,
     key: String,
@@ -547,6 +560,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             let dir = app.path().app_data_dir().expect("无法获取应用数据目录");
             std::fs::create_dir_all(&dir).expect("无法创建应用数据目录");
@@ -595,6 +609,7 @@ pub fn run() {
             delete_resume_file,
             list_dictionary,
             list_custom_event_types,
+            get_upcoming,
             local_api_status,
             local_api_set_enabled,
             local_api_reset_token,

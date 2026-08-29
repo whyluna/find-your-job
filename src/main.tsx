@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter } from "react-router";
 import App from "./App";
+import { startNotifier } from "./lib/notifier";
 import "./styles/globals.css";
 
 // 深色模式跟随系统
@@ -11,6 +12,9 @@ const applyTheme = () =>
   document.documentElement.classList.toggle("dark", colorScheme.matches);
 applyTheme();
 colorScheme.addEventListener("change", applyTheme);
+
+// 系统通知（临近截止/面试；无权限时静默降级）
+void startNotifier();
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },

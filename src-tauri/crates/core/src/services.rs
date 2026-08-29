@@ -2,7 +2,7 @@
 //! Tauri command（P0-4）与 P1 axum 都只调这里。
 
 use chrono::{DateTime, Utc};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use sqlx::sqlite::SqliteRow;
 use sqlx::{QueryBuilder, Row, Sqlite, SqlitePool};
 use std::collections::HashMap;
@@ -154,6 +154,17 @@ pub struct UpdateQuestionInput {
     pub quality: Option<String>,
     pub reflection: Option<String>,
     pub tags: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
+#[serde(rename_all = "camelCase")]
+pub struct UpcomingItem {
+    pub kind: String,
+    pub application_id: String,
+    pub company_name: String,
+    pub position_title: String,
+    pub detail: Option<String>,
+    pub at: chrono::DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -621,6 +632,49 @@ impl Services {
             interviews,
             attachments,
         })
+    }
+
+    // ---------- 今日待办（P1-b） ----------
+
+    /// 未来 days 天内的截止事件 + scheduled 天内面试
+    pub async fn get_upcoming(&self, deadline_days: i64, interview_days: i64) -> Result<Vec<UpcomingItem>> {
+        let now = now_ts();
+        let dl_end = ts(&(Utc::now() + chrono::Duration::days(deadline_days)));
+        let iv_end = ts(&(Utc::now() + chrono::Duration::days(interview_days)));
+        let rows = sqlx::query(
+            "SELECT 'deadline' AS kind, a.id AS application_id, c.name AS company_name, \
+             a.position_title, e.type AS detail, e.deadline AS at \
+             FROM application_event e \
+             JOIN application a ON a.id = e.application_id \
+             JOIN company c ON c.id = a.company_id \
+             WHERE e.deadline >= ? AND e.deadline <= ? AND a.is_archived = 0 \
+             UNION ALL \
+             SELECT 'interview' AS kind, a.id AS application_id, c.name AS company_name, \
+             a.position_title, iv.round_label AS detail, iv.scheduled_at AS at \
+             FROM interview iv \
+             JOIN application a ON a.id = iv.application_id \
+             JOIN company c ON c.id = a.company_id \
+             WHERE iv.scheduled_at >= ? AND iv.scheduled_at <= ? \
+               AND iv.status = 'SCHEDULED' AND a.is_archived = 0 \
+             ORDER BY at ASC",
+        )
+        .bind(&now)
+        .bind(&dl_end)
+        .bind(&now)
+        .bind(&iv_end)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows
+            .iter()
+            .map(|r| UpcomingItem {
+                kind: r.try_get::<String, _>("kind").unwrap_or_default(),
+                application_id: r.try_get("application_id").unwrap_or_default(),
+                company_name: r.try_get("company_name").unwrap_or_default(),
+                position_title: r.try_get("position_title").unwrap_or_default(),
+                detail: r.try_get::<Option<String>, _>("detail").ok().flatten(),
+                at: r.try_get("at").unwrap_or_default(),
+            })
+            .collect())
     }
 
     // ---------- 附件 ----------
