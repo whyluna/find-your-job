@@ -12,11 +12,8 @@ body {
   font-family:
     -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
     "Microsoft YaHei", "Segoe UI", sans-serif;
-  @apply bg-slate-50 text-slate-900 antialiased;
-}
-
-.dark body {
-  @apply bg-slate-950 text-slate-100;
+  font-size: 13px;
+  @apply bg-white text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
 }
 
 /* 细滚动条，贴近 macOS 原生观感 */
@@ -25,11 +22,19 @@ body {
   height: 8px;
 }
 *::-webkit-scrollbar-thumb {
-  @apply rounded bg-slate-300;
+  @apply rounded-full bg-slate-300/80;
 }
 .dark *::-webkit-scrollbar-thumb {
-  @apply bg-slate-700;
+  @apply bg-slate-700/80;
 }
 *::-webkit-scrollbar-track {
   background: transparent;
+}
+
+/* 表单元素继承字号 */
+input,
+select,
+textarea,
+button {
+  font: inherit;
 }

@@ -55,7 +55,7 @@ export function LlmSettingsCard() {
   const configured = !!apiKey.trim();
 
   return (
-    <section className="mt-4 max-w-2xl rounded-xl border border-slate-200 p-5 dark:border-slate-800">
+    <section className="mt-4 max-w-2xl rounded-xl border border-slate-200/80 p-5 dark:border-slate-800/80">
       <h2 className="flex items-center gap-2 text-sm font-semibold">
         <Sparkles className="size-4" /> 智能识别（LLM，可选）
       </h2>

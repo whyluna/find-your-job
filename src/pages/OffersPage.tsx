@@ -82,10 +82,10 @@ export default function OffersPage() {
   const ranked = [...offers].sort((a, b) => total(b.id) - total(a.id));
 
   return (
-    <div className="p-8">
+    <div className="px-6 py-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="flex items-center gap-2 text-xl font-semibold">
+          <h1 className="flex items-center gap-2 text-[17px] font-semibold tracking-tight">
             <Scale className="size-5" /> offer 对比
           </h1>
           <p className="mt-0.5 text-xs text-slate-500">
@@ -99,7 +99,7 @@ export default function OffersPage() {
       </div>
 
       {/* 权重 */}
-      <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 dark:border-slate-800">
+      <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200/80 px-4 py-3 dark:border-slate-800/80">
         <span className="text-xs font-medium text-slate-500">权重</span>
         {DIMENSIONS.map((d) => (
           <label key={d.key} className="flex items-center gap-1.5 text-xs text-slate-500">
@@ -110,7 +110,7 @@ export default function OffersPage() {
               min="0"
               value={weightOf(d.key)}
               onChange={(e) => setWeight(d.key, +e.target.value || 0)}
-              className="w-14 rounded border border-slate-200 px-1.5 py-0.5 text-xs dark:border-slate-700 dark:bg-slate-800"
+              className="w-14 rounded border border-slate-200/80 px-1.5 py-0.5 text-xs dark:border-slate-700 dark:bg-slate-800"
             />
           </label>
         ))}
@@ -121,7 +121,7 @@ export default function OffersPage() {
           还没有进入 OC / offer 阶段的投递。先把好消息记进时间线 🎉
         </div>
       ) : (
-        <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+        <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200/80 dark:border-slate-800/80">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-800/50">

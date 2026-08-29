@@ -167,7 +167,7 @@ export function QuestionModal({
             onChange={(e) => setQuestion(e.target.value)}
             rows={2}
             placeholder="被问到什么？"
-            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+            className="w-full rounded-lg border border-slate-200/80 bg-white px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
           />
         </Field>
         <Field label="我的回答">
@@ -176,7 +176,7 @@ export function QuestionModal({
             onChange={(e) => setMyAnswer(e.target.value)}
             rows={3}
             placeholder="当时怎么答的（摘要）"
-            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+            className="w-full rounded-lg border border-slate-200/80 bg-white px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
           />
         </Field>
         <Field label="理想回答">
@@ -185,7 +185,7 @@ export function QuestionModal({
             onChange={(e) => setIdealAnswer(e.target.value)}
             rows={3}
             placeholder="更优答案 / 应该怎么答"
-            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+            className="w-full rounded-lg border border-slate-200/80 bg-white px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
           />
         </Field>
         <div className="grid grid-cols-[140px_1fr] gap-4">

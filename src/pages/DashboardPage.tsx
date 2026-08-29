@@ -1,10 +1,10 @@
-/** 仪表盘：今日待办（3天内截止 + 7天内面试）+ 数据概况 */
 import { useQuery } from "@tanstack/react-query";
-import { AlertCircle, CalendarClock, Database, Loader2 } from "lucide-react";
+import { AlertCircle, CalendarClock } from "lucide-react";
 import { Link, useNavigate } from "react-router";
 import { api } from "@/lib/ipc";
 import { fmtDateTime, deadlineLabel } from "@/lib/format";
 import { EVENT_TYPE_DEFS, type EventType } from "@shared";
+import { PageHeader } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
 export default function DashboardPage() {
@@ -17,23 +17,21 @@ export default function DashboardPage() {
   const { data: db } = useQuery({ queryKey: ["db-ready"], queryFn: api.dbReady });
 
   return (
-    <div className="p-8">
-      <h1 className="text-xl font-semibold">仪表盘</h1>
+    <div className="px-6 py-5">
+      <PageHeader title="仪表盘" subtitle="最近的截止与面试安排" />
 
       {/* 今日待办 */}
-      <section className="mt-4 max-w-2xl rounded-xl border border-slate-200 p-5 dark:border-slate-800">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <CalendarClock className="size-4" /> 最近待办
+      <section className="mt-5 max-w-2xl rounded-xl border border-slate-200/80 bg-white p-5 dark:border-slate-800/80 dark:bg-slate-900/60">
+        <h2 className="flex items-center gap-2 text-[13px] font-semibold">
+          <CalendarClock className="size-4 text-indigo-500" /> 最近待办
           <span className="text-xs font-normal text-slate-400">3 天内截止 · 7 天内面试</span>
         </h2>
         {isLoading && (
-          <div className="mt-3 flex items-center gap-2 text-sm text-slate-400">
-            <Loader2 className="size-4 animate-spin" /> 加载中…
-          </div>
+          <div className="mt-3 text-sm text-slate-400">加载中…</div>
         )}
         {!isLoading && (!upcoming || upcoming.length === 0) && (
-          <div className="mt-3 rounded-lg border border-dashed border-slate-300 py-8 text-center text-sm text-slate-400 dark:border-slate-700">
-            近期没有截止与面试，冲！
+          <div className="mt-3 rounded-lg border border-dashed border-slate-200 py-8 text-center text-[13px] text-slate-400 dark:border-slate-700/70">
+            近期没有截止与面试
           </div>
         )}
         <div className="mt-3 space-y-1.5">
@@ -41,20 +39,24 @@ export default function DashboardPage() {
             <button
               key={i}
               onClick={() => navigate(`/applications/${item.applicationId}`)}
-              className="flex w-full items-center gap-3 rounded-lg border border-slate-100 px-3 py-2.5 text-left transition-colors hover:border-indigo-200 hover:bg-indigo-50/40 dark:border-slate-800 dark:hover:border-indigo-700 dark:hover:bg-indigo-900/15"
+              className="flex w-full items-center gap-3 rounded-lg border border-transparent px-2.5 py-2 text-left transition-colors hover:border-slate-200/80 hover:bg-slate-50 dark:hover:border-slate-700 dark:hover:bg-slate-800/50"
             >
               <span
                 className={cn(
-                  "flex size-7 shrink-0 items-center justify-center rounded-lg text-[10px]",
+                  "flex size-6 shrink-0 items-center justify-center rounded-md",
                   item.kind === "deadline"
-                    ? "bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300"
-                    : "bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-300",
+                    ? "bg-red-50 text-red-500 dark:bg-red-900/30 dark:text-red-300"
+                    : "bg-indigo-50 text-indigo-500 dark:bg-indigo-900/30 dark:text-indigo-300",
                 )}
               >
-                {item.kind === "deadline" ? <AlertCircle className="size-4" /> : <CalendarClock className="size-4" />}
+                {item.kind === "deadline" ? (
+                  <AlertCircle className="size-3.5" />
+                ) : (
+                  <CalendarClock className="size-3.5" />
+                )}
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium">
+                <span className="block truncate text-[13px] font-medium">
                   {item.companyName} · {item.positionTitle}
                 </span>
                 <span className="block text-xs text-slate-400">
@@ -73,8 +75,8 @@ export default function DashboardPage() {
 
       {/* 概况 */}
       <section className="mt-4 flex max-w-2xl gap-3">
-        <div className="flex-1 rounded-xl border border-slate-200 p-4 dark:border-slate-800">
-          <div className="text-2xl font-semibold tabular-nums">{db?.applications ?? "—"}</div>
+        <div className="flex-1 rounded-xl border border-slate-200/80 bg-white p-4 dark:border-slate-800/80 dark:bg-slate-900/60">
+          <div className="text-2xl font-semibold tabular-nums tracking-tight">{db?.applications ?? "—"}</div>
           <div className="mt-0.5 text-xs text-slate-400">
             投递总数 ·{" "}
             <Link to="/applications" className="text-indigo-500 hover:underline">
@@ -82,13 +84,9 @@ export default function DashboardPage() {
             </Link>
           </div>
         </div>
-        <div className="flex-1 rounded-xl border border-slate-200 p-4 dark:border-slate-800">
-          <div className="text-2xl font-semibold tabular-nums">{db?.events ?? "—"}</div>
+        <div className="flex-1 rounded-xl border border-slate-200/80 bg-white p-4 dark:border-slate-800/80 dark:bg-slate-900/60">
+          <div className="text-2xl font-semibold tabular-nums tracking-tight">{db?.events ?? "—"}</div>
           <div className="mt-0.5 text-xs text-slate-400">时间线事件</div>
-        </div>
-        <div className="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-xs text-slate-400 dark:border-slate-800">
-          <Database className="size-3.5 shrink-0 text-emerald-500" />
-          {db?.ok ? "本地数据库正常" : "…"}
         </div>
       </section>
     </div>

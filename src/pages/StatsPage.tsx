@@ -73,15 +73,15 @@ export default function StatsPage() {
   }
 
   return (
-    <div className="p-8">
-      <h1 className="text-xl font-semibold">统计</h1>
+    <div className="px-6 py-5">
+      <h1 className="text-[17px] font-semibold tracking-tight">统计</h1>
       <p className="mt-0.5 text-xs text-slate-500">
         共 {totalAll} 条在追踪（不含归档）· 漏斗按当前所处阶段计数
       </p>
 
       <div className="mt-5 grid grid-cols-2 gap-4">
         {/* 漏斗 */}
-        <section className="rounded-xl border border-slate-200 p-5 dark:border-slate-800">
+        <section className="rounded-xl border border-slate-200/80 p-5 dark:border-slate-800/80">
           <h2 className="text-sm font-semibold">阶段漏斗</h2>
           <div className="mt-4 space-y-2.5">
             {FUNNEL.map((st) => {
@@ -111,7 +111,7 @@ export default function StatsPage() {
         </section>
 
         {/* 周曲线 */}
-        <section className="rounded-xl border border-slate-200 p-5 dark:border-slate-800">
+        <section className="rounded-xl border border-slate-200/80 p-5 dark:border-slate-800/80">
           <h2 className="text-sm font-semibold">近 8 周投递量</h2>
           <div className="mt-3 h-44">
             <ResponsiveContainer width="100%" height="100%">
@@ -138,7 +138,7 @@ export default function StatsPage() {
         ).map(([title, rows, labels]) => {
           const max = Math.max(1, ...rows.map((r) => r.count));
           return (
-            <section key={title} className="rounded-xl border border-slate-200 p-5 dark:border-slate-800">
+            <section key={title} className="rounded-xl border border-slate-200/80 p-5 dark:border-slate-800/80">
               <h2 className="text-sm font-semibold">{title}</h2>
               <div className="mt-3 space-y-2">
                 {rows.length === 0 && <div className="text-xs text-slate-400">暂无数据</div>}
@@ -162,7 +162,7 @@ export default function StatsPage() {
         })}
 
         {/* 简历版本过筛率 */}
-        <section className="rounded-xl border border-slate-200 p-5 dark:border-slate-800">
+        <section className="rounded-xl border border-slate-200/80 p-5 dark:border-slate-800/80">
           <h2 className="text-sm font-semibold">简历版本表现</h2>
           <table className="mt-3 w-full text-sm">
             <thead>
@@ -178,7 +178,7 @@ export default function StatsPage() {
                 <tr><td colSpan={4} className="py-4 text-center text-xs text-slate-400">上传简历并关联投递后显示</td></tr>
               )}
               {s.resumeFunnel.map((r) => (
-                <tr key={r.resumeName} className="border-t border-slate-100 dark:border-slate-800">
+                <tr key={r.resumeName} className="border-t border-slate-100 dark:border-slate-800/80">
                   <td className="py-1.5 pr-2 font-medium">{r.resumeName}</td>
                   <td className="py-1.5 tabular-nums">{r.total}</td>
                   <td className="py-1.5 tabular-nums">{r.interviewed}</td>
@@ -191,7 +191,7 @@ export default function StatsPage() {
       </div>
 
       {/* 沉默投递 */}
-      <section className="mt-4 max-w-3xl rounded-xl border border-slate-200 p-5 dark:border-slate-800">
+      <section className="mt-4 max-w-3xl rounded-xl border border-slate-200/80 p-5 dark:border-slate-800/80">
         <h2 className="text-sm font-semibold">
           沉默投递 <span className="text-xs font-normal text-slate-400">超过 14 天无动静且未到终态</span>
         </h2>

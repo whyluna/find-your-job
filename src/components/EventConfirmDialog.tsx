@@ -113,7 +113,7 @@ export function EventConfirmDialog({
             onChange={(e) => setNote(e.target.value)}
             rows={3}
             placeholder={eventType === "REJECTED" ? "挂在哪个环节？（可选）" : "链接、细节…（可选）"}
-            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800"
+            className="w-full rounded-lg border border-slate-200/80 bg-white px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800"
           />
         </Field>
         {error && <div className="text-sm text-red-500">{error}</div>}

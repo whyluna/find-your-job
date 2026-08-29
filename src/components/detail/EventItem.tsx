@@ -84,7 +84,7 @@ export function EventItem({ event, applicationId }: { event: AppEvent; applicati
               value={note}
               onChange={(e) => setNote(e.target.value)}
               rows={2}
-              className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs focus:border-indigo-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800"
+              className="w-full rounded-lg border border-slate-200/80 bg-white px-2.5 py-1.5 text-xs focus:border-indigo-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800"
             />
           </div>
         </div>

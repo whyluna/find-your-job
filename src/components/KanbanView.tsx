@@ -165,24 +165,24 @@ function BoardColumn({
     <div
       ref={setNodeRef}
       className={cn(
-        "flex w-60 shrink-0 flex-col rounded-xl border bg-slate-100/70 transition-colors dark:bg-slate-900/60",
+        "flex w-60 shrink-0 flex-col rounded-xl border border-slate-200/70 bg-slate-50/80 transition-colors dark:border-slate-800/70 dark:bg-slate-900/40",
         isOver
-          ? "border-indigo-400 bg-indigo-50/70 dark:border-indigo-500 dark:bg-indigo-900/20"
-          : "border-slate-200 dark:border-slate-800",
-        isTerminal && "bg-slate-50/80 dark:bg-slate-950/40",
+          ? "border-indigo-300 bg-indigo-50/70 dark:border-indigo-500/70 dark:bg-indigo-900/20"
+          : "",
+        isTerminal && "bg-slate-50/60 dark:bg-slate-950/30",
       )}
     >
       <div className="flex items-center justify-between px-3 pb-1 pt-2.5">
-        <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+        <span className="text-xs font-semibold text-slate-400 dark:text-slate-500">
           {STATUS_LABELS[status]}
         </span>
-        <span className="rounded-full bg-slate-200 px-1.5 text-[11px] text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+        <span className="text-[11px] tabular-nums text-slate-400 dark:text-slate-500">
           {items.length}
         </span>
       </div>
       <div className="flex max-h-[calc(100vh-300px)] flex-col gap-1.5 overflow-y-auto px-2 pb-2">
         {items.length === 0 && (
-          <div className="rounded-lg border border-dashed border-slate-300 py-3 text-center text-[11px] text-slate-400 dark:border-slate-700">
+          <div className="rounded-lg border border-dashed border-slate-200 py-3 text-center text-[11px] text-slate-300 dark:border-slate-700/60 dark:text-slate-600">
             拖到这里
           </div>
         )}
@@ -221,7 +221,7 @@ function Card({
         if (e.key === "Enter") onOpen?.(item.id);
       }}
       className={cn(
-        "cursor-pointer rounded-lg border border-slate-200 bg-white p-2 shadow-sm outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-indigo-300 dark:border-slate-700 dark:bg-slate-800",
+        "cursor-pointer rounded-lg border border-slate-200/80 bg-white p-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.04)] outline-none transition-all hover:border-slate-300/80 hover:shadow-[0_2px_6px_rgba(0,0,0,0.06)] focus-visible:ring-2 focus-visible:ring-indigo-300 dark:border-slate-700/80 dark:bg-slate-800/80 dark:hover:border-slate-600 dark:hover:shadow-none",
         !dragging && "hover:shadow-md",
         dragging && "rotate-1 shadow-xl",
       )}

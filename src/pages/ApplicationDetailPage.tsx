@@ -82,7 +82,7 @@ export default function ApplicationDetailPage() {
   if (isLoading) return <div className="p-8 text-slate-400">加载中…</div>;
   if (isError)
     return (
-      <div className="p-8">
+      <div className="px-6 py-5">
         <div className="text-red-500">加载失败：{String(error)}</div>
         <Link to="/applications" className="mt-2 inline-block text-sm text-indigo-500">
           返回列表
@@ -105,7 +105,7 @@ export default function ApplicationDetailPage() {
   ].sort((a, b) => (a.at < b.at ? 1 : -1));
 
   return (
-    <div className="p-8">
+    <div className="px-6 py-5">
       <Link
         to="/applications"
         className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600"
@@ -117,7 +117,7 @@ export default function ApplicationDetailPage() {
       <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-            <h1 className="text-xl font-semibold">
+            <h1 className="text-[17px] font-semibold tracking-tight">
               {app.companyName}
               {app.department && <span> · {app.department}</span>} · {app.positionTitle}
             </h1>
@@ -182,7 +182,7 @@ export default function ApplicationDetailPage() {
       </div>
 
       {/* Tabs */}
-      <div className="mt-5 flex gap-1 border-b border-slate-200 dark:border-slate-800">
+      <div className="mt-5 flex gap-1 border-b border-slate-200 dark:border-slate-800/80">
         {(
           [
             ["timeline", "时间线", app.events.length],
@@ -246,7 +246,7 @@ export default function ApplicationDetailPage() {
               ) : (
                 <div key={`iv-${t.id}`} className="flex gap-3">
                   <div className="mt-2 size-[9px] shrink-0 rounded-full border-2 border-indigo-400 bg-white dark:bg-slate-900" />
-                  <div className="min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700">
+                  <div className="min-w-0 flex-1 rounded-lg border border-slate-200/80 px-3 py-2 dark:border-slate-700">
                     <div className="flex flex-wrap items-center gap-2 text-sm">
                       <span className="font-medium text-indigo-600 dark:text-indigo-400">
                         第 {t.round} 轮面试{t.roundLabel ? `（${t.roundLabel}）` : ""}
@@ -358,10 +358,10 @@ export default function ApplicationDetailPage() {
               onChange={(e) => setJdDraft(e.target.value)}
               rows={18}
               placeholder="粘贴 JD 全文，保存后将记录快照时间…"
-              className="w-full rounded-xl border border-slate-200 bg-white p-4 font-mono text-xs leading-relaxed focus:border-indigo-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800"
+              className="w-full rounded-xl border border-slate-200/80 bg-white p-4 font-mono text-xs leading-relaxed focus:border-indigo-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800"
             />
           ) : app.jdText ? (
-            <pre className="max-h-[60vh] overflow-y-auto whitespace-pre-wrap break-words rounded-xl border border-slate-200 p-4 text-xs leading-relaxed text-slate-600 dark:border-slate-800 dark:text-slate-300">
+            <pre className="max-h-[60vh] overflow-y-auto whitespace-pre-wrap break-words rounded-xl border border-slate-200/80 p-4 text-xs leading-relaxed text-slate-600 dark:border-slate-800 dark:text-slate-300">
               {app.jdText}
             </pre>
           ) : (
@@ -405,7 +405,7 @@ export default function ApplicationDetailPage() {
               {app.attachments.map((a) => (
                 <div
                   key={a.id}
-                  className="flex items-center gap-3 rounded-lg border border-slate-200 px-4 py-2.5 dark:border-slate-800"
+                  className="flex items-center gap-3 rounded-lg border border-slate-200/80 px-4 py-2.5 dark:border-slate-800/80"
                 >
                   <Paperclip className="size-4 shrink-0 text-slate-400" />
                   <span className="min-w-0 flex-1 truncate text-sm">{a.fileName}</span>

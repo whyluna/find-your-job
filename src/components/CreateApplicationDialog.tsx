@@ -124,7 +124,7 @@ export function CreateApplicationDialog({
             />
           </Field>
           {showSuggestions && companySuggestions.length > 0 && (
-            <div className="absolute z-10 mt-1 w-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-800">
+            <div className="absolute z-10 mt-1 w-full overflow-hidden rounded-lg border border-slate-200/80 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-800">
               {companySuggestions.map((c) => (
                 <button
                   key={c.id}
@@ -214,7 +214,7 @@ export function CreateApplicationDialog({
               onChange={(e) => setJdText(e.target.value)}
               rows={5}
               placeholder="粘贴 JD 全文…"
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              className="w-full rounded-lg border border-slate-200/80 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
             />
           </Field>
         </div>

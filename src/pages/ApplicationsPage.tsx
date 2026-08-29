@@ -21,7 +21,7 @@ import { api } from "@/lib/ipc";
 import { fmtDate, deadlineLabel, isUrgent } from "@/lib/format";
 import { BATCH_LABELS, CHANNEL_LABELS, STATUS_LABELS, STATUS_LIST, type Status } from "@shared";
 import type { ApplicationListItem } from "@shared";
-import { Button, StatusBadge, TextInput, Select } from "@/components/ui";
+import { Button, PageHeader, Segmented, StatusBadge, TextInput, Select } from "@/components/ui";
 import { CreateApplicationDialog } from "@/components/CreateApplicationDialog";
 import { KanbanView } from "@/components/KanbanView";
 import { cn } from "@/lib/utils";
@@ -90,57 +90,39 @@ export default function ApplicationsPage() {
   }
 
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold">投递</h1>
-          <p className="mt-0.5 text-xs text-slate-500">
-            共 {items.length} 条 · 看板视图将在下一步加入
-          </p>
-        </div>
-        <Button variant="primary" onClick={() => setShowCreate(true)}>
-          <Plus className="size-4" /> 新建投递
-        </Button>
-      </div>
+    <div className="px-6 py-5">
+      <PageHeader
+        title="投递"
+        subtitle={`共 ${items.length} 条`}
+        actions={
+          <Button variant="primary" onClick={() => setShowCreate(true)}>
+            <Plus className="size-4" /> 新建投递
+          </Button>
+        }
+      />
 
-      <div className="mt-4 flex gap-2">
-        <div className="flex overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
-          <button
-            onClick={() => switchView("board")}
-            className={cn(
-              "flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors",
-              view === "board"
-                ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
-                : "text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800",
-            )}
-          >
-            <KanbanSquare className="size-3.5" /> 看板
-          </button>
-          <button
-            onClick={() => switchView("table")}
-            className={cn(
-              "flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors",
-              view === "table"
-                ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
-                : "text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800",
-            )}
-          >
-            <Table2 className="size-3.5" /> 表格
-          </button>
-        </div>
-        <div className="relative w-72">
-          <Search className="absolute left-3 top-2.5 size-4 text-slate-400" />
+      <div className="mt-4 flex items-center gap-2">
+        <Segmented
+          value={view}
+          onChange={(v) => switchView(v)}
+          options={[
+            { value: "board", label: <><KanbanSquare className="size-3.5" /> 看板</> },
+            { value: "table", label: <><Table2 className="size-3.5" /> 表格</> },
+          ]}
+        />
+        <div className="relative w-64">
+          <Search className="absolute left-2.5 top-2 size-3.5 text-slate-400" />
           <TextInput
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="搜索公司 / 岗位 / 备注 / JD…"
-            className="pl-9"
+            className="pl-8"
           />
         </div>
         <Select
           value={status}
           onChange={(e) => setStatus(e.target.value as Status | "ALL")}
-          className="w-36"
+          className="w-32"
         >
           <option value="ALL">全部状态</option>
           {STATUS_LIST.map((s) => (
@@ -151,18 +133,8 @@ export default function ApplicationsPage() {
         </Select>
       </div>
 
-      {view === "board" ? (
-        <div className="mt-4">
-          {isLoading ? (
-            <div className="py-16 text-center text-sm text-slate-400">加载中…</div>
-          ) : (
-            <KanbanView items={items} />
-          )}
-        </div>
-      ) : (
-        <>
-          {showYellowBar && (
-        <div className="mt-3 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+      {showYellowBar && (
+        <div className="mt-3 flex items-center gap-2 rounded-lg border border-amber-200/70 bg-amber-50/80 px-3.5 py-2 text-[13px] text-amber-700 dark:border-amber-800/70 dark:bg-amber-900/15 dark:text-amber-300">
           <TriangleAlert className="size-4 shrink-0" />
           <span>
             有 {missingResume.length} 条投递未标注简历版本
@@ -181,11 +153,22 @@ export default function ApplicationsPage() {
           </button>
         </div>
       )}
+      {view === "board" ? (
+        <div className="mt-4">
+          {isLoading ? (
+            <div className="py-16 text-center text-sm text-slate-400">加载中…</div>
+          ) : (
+            <KanbanView items={items} />
+          )}
+        </div>
+      ) : (
+        <>
 
-      <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+
+      <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200/80 dark:border-slate-800/80">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
+            <tr className="border-b border-slate-200/80 text-left text-xs text-slate-400 dark:border-slate-800/80 dark:text-slate-500">
               <th className="w-8 px-2 py-2.5" />
               <th className="whitespace-nowrap px-3 py-2.5 font-medium">公司</th>
               <th className="whitespace-nowrap px-3 py-2.5 font-medium">部门</th>

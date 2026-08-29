@@ -90,11 +90,11 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="p-8">
-      <h1 className="text-xl font-semibold">设置</h1>
+    <div className="px-6 py-5">
+      <h1 className="text-[17px] font-semibold tracking-tight">设置</h1>
 
       {/* 数据 */}
-      <section className="mt-6 max-w-2xl rounded-xl border border-slate-200 p-5 dark:border-slate-800">
+      <section className="mt-6 max-w-2xl rounded-xl border border-slate-200/80 p-5 dark:border-slate-800/80">
         <h2 className="flex items-center gap-2 text-sm font-semibold">
           <Database className="size-4" /> 数据
         </h2>
@@ -135,7 +135,7 @@ export default function SettingsPage() {
       </section>
 
       {/* 浏览器扩展接入 */}
-      <section className="mt-4 max-w-2xl rounded-xl border border-slate-200 p-5 dark:border-slate-800">
+      <section className="mt-4 max-w-2xl rounded-xl border border-slate-200/80 p-5 dark:border-slate-800/80">
         <h2 className="flex items-center gap-2 text-sm font-semibold">
           <Puzzle className="size-4" /> 浏览器扩展接入
         </h2>
@@ -181,7 +181,7 @@ export default function SettingsPage() {
       <LlmSettingsCard />
 
       {/* 关于 */}
-      <section className="mt-4 max-w-2xl rounded-xl border border-slate-200 p-5 dark:border-slate-800">
+      <section className="mt-4 max-w-2xl rounded-xl border border-slate-200/80 p-5 dark:border-slate-800/80">
         <h2 className="text-sm font-semibold">关于</h2>
         <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
           FindYourJob v0.1.0 · 状态由事件时间线推导的本地求职记录工具。

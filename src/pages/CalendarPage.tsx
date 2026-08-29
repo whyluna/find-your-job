@@ -102,9 +102,9 @@ export default function CalendarPage() {
   const selectedEntries = byDate.get(selected) ?? [];
 
   return (
-    <div className="p-8">
+    <div className="px-6 py-5">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">
+        <h1 className="text-[17px] font-semibold tracking-tight">
           {cursor.y} 年 {cursor.m + 1} 月
         </h1>
         <div className="flex items-center gap-1">
@@ -139,7 +139,7 @@ export default function CalendarPage() {
 
       <div className="mt-4 grid grid-cols-[1fr_280px] gap-4">
         {/* 月历 */}
-        <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-800">
+        <div className="rounded-xl border border-slate-200/80 p-3 dark:border-slate-800/80">
           <div className="mb-1 grid grid-cols-7 text-center text-xs text-slate-400">
             {WEEKDAYS.map((w) => (
               <div key={w} className="py-1">{w}</div>
@@ -190,7 +190,7 @@ export default function CalendarPage() {
         </div>
 
         {/* 当日明细 */}
-        <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
+        <div className="rounded-xl border border-slate-200/80 p-4 dark:border-slate-800/80">
           <h2 className="text-sm font-semibold">{selected}</h2>
           {selectedEntries.length === 0 ? (
             <div className="mt-4 text-xs text-slate-400">当天没有安排</div>

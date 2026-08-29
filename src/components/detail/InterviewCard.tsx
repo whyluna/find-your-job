@@ -90,7 +90,7 @@ export function InterviewCard({
   const roundLabelFull = `第 ${interview.round} 轮${interview.roundLabel ? `（${interview.roundLabel}）` : ""}`;
 
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-800">
+    <div className="rounded-xl border border-slate-200/80 dark:border-slate-800/80">
       {/* 头部：左区展开，操作区独立（防误触） */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3">
         <div
@@ -178,7 +178,7 @@ export function InterviewCard({
       </div>
 
       {open && (
-        <div className="border-t border-slate-100 px-4 py-3 dark:border-slate-800">
+        <div className="border-t border-slate-100 px-4 py-3 dark:border-slate-800/80">
           {(interview.locationOrLink || interview.interviewerNote || interview.durationMin) && (
             <div className="mb-3 space-y-0.5 text-xs text-slate-500">
               {interview.locationOrLink && <div>📍 {interview.locationOrLink}</div>}
@@ -231,7 +231,7 @@ export function InterviewCard({
               onChange={(e) => setReflection(e.target.value)}
               rows={2}
               placeholder="表现总结、暴露的弱点、下次改进…"
-              className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs focus:border-indigo-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800"
+              className="w-full rounded-lg border border-slate-200/80 bg-white px-2.5 py-1.5 text-xs focus:border-indigo-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800"
             />
             <div className="mt-2 flex justify-end">
               <Button size="sm" disabled={saveReflection.isPending} onClick={() => saveReflection.mutate()}>
@@ -284,7 +284,7 @@ function QuestionItem({
           : "bg-slate-100 text-slate-400 dark:bg-slate-800";
 
   return (
-    <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+    <div className="rounded-lg border border-slate-200/80 p-3 dark:border-slate-700">
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
           <div className="text-xs font-medium leading-relaxed">{question.question}</div>

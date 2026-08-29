@@ -30,9 +30,9 @@ export default function CompaniesPage() {
   });
 
   return (
-    <div className="p-8">
+    <div className="px-6 py-5">
       <div>
-        <h1 className="text-xl font-semibold">公司</h1>
+        <h1 className="text-[17px] font-semibold tracking-tight">公司</h1>
         <p className="mt-0.5 text-xs text-slate-500">
           投递时填写过的公司会自动沉淀到这里；维护「招聘官网」和「别名」可提升邮件解析的公司匹配准确度
         </p>
@@ -44,7 +44,7 @@ export default function CompaniesPage() {
         </div>
       )}
 
-      <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
+      <div className="mt-4 overflow-hidden rounded-xl border border-slate-200/80 dark:border-slate-800/80">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">

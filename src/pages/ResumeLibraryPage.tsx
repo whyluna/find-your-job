@@ -66,10 +66,10 @@ export default function ResumeLibraryPage() {
   }
 
   return (
-    <div className="p-8">
+    <div className="px-6 py-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold">简历库</h1>
+          <h1 className="text-[17px] font-semibold tracking-tight">简历库</h1>
           <p className="mt-0.5 text-xs text-slate-500">
             不同方向用不同版本；每条投递都会记录所用版本，P1 可统计各版本过筛率
           </p>
@@ -91,7 +91,7 @@ export default function ResumeLibraryPage() {
             key={r.id}
             className={cn(
               "rounded-xl border bg-white p-4 transition-shadow hover:shadow-md dark:bg-slate-900",
-              r.isDefault ? "border-amber-300 dark:border-amber-700" : "border-slate-200 dark:border-slate-800",
+              r.isDefault ? "border-amber-300 dark:border-amber-700" : "border-slate-200 dark:border-slate-800/80",
             )}
           >
             <div className="flex items-start justify-between">
