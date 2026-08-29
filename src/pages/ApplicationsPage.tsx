@@ -133,8 +133,8 @@ export default function ApplicationsPage() {
         </div>
       )}
 
-      <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
-        <table className="w-full whitespace-nowrap text-sm">
+      <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+        <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
               <th className="px-4 py-2.5 font-medium">公司</th>
@@ -192,10 +192,8 @@ function Row({ item, onClick }: { item: ApplicationListItem; onClick: () => void
     >
       <td className="px-4 py-2.5">
         <div className="flex items-center gap-2">
-          <span className="whitespace-nowrap">
-            <span className="font-medium">{item.companyName}</span>
-            {item.department && <span> · {item.department}</span>}
-          </span>
+          <span className="font-medium">{item.companyName}</span>
+          {item.department && <span> · {item.department}</span>}
           {isUrgent(item.nextDeadline) && (
             <span
               title={deadlineLabel(item.nextDeadline)}
@@ -206,7 +204,7 @@ function Row({ item, onClick }: { item: ApplicationListItem; onClick: () => void
       </td>
       <td className="max-w-52 truncate px-4 py-2.5">{item.positionTitle}</td>
       <td className="px-4 py-2.5">
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-nowrap items-center gap-1.5 whitespace-nowrap">
           <StatusBadge status={item.status} />
           {item.status === "INTERVIEWING" && item.interviewCount > 0 && (
             <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
@@ -221,7 +219,12 @@ function Row({ item, onClick }: { item: ApplicationListItem; onClick: () => void
       <td className="px-4 py-2.5 text-slate-500">
         {CHANNEL_LABELS[item.channel as keyof typeof CHANNEL_LABELS] ?? item.channel}
       </td>
-      <td className="px-4 py-2.5 text-slate-500">{item.workLocation ?? "—"}</td>
+      <td
+          className="max-w-44 break-words px-4 py-2.5 text-slate-500"
+          title={item.workLocation ?? undefined}
+        >
+          {item.workLocation ?? "—"}
+        </td>
       <td className="px-4 py-2.5 tabular-nums text-slate-500">{fmtDate(item.appliedDate)}</td>
       <td className="px-4 py-2.5">
         {item.resumeVersionName ? (
