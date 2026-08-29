@@ -9,8 +9,8 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::entities::{
-    now_ts, ts, Application, ApplicationDetail, ApplicationEvent, ApplicationListItem, Company,
-    CustomEventType, DictionaryItem, Interview, InterviewQuestion, InterviewDetail,
+    now_ts, ts, Application, ApplicationDetail, ApplicationEvent, ApplicationListItem, Attachment,
+    Company, CustomEventType, DictionaryItem, Interview, InterviewQuestion, InterviewDetail,
     ResumeVersion, BATCH_KEYS, CHANNEL_KEYS, PRIORITY_KEYS, is_open_enum_key,
 };
 use crate::error::{Error, Result};
@@ -605,11 +605,76 @@ impl Services {
             })
             .collect();
 
+        let attachments: Vec<Attachment> = sqlx::query(
+            "SELECT * FROM attachment WHERE parent_type = 'APPLICATION' AND parent_id = ?              ORDER BY created_at DESC",
+        )
+        .bind(id)
+        .fetch_all(&self.pool)
+        .await?
+        .iter()
+        .map(Attachment::from_row)
+        .collect();
+
         Ok(ApplicationDetail {
             application,
             events,
             interviews,
+            attachments,
         })
+    }
+
+    // ---------- 附件 ----------
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn insert_attachment(
+        &self,
+        parent_type: &str,
+        parent_id: &str,
+        file_name: &str,
+        file_path: &str,
+        mime_type: Option<&str>,
+        size: Option<i64>,
+    ) -> Result<Attachment> {
+        if !matches!(parent_type, "APPLICATION" | "INTERVIEW") {
+            return Err(Error::Invalid("附件只能挂在投递或面试上".into()));
+        }
+        let id = new_id();
+        sqlx::query(
+            "INSERT INTO attachment (id, parent_type, parent_id, file_name, file_path, mime_type, size, created_at)              VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(&id)
+        .bind(parent_type)
+        .bind(parent_id)
+        .bind(file_name)
+        .bind(file_path)
+        .bind(mime_type)
+        .bind(size)
+        .bind(now_ts())
+        .execute(&self.pool)
+        .await?;
+        let row = sqlx::query("SELECT * FROM attachment WHERE id = ?")
+            .bind(&id)
+            .fetch_one(&self.pool)
+            .await?;
+        Ok(Attachment::from_row(&row))
+    }
+
+    pub async fn delete_attachment(&self, id: &str) -> Result<String> {
+        let path: Option<String> =
+            sqlx::query_scalar("SELECT file_path FROM attachment WHERE id = ?")
+                .bind(id)
+                .fetch_optional(&self.pool)
+                .await?
+                .flatten();
+        let n = sqlx::query("DELETE FROM attachment WHERE id = ?")
+            .bind(id)
+            .execute(&self.pool)
+            .await?
+            .rows_affected();
+        if n == 0 {
+            return Err(not_found("attachment"));
+        }
+        Ok(path.unwrap_or_default())
     }
 
     // ---------- 事件 ----------
@@ -1257,7 +1322,7 @@ fn interview_outcome_str(o: InterviewOutcome) -> String {
 
 fn resume_sql(suffix: &str) -> String {
     format!(
-        "SELECT rv.id, rv.name, rv.target_role, rv.file_name, rv.file_size, rv.notes, \
+        "SELECT rv.id, rv.name, rv.target_role, rv.file_name, rv.file_path, rv.file_size, rv.notes, \
          rv.is_default, rv.created_at, rv.updated_at, \
          (SELECT COUNT(*) FROM application a WHERE a.resume_version_id = rv.id) AS usage_count \
          FROM resume_version rv {suffix}"
@@ -1270,6 +1335,7 @@ fn resume_from_row(row: &SqliteRow) -> ResumeVersion {
         name: row.try_get("name").unwrap_or_default(),
         target_role: row.try_get("target_role").ok().flatten(),
         file_name: row.try_get("file_name").unwrap_or_default(),
+        file_path: row.try_get("file_path").unwrap_or_default(),
         file_size: row.try_get("file_size").ok().flatten(),
         notes: row.try_get("notes").ok().flatten(),
         is_default: row

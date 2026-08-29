@@ -33,6 +33,8 @@ export interface ResumeVersion {
   name: string;
   targetRole?: string | null;
   fileName: string;
+  /** 应用数据目录内的存储路径（打开文件用） */
+  filePath: string;
   fileSize?: number | null;
   notes?: string | null;
   isDefault: boolean;
@@ -123,9 +125,26 @@ export interface InterviewDetail extends Interview {
   questions: InterviewQuestion[];
 }
 
+export interface Attachment {
+  id: string;
+  parentType: "APPLICATION" | "INTERVIEW";
+  parentId: string;
+  fileName: string;
+  filePath: string;
+  mimeType?: string | null;
+  size?: number | null;
+  createdAt: string;
+}
+
+export interface ImportSummary {
+  total: number;
+  counts: Record<string, number>;
+}
+
 export interface ApplicationDetail extends Application {
   events: AppEvent[];
   interviews: InterviewDetail[];
+  attachments: Attachment[];
 }
 
 export interface DictionaryItem {

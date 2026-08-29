@@ -1,16 +1,21 @@
 /** 投递详情页：时间线（行内加事件）/ 面试（逐题）/ JD / 材料占位 / 编辑与删除 */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { open as openFileDialog, revealItemInDir } from "@tauri-apps/plugin-dialog";
+import { openPath } from "@tauri-apps/plugin-opener";
 import {
   Archive,
   ArchiveRestore,
   ArrowLeft,
   Briefcase,
   FileText,
+  FolderSearch,
   Loader2,
+  Paperclip,
   Pencil,
   Plus,
   Save,
   Trash2,
+  Upload,
 } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
@@ -29,7 +34,7 @@ import { EditApplicationDialog } from "@/components/detail/EditApplicationDialog
 import { AddInterviewDialog } from "@/components/AddInterviewDialog";
 import { cn } from "@/lib/utils";
 
-type Tab = "timeline" | "interviews" | "jd";
+type Tab = "timeline" | "interviews" | "jd" | "materials";
 
 export default function ApplicationDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -164,6 +169,7 @@ export default function ApplicationDetailPage() {
             ["timeline", "时间线", app.events.length],
             ["interviews", "面试记录", app.interviews.length],
             ["jd", "JD 快照", null],
+            ["materials", "材料", app.attachments.length],
           ] as [Tab, string, number | null][]
         ).map(([key, label, count]) => (
           <button
@@ -303,6 +309,80 @@ export default function ApplicationDetailPage() {
           ) : (
             <div className="rounded-xl border border-dashed border-slate-300 py-12 text-center text-sm text-slate-400 dark:border-slate-700">
               招聘链接几乎都会过期——把 JD 原文贴进来，复盘时才知道当时岗位要求了什么
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 材料 */}
+      {tab === "materials" && (
+        <div className="mt-5">
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-xs text-slate-500">笔试截图、offer 扫描件、三方协议等（存于本机应用数据目录）</p>
+            <Button
+              size="sm"
+              onClick={async () => {
+                const picked = await openFileDialog({
+                  multiple: false,
+                  filters: [{ name: "文件", extensions: ["pdf", "png", "jpg", "jpeg", "webp", "heic", "doc", "docx"] }],
+                });
+                if (!picked) return;
+                try {
+                  await api.uploadAttachment("APPLICATION", app.id, picked);
+                  queryClient.invalidateQueries({ queryKey: ["application-detail", id] });
+                } catch (e) {
+                  alert(String(e));
+                }
+              }}
+            >
+              <Upload className="size-3.5" /> 上传文件
+            </Button>
+          </div>
+          {app.attachments.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-300 py-10 text-center text-sm text-slate-400 dark:border-slate-700">
+              暂无材料
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              {app.attachments.map((a) => (
+                <div
+                  key={a.id}
+                  className="flex items-center gap-3 rounded-lg border border-slate-200 px-4 py-2.5 dark:border-slate-800"
+                >
+                  <Paperclip className="size-4 shrink-0 text-slate-400" />
+                  <span className="min-w-0 flex-1 truncate text-sm">{a.fileName}</span>
+                  {a.size && (
+                    <span className="text-xs text-slate-400">
+                      {a.size > 1048576 ? `${(a.size / 1048576).toFixed(1)}MB` : `${Math.round(a.size / 1024)}KB`}
+                    </span>
+                  )}
+                  <button
+                    onClick={() => openPath(a.filePath).catch((e) => alert(String(e)))}
+                    className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
+                    title="打开"
+                  >
+                    <FileText className="size-3.5" />
+                  </button>
+                  <button
+                    onClick={() => revealItemInDir(a.filePath).catch(() => undefined)}
+                    className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
+                    title="在 Finder 中显示"
+                  >
+                    <FolderSearch className="size-3.5" />
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!confirm(`删除附件「${a.fileName}」？`)) return;
+                      await api.deleteAttachment(a.id).catch((e) => alert(String(e)));
+                      queryClient.invalidateQueries({ queryKey: ["application-detail", id] });
+                    }}
+                    className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/30"
+                    title="删除"
+                  >
+                    <Trash2 className="size-3.5" />
+                  </button>
+                </div>
+              ))}
             </div>
           )}
         </div>

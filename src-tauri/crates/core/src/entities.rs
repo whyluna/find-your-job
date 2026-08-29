@@ -157,6 +157,8 @@ pub struct ResumeVersion {
     pub name: String,
     pub target_role: Option<String>,
     pub file_name: String,
+    /// 应用数据目录内的存储路径（供打开文件/Finder 定位）
+    pub file_path: String,
     pub file_size: Option<i64>,
     pub notes: Option<String>,
     pub is_default: bool,
@@ -410,6 +412,34 @@ impl InterviewQuestion {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct Attachment {
+    pub id: String,
+    pub parent_type: String,
+    pub parent_id: String,
+    pub file_name: String,
+    pub file_path: String,
+    pub mime_type: Option<String>,
+    pub size: Option<i64>,
+    pub created_at: DateTime<Utc>,
+}
+
+impl Attachment {
+    pub fn from_row(row: &sqlx::sqlite::SqliteRow) -> Attachment {
+        Attachment {
+            id: row.try_get("id").unwrap_or_default(),
+            parent_type: row.try_get("parent_type").unwrap_or_default(),
+            parent_id: row.try_get("parent_id").unwrap_or_default(),
+            file_name: row.try_get("file_name").unwrap_or_default(),
+            file_path: row.try_get("file_path").unwrap_or_default(),
+            mime_type: row.try_get("mime_type").ok().flatten(),
+            size: row.try_get("size").ok().flatten(),
+            created_at: row.try_get("created_at").unwrap_or_default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CustomEventType {
     pub id: String,
     pub label: String,
@@ -441,6 +471,8 @@ pub struct ApplicationDetail {
     pub events: Vec<ApplicationEvent>,
     /// interviews 按时间倒序，每轮内含题目（按 ordinal）
     pub interviews: Vec<InterviewDetail>,
+    /// 挂在投递上的附件（笔试截图 / offer 扫描等）
+    pub attachments: Vec<Attachment>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

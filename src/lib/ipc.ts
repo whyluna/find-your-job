@@ -72,6 +72,10 @@ export const api = {
     invoke<void>("reorder_questions", { orderedIds }),
 
   listResumes: () => invoke<ResumeVersion[]>("list_resumes"),
+  uploadResume: (name: string, targetRole: string | null, sourcePath: string, notes: string | null) =>
+    invoke<ResumeVersion>("upload_resume", { name, targetRole, sourcePath, notes }),
+  deleteResumeFile: (id: string) => invoke<void>("delete_resume_file", { id }),
+  setDefaultResume: (id: string) => invoke<void>("set_default_resume", { id }),
 
   listDictionary: (category: string) =>
     invoke<DictionaryItem[]>("list_dictionary", { category }),
@@ -81,4 +85,13 @@ export const api = {
   getSetting: (key: string) => invoke<string | null>("get_setting", { key }),
   setSetting: (key: string, value: string) =>
     invoke<void>("set_setting", { key, value }),
+
+  exportJson: (path: string) => invoke<number>("export_json", { path }),
+  importJson: (path: string) =>
+    invoke<{ total: number; counts: Record<string, number> }>("import_json", { path }),
+  revealDataDir: () => invoke<void>("reveal_data_dir"),
+
+  uploadAttachment: (parentType: "APPLICATION" | "INTERVIEW", parentId: string, sourcePath: string) =>
+    invoke<import("@shared").Attachment>("upload_attachment", { parentType, parentId, sourcePath }),
+  deleteAttachment: (id: string) => invoke<void>("delete_attachment", { id }),
 };

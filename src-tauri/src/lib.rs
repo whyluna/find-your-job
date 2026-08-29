@@ -3,7 +3,8 @@
 
 use tauri::Manager;
 
-use fyj_core::entities::{Application, ApplicationListItem, Company, CustomEventType, DictionaryItem, Interview, InterviewQuestion, ResumeVersion};
+use fyj_core::backup;
+use fyj_core::entities::{Application, ApplicationListItem, Attachment, Company, CustomEventType, DictionaryItem, Interview, InterviewQuestion, ResumeVersion};
 use fyj_core::services::{
     AddEventInput, AddInterviewInput, AddQuestionInput, CreateApplicationInput, ListFilter,
     Services, UpdateApplicationInput, UpdateEventInput, UpdateInterviewInput, UpdateQuestionInput,
@@ -234,6 +235,74 @@ async fn list_resumes(state: tauri::State<'_, AppState>) -> CmdResult<Vec<Resume
     state.0.list_resumes().await.map_err(e2s)
 }
 
+/// 上传简历：把用户选择的文件复制进应用数据目录（uuid 文件名防冲突）后登记版本
+#[tauri::command]
+async fn upload_resume(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    name: String,
+    target_role: Option<String>,
+    source_path: String,
+    notes: Option<String>,
+) -> CmdResult<ResumeVersion> {
+    let src = std::path::Path::new(&source_path);
+    if !src.is_file() {
+        return Err(format!("文件不存在: {source_path}"));
+    }
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("uploads")
+        .join("resumes");
+    tokio::fs::create_dir_all(&dir)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let ext = src
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| format!(".{e}"))
+        .unwrap_or_default();
+    let stored = dir.join(format!("{}{ext}", uuid::Uuid::new_v4()));
+    let size = tokio::fs::copy(src, &stored).await.map_err(|e| e.to_string())?;
+
+    let file_name = src
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("resume")
+        .to_string();
+    state
+        .0
+        .insert_resume(
+            &name,
+            target_role.as_deref(),
+            &file_name,
+            &stored.display().to_string(),
+            Some(size as i64),
+            notes.as_deref(),
+        )
+        .await
+        .map_err(e2s)
+}
+
+#[tauri::command]
+async fn set_default_resume(state: tauri::State<'_, AppState>, id: String) -> CmdResult<()> {
+    state.0.set_default_resume(&id).await.map_err(e2s)
+}
+
+/// 删除简历版本，同时清理应用目录内的文件（投递引用由 FK 置空）
+#[tauri::command]
+async fn delete_resume_file(state: tauri::State<'_, AppState>, id: String) -> CmdResult<()> {
+    let resume = state.0.get_resume(&id).await.map_err(e2s)?;
+    state.0.delete_resume(&id).await.map_err(e2s)?;
+    let path = std::path::Path::new(&resume.file_path);
+    if path.starts_with("/") {
+        let _ = tokio::fs::remove_file(path).await;
+    }
+    Ok(())
+}
+
 // ---------- 字典 / 设置 ----------
 
 #[tauri::command]
@@ -249,6 +318,88 @@ async fn list_custom_event_types(
     state: tauri::State<'_, AppState>,
 ) -> CmdResult<Vec<CustomEventType>> {
     state.0.list_custom_event_types().await.map_err(e2s)
+}
+
+// ---------- 备份 ----------
+
+#[tauri::command]
+async fn export_json(app: tauri::AppHandle, state: tauri::State<'_, AppState>, path: String) -> CmdResult<u64> {
+    let _ = &app;
+    backup::export_to_json(&state.0.pool, std::path::Path::new(&path))
+        .await
+        .map_err(e2s)
+}
+
+#[tauri::command]
+async fn import_json(state: tauri::State<'_, AppState>, path: String) -> CmdResult<backup::ImportSummary> {
+    backup::import_from_json(&state.0.pool, std::path::Path::new(&path))
+        .await
+        .map_err(e2s)
+}
+
+/// 在 Finder 中打开应用数据目录
+#[tauri::command]
+async fn reveal_data_dir(app: tauri::AppHandle) -> CmdResult<()> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let _ = tokio::fs::read_dir(&dir).await;
+    opener_reveal(&dir.display().to_string())
+}
+
+fn opener_reveal(path: &str) -> CmdResult<()> {
+    tauri_plugin_opener::open_path(path, None::<&str>).map_err(|e| e.to_string())
+}
+
+// ---------- 附件 ----------
+
+#[tauri::command]
+async fn upload_attachment(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    parent_type: String,
+    parent_id: String,
+    source_path: String,
+) -> CmdResult<Attachment> {
+    let src = std::path::Path::new(&source_path);
+    if !src.is_file() {
+        return Err(format!("文件不存在: {source_path}"));
+    }
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("uploads")
+        .join("attachments");
+    tokio::fs::create_dir_all(&dir).await.map_err(|e| e.to_string())?;
+
+    let file_name = src.file_name().and_then(|n| n.to_str()).unwrap_or("file").to_string();
+    let ext = src.extension().and_then(|e| e.to_str()).map(|e| format!(".{e}")).unwrap_or_default();
+    let stored = dir.join(format!("{}{ext}", uuid::Uuid::new_v4()));
+    let size = tokio::fs::copy(src, &stored).await.map_err(|e| e.to_string())?;
+    let mime = match ext.as_str() {
+        ".pdf" => Some("application/pdf"),
+        ".png" => Some("image/png"),
+        ".jpg" | ".jpeg" => Some("image/jpeg"),
+        ".webp" => Some("image/webp"),
+        ".heic" => Some("image/heic"),
+        ".doc" => Some("application/msword"),
+        ".docx" => Some("application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+        _ => None,
+    };
+    state
+        .0
+        .insert_attachment(&parent_type, &parent_id, &file_name, &stored.display().to_string(), mime, Some(size as i64))
+        .await
+        .map_err(e2s)
+}
+
+#[tauri::command]
+async fn delete_attachment(state: tauri::State<'_, AppState>, id: String) -> CmdResult<()> {
+    let path = state.0.delete_attachment(&id).await.map_err(e2s)?;
+    if !path.is_empty() && path.starts_with('/') {
+        let _ = tokio::fs::remove_file(&path).await;
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -302,8 +453,16 @@ pub fn run() {
             delete_question,
             reorder_questions,
             list_resumes,
+            upload_resume,
+            set_default_resume,
+            delete_resume_file,
             list_dictionary,
             list_custom_event_types,
+            export_json,
+            import_json,
+            reveal_data_dir,
+            upload_attachment,
+            delete_attachment,
             get_setting,
             set_setting,
         ])
