@@ -2,6 +2,7 @@ import { NavLink } from "react-router";
 import {
   BarChart3,
   BookOpen,
+  Scale,
   CalendarDays,
   BriefcaseBusiness,
   Building2,
@@ -18,6 +19,7 @@ const NAV_ITEMS = [
   { to: "/stats", label: "统计", icon: BarChart3, end: false },
   { to: "/calendar", label: "日历", icon: CalendarDays, end: false },
   { to: "/review", label: "面经", icon: BookOpen, end: false },
+  { to: "/offers", label: "offer 对比", icon: Scale, end: false },
   { to: "/resumes", label: "简历库", icon: FileText, end: false },
   { to: "/companies", label: "公司", icon: Building2, end: false },
   { to: "/settings", label: "设置", icon: Settings, end: false },

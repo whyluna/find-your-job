@@ -13,6 +13,7 @@ import SettingsPage from "@/pages/SettingsPage";
 import StatsPage from "@/pages/StatsPage";
 import CalendarPage from "@/pages/CalendarPage";
 import ReviewPage from "@/pages/ReviewPage";
+import OffersPage from "@/pages/OffersPage";
 
 export default function App() {
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -39,6 +40,7 @@ export default function App() {
           <Route path="/stats" element={<StatsPage />} />
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/review" element={<ReviewPage />} />
+          <Route path="/offers" element={<OffersPage />} />
           <Route path="/resumes" element={<ResumeLibraryPage />} />
           <Route path="/companies" element={<CompaniesPage />} />
           <Route path="/settings" element={<SettingsPage />} />
