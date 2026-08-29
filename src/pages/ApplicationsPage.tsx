@@ -15,7 +15,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { KanbanSquare, Table2, GripVertical, Plus, Search, TriangleAlert } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { api } from "@/lib/ipc";
 import { fmtDate, deadlineLabel, isUrgent } from "@/lib/format";
@@ -58,8 +58,23 @@ export default function ApplicationsPage() {
   // 行拖动排序：仅在未筛选/未搜索（完整列表）时可用
   const canReorder = search.trim() === "" && status === "ALL";
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const [dragActive, setDragActive] = useState(false);
+
+  // 拖动全程锁定 grabbing 光标：防止快速移动时扫过其他行导致光标在握拳/手指间闪烁
+  useEffect(() => {
+    if (!dragActive) return;
+    const style = document.createElement("style");
+    style.textContent = "* { cursor: grabbing !important; }";
+    document.head.appendChild(style);
+    document.body.style.userSelect = "none";
+    return () => {
+      style.remove();
+      document.body.style.userSelect = "";
+    };
+  }, [dragActive]);
 
   function handleDragEnd(e: DragEndEvent) {
+    setDragActive(false);
     const { active, over } = e;
     if (!over || active.id === over.id) return;
     const oldIdx = items.findIndex((i) => i.id === active.id);
@@ -184,7 +199,13 @@ export default function ApplicationsPage() {
             </tr>
           </thead>
           <tbody>
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragStart={() => setDragActive(true)}
+              onDragEnd={handleDragEnd}
+              onDragCancel={() => setDragActive(false)}
+            >
               <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
                 {isLoading && (
                   <tr>
@@ -255,8 +276,8 @@ function Row({
       tabIndex={0}
       className={cn(
         "border-b border-slate-100 transition-colors last:border-0 outline-none focus-visible:bg-indigo-50 hover:bg-slate-50 dark:border-slate-800/60 dark:hover:bg-slate-800/40 dark:focus-visible:bg-indigo-900/20",
-        canReorder && "cursor-pointer",
-        isDragging && "relative z-10 bg-indigo-50/70 opacity-90 dark:bg-indigo-900/20",
+        canReorder && !isDragging && "cursor-pointer",
+        isDragging && "relative z-10 bg-indigo-50/70 opacity-90 shadow-lg dark:bg-indigo-900/20",
       )}
     >
       <td className="w-8 px-2 py-2.5 text-center align-middle">
