@@ -36,7 +36,7 @@ export function deadlineLabel(iso?: string | null): string {
   const day1 = new Date(d);
   day1.setHours(0, 0, 0, 0);
   const diffDays = Math.round((day1.getTime() - day0.getTime()) / 86400000);
-  if (diffDays < 0) return "已过期";
+  if (d.getTime() < Date.now()) return "已过期";
   if (diffDays === 0) return "今天截止";
   if (diffDays === 1) return "明天截止";
   return `${fmtDate(iso)} 截止`;
