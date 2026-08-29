@@ -1,5 +1,5 @@
 /** 看板视图：纵向泳道——每个状态一行（自上而下即流程顺序），卡片行内横排可换行；
-/** 行内拖动调顺序（sort_order 持久化），跨行拖动改变流程（快捷创建事件/面试） */
+/** 行内拖动实时重排（动画过渡+松手持久化），跨行拖动改变流程（事件确认/面试弹窗） */
 import {
   DndContext,
   DragOverlay,
@@ -9,6 +9,7 @@ import {
   useSensors,
   closestCenter,
   type DragEndEvent,
+  type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
 import {
@@ -32,8 +33,9 @@ import { cn } from "@/lib/utils";
 export function KanbanView({ items, canReorder }: { items: ApplicationListItem[]; canReorder: boolean }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [dragging, setDragging] = useState<ApplicationListItem | null>(null);
+  const [activeItem, setActiveItem] = useState<ApplicationListItem | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const [overStatus, setOverStatus] = useState<Status | null>(null);
   const [confirmTarget, setConfirmTarget] = useState<{
     app: ApplicationListItem;
     eventType: NonNullable<ReturnType<typeof columnToEventType>>;
@@ -67,7 +69,6 @@ export function KanbanView({ items, canReorder }: { items: ApplicationListItem[]
   );
   const allRows = [...base, ...extra];
 
-  // 默认隐藏空行
   const rows = showAllRows
     ? allRows
     : allRows.filter((c) => items.filter((i) => i.status === c).length > 0);
@@ -90,18 +91,53 @@ export function KanbanView({ items, canReorder }: { items: ApplicationListItem[]
     };
   }, [dragActive]);
 
-  /** 行内新顺序 → 全局 sort_order 持久化 */
-  function applyColumnOrder(newColItems: ApplicationListItem[], col: Status) {
-    const result: ApplicationListItem[] = [];
-    let idx = 0;
-    for (const it of items) {
-      if (it.status === col) result.push(newColItems[idx++]);
-      else result.push(it);
+  function reorderCacheInner(
+    cache: ApplicationListItem[],
+    activeId: string,
+    overId: string,
+    status: Status,
+  ): ApplicationListItem[] {
+    const pos = cache
+      .map((it, i) => ({ it, i }))
+      .filter((x) => x.it.status === status);
+    const from = pos.findIndex((x) => x.it.id === activeId);
+    const to = pos.findIndex((x) => x.it.id === overId);
+    if (from < 0 || to < 0 || from === to) return cache;
+    const moved = arrayMove(pos, from, to);
+    const result = [...cache];
+    moved.forEach((x, j) => {
+      result[pos[j].i] = x.it;
+    });
+    return result;
+  }
+
+  function handleDragOver(e: DragOverEvent) {
+    const { active, over } = e;
+    if (!over || !canReorder) return;
+    const activeId = String(active.id);
+    const overId = String(over.id);
+    const activeItem = items.find((i) => i.id === activeId);
+    if (!activeItem || activeId === overId) return;
+
+    const overIsRow = (allRows as string[]).includes(overId);
+    const overItem = items.find((i) => i.id === overId);
+
+    // 记录悬停目标行（用于行高亮与松手判定）
+    setOverStatus(overIsRow ? (overId as Status) : (overItem?.status ?? null));
+
+    // 同状态行内：实时重排缓存 → 兄弟卡片带过渡滑动
+    if (!overIsRow && overItem && overItem.status === activeItem.status) {
+      queryClient.setQueriesData(
+        { queryKey: ["applications"] },
+        (cache: ApplicationListItem[] | undefined) =>
+          cache ? reorderCacheInner(cache, activeId, overId, activeItem.status) : cache,
+      );
     }
-    api
-      .reorderApplications(result.map((i) => i.id))
-      .then(() => queryClient.invalidateQueries({ queryKey: ["applications"] }))
-      .catch(() => queryClient.invalidateQueries({ queryKey: ["applications"] }));
+  }
+
+  function handleDragStart(e: DragStartEvent) {
+    setDragActive(true);
+    setActiveItem(items.find((i) => i.id === e.active.id) ?? null);
   }
 
   function triggerStatusChange(app: ApplicationListItem, target: Status) {
@@ -122,36 +158,36 @@ export function KanbanView({ items, canReorder }: { items: ApplicationListItem[]
 
   function handleDragEnd(e: DragEndEvent) {
     setDragActive(false);
-    setDragging(null);
     const { active, over } = e;
-    if (!over || !canReorder) return;
-    const activeId = String(active.id);
-    const overId = String(over.id);
-    const activeItem = items.find((i) => i.id === activeId);
-    if (!activeItem) return;
-
-    const overIsRow = allRows.includes(overId as Status);
-
-    if (overIsRow) {
-      // 拖到行空白处：跨状态 → 状态确认
-      triggerStatusChange(activeItem, overId as Status);
+    const activeItem = items.find((i) => i.id === String(active.id));
+    if (!activeItem) {
+      setActiveItem(null);
+      setOverStatus(null);
       return;
     }
 
-    const overItem = items.find((i) => i.id === overId);
-    if (!overItem) return;
+    // ① 持久化当前可见顺序（拖动中 onDragOver 已实时重排缓存）
+    const cache = queryClient.getQueryData([
+      "applications",
+      "",
+      "ALL",
+    ]) as ApplicationListItem[] | undefined;
+    if (cache) {
+      void api.reorderApplications(cache.map((i) => i.id));
+    }
 
-    if (overItem.status === activeItem.status) {
-      // 行内重排
-      if (activeId === overId) return;
-      const colItems = items.filter((i) => i.status === activeItem.status);
-      const from = colItems.findIndex((i) => i.id === activeId);
-      const to = colItems.findIndex((i) => i.id === overId);
-      if (from < 0 || to < 0) return;
-      applyColumnOrder(arrayMove(colItems, from, to), activeItem.status);
-    } else {
-      // 拖到另一状态的卡片上：跨状态 → 状态确认
-      triggerStatusChange(activeItem, overItem.status);
+    // ② 跨行判定：优先用拖动过程中持续追踪的悬停行
+    let target: Status | null = overStatus;
+    if (!target && over) {
+      const overId = String(over.id);
+      if (allRows.includes(overId as Status)) target = overId as Status;
+      else target = items.find((i) => i.id === overId)?.status ?? null;
+    }
+    setActiveItem(null);
+    setOverStatus(null);
+
+    if (target && target !== activeItem.status) {
+      triggerStatusChange(activeItem, target);
     }
   }
 
@@ -174,14 +210,14 @@ export function KanbanView({ items, canReorder }: { items: ApplicationListItem[]
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
-        onDragStart={(e: DragStartEvent) => {
-          setDragActive(true);
-          setDragging(items.find((i) => i.id === e.active.id) ?? null);
-        }}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
         onDragCancel={() => {
           setDragActive(false);
-          setDragging(null);
+          setActiveItem(null);
+          setOverStatus(null);
+          queryClient.invalidateQueries({ queryKey: ["applications"] });
         }}
       >
         <div className="space-y-2.5">
@@ -191,13 +227,12 @@ export function KanbanView({ items, canReorder }: { items: ApplicationListItem[]
               status={row}
               colItems={byStatus.get(row) ?? []}
               canReorder={canReorder}
+              highlighted={!!activeItem && overStatus === row && activeItem.status !== row}
               onOpen={(id) => navigate(`/applications/${id}`)}
             />
           ))}
         </div>
-        <DragOverlay>
-          {dragging && <Card item={dragging} dragging />}
-        </DragOverlay>
+        <DragOverlay>{activeItem && <Card item={activeItem} dragging />}</DragOverlay>
       </DndContext>
 
       {confirmTarget && (
@@ -224,11 +259,13 @@ function SwimLane({
   status,
   colItems,
   canReorder,
+  highlighted,
   onOpen,
 }: {
   status: Status;
   colItems: ApplicationListItem[];
   canReorder: boolean;
+  highlighted: boolean;
   onOpen: (id: string) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
@@ -239,10 +276,10 @@ function SwimLane({
       ref={setNodeRef}
       className={cn(
         "rounded-xl border px-3 py-2.5 transition-colors",
-        isOver
+        highlighted || isOver
           ? "border-indigo-300 bg-indigo-50/70 dark:border-indigo-500/70 dark:bg-indigo-900/20"
           : "border-slate-200/70 bg-slate-50/60 dark:border-slate-800/70 dark:bg-slate-900/40",
-        isTerminal && !isOver && "bg-slate-50/40 dark:bg-slate-950/30",
+        isTerminal && !highlighted && !isOver && "bg-slate-50/40 dark:bg-slate-950/30",
       )}
     >
       <div className="mb-2 flex items-center gap-2">
@@ -284,15 +321,19 @@ function SortableCard({
   canReorder: boolean;
   onOpen: (id: string) => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useSortable({
+  const { attributes, listeners, setNodeRef, transition, isDragging } = useSortable({
     id: item.id,
     disabled: !canReorder,
   });
-  const style = {
-    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
-  };
+  // 被拖卡片由 DragOverlay 渲染；占位本体只保留过渡动画（兄弟卡片滑动让位）
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners} className={cn(isDragging && "opacity-30")}>
+    <div
+      ref={setNodeRef}
+      style={{ transition }}
+      {...attributes}
+      {...listeners}
+      className={cn("touch-none", isDragging && "opacity-30")}
+    >
       <Card item={item} onOpen={canReorder ? onOpen : undefined} />
     </div>
   );
@@ -316,7 +357,7 @@ function Card({
         if (e.key === "Enter") onOpen?.(item.id);
       }}
       className={cn(
-        "w-52 cursor-pointer rounded-lg border border-slate-200/80 bg-white p-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.04)] outline-none transition-all hover:border-slate-300/80 hover:shadow-[0_2px_6px_rgba(0,0,0,0.06)] focus-visible:ring-2 focus-visible:ring-indigo-300 dark:border-slate-700/80 dark:bg-slate-800/80 dark:hover:border-slate-600 dark:hover:shadow-none",
+        "w-52 cursor-grab rounded-lg border border-slate-200/80 bg-white p-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.04)] outline-none transition-colors hover:border-slate-300/80 focus-visible:ring-2 focus-visible:ring-indigo-300 dark:border-slate-700/80 dark:bg-slate-800/80 dark:hover:border-slate-600",
         dragging && "rotate-1 shadow-lg",
       )}
     >
