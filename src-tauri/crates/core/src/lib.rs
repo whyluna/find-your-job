@@ -4,8 +4,10 @@
 //! Tauri command 与 P1 的 axum handler 只是薄封装。单测主战场。
 
 pub mod db;
+pub mod entities;
 pub mod error;
 pub mod models;
+pub mod services;
 pub mod state_machine;
 
 pub use error::{Error, Result};
