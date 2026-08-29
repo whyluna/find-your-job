@@ -1,6 +1,20 @@
-/** 投递列表：看板（拖拽→事件确认）+ 表格双视图 */
-import { useQuery } from "@tanstack/react-query";
-import { KanbanSquare, Table2, Plus, Search, TriangleAlert } from "lucide-react";
+/** 投递列表：看板（拖拽→事件确认）+ 表格（行可拖动排序）双视图 */
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { KanbanSquare, Table2, GripVertical, Plus, Search, TriangleAlert } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { api } from "@/lib/ipc";
@@ -14,6 +28,7 @@ import { cn } from "@/lib/utils";
 
 export default function ApplicationsPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [view, setView] = useState<"board" | "table">(
     () => (localStorage.getItem("fyj-view") as "board" | "table") || "board",
   );
@@ -39,6 +54,25 @@ export default function ApplicationsPage() {
   const items = useMemo(() => data ?? [], [data]);
   const missingResume = items.filter((i) => !i.resumeVersionId);
   const showYellowBar = !noResumeDismissed && missingResume.length > 0;
+
+  // 行拖动排序：仅在未筛选/未搜索（完整列表）时可用
+  const canReorder = search.trim() === "" && status === "ALL";
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  function handleDragEnd(e: DragEndEvent) {
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    const oldIdx = items.findIndex((i) => i.id === active.id);
+    const newIdx = items.findIndex((i) => i.id === over.id);
+    if (oldIdx < 0 || newIdx < 0) return;
+    const next = arrayMove(items, oldIdx, newIdx);
+    // 乐观更新 + 持久化
+    queryClient.setQueryData(["applications", search, status], next);
+    api
+      .reorderApplications(next.map((i) => i.id))
+      .then(() => queryClient.invalidateQueries({ queryKey: ["applications"] }))
+      .catch(() => queryClient.invalidateQueries({ queryKey: ["applications"] }));
+  }
 
   return (
     <div className="p-8">
@@ -137,6 +171,7 @@ export default function ApplicationsPage() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
+              <th className="w-8 px-2 py-2.5" />
               <th className="whitespace-nowrap px-3 py-2.5 font-medium">公司</th>
               <th className="whitespace-nowrap px-3 py-2.5 font-medium">部门</th>
               <th className="whitespace-nowrap px-3 py-2.5 font-medium">岗位</th>
@@ -149,23 +184,32 @@ export default function ApplicationsPage() {
             </tr>
           </thead>
           <tbody>
-            {isLoading && (
-              <tr>
-                <td colSpan={9} className="px-4 py-10 text-center text-slate-400">
-                  加载中…
-                </td>
-              </tr>
-            )}
-            {!isLoading && items.length === 0 && (
-              <tr>
-                <td colSpan={9} className="px-4 py-12 text-center text-slate-400">
-                  还没有投递记录，点右上角「新建投递」开始
-                </td>
-              </tr>
-            )}
-            {items.map((item) => (
-              <Row key={item.id} item={item} onClick={() => navigate(`/applications/${item.id}`)} />
-            ))}
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+                {isLoading && (
+                  <tr>
+                    <td colSpan={10} className="px-4 py-10 text-center text-slate-400">
+                      加载中…
+                    </td>
+                  </tr>
+                )}
+                {!isLoading && items.length === 0 && (
+                  <tr>
+                    <td colSpan={10} className="px-4 py-12 text-center text-slate-400">
+                      还没有投递记录，点右上角「新建投递」开始
+                    </td>
+                  </tr>
+                )}
+                {items.map((item) => (
+                  <Row
+                    key={item.id}
+                    item={item}
+                    canReorder={canReorder}
+                    onClick={() => navigate(`/applications/${item.id}`)}
+                  />
+                ))}
+              </SortableContext>
+            </DndContext>
           </tbody>
         </table>
       </div>
@@ -181,16 +225,55 @@ export default function ApplicationsPage() {
   );
 }
 
-function Row({ item, onClick }: { item: ApplicationListItem; onClick: () => void }) {
+function Row({
+  item,
+  onClick,
+  canReorder,
+}: {
+  item: ApplicationListItem;
+  onClick: () => void;
+  canReorder: boolean;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: item.id,
+    disabled: !canReorder,
+  });
+  const style = {
+    transform: transform
+      ? `translate3d(0, ${transform.y}px, 0)`
+      : undefined,
+    transition,
+  };
   return (
     <tr
+      ref={setNodeRef}
+      style={style}
       onClick={onClick}
       onKeyDown={(e) => {
         if (e.key === "Enter") onClick();
       }}
       tabIndex={0}
-      className="cursor-pointer border-b border-slate-100 transition-colors last:border-0 outline-none focus-visible:bg-indigo-50 hover:bg-slate-50 dark:border-slate-800/60 dark:hover:bg-slate-800/40 dark:focus-visible:bg-indigo-900/20"
+      className={cn(
+        "border-b border-slate-100 transition-colors last:border-0 outline-none focus-visible:bg-indigo-50 hover:bg-slate-50 dark:border-slate-800/60 dark:hover:bg-slate-800/40 dark:focus-visible:bg-indigo-900/20",
+        canReorder && "cursor-pointer",
+        isDragging && "relative z-10 bg-indigo-50/70 opacity-90 dark:bg-indigo-900/20",
+      )}
     >
+      <td className="w-8 px-2 py-2.5 text-center align-middle">
+        <span
+          {...(canReorder ? { ...attributes, ...listeners } : {})}
+          onClick={(e) => e.stopPropagation()}
+          title={canReorder ? "拖动调整顺序" : "筛选/搜索时不可拖动"}
+          className={cn(
+            "inline-flex",
+            canReorder
+              ? "cursor-grab text-slate-300 hover:text-slate-500 active:cursor-grabbing dark:text-slate-600 dark:hover:text-slate-400"
+              : "text-slate-200 dark:text-slate-800",
+          )}
+        >
+          <GripVertical className="size-3.5" />
+        </span>
+      </td>
       <td className="whitespace-nowrap px-3 py-2.5">
         <div className="flex items-center gap-2">
           <span className="font-medium">{item.companyName}</span>

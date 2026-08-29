@@ -426,6 +426,25 @@ async fn question_crud_and_reorder() {
 }
 
 #[tokio::test]
+async fn reorder_applications_persists_manual_order() {
+    let (_dir, s) = setup().await;
+    let a = s.create_application(create_input("公司甲", "岗A")).await.unwrap();
+    let b = s.create_application(create_input("公司乙", "岗B")).await.unwrap();
+    let c = s.create_application(create_input("公司丙", "岗C")).await.unwrap();
+
+    // 默认：最新在前
+    let list = s.list_applications(&Default::default()).await.unwrap();
+    let names: Vec<String> = list.iter().map(|i| i.application.company_name.clone()).collect();
+    assert_eq!(names, vec!["公司丙", "公司乙", "公司甲"]);
+
+    // 手动拖成 乙→甲→丙
+    s.reorder_applications(&[b.id.clone(), a.id.clone(), c.id.clone()]).await.unwrap();
+    let list = s.list_applications(&Default::default()).await.unwrap();
+    let names: Vec<String> = list.iter().map(|i| i.application.company_name.clone()).collect();
+    assert_eq!(names, vec!["公司乙", "公司甲", "公司丙"]);
+}
+
+#[tokio::test]
 async fn resume_crud_default_and_usage() {
     let (_dir, s) = setup().await;
     let r1 = s.insert_resume("算法岗版 v3", Some("算法"), "resume-v3.pdf", "/uploads/resumes/a.pdf", Some(1024), None).await.unwrap();

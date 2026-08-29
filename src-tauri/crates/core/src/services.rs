@@ -546,6 +546,20 @@ impl Services {
         Ok(())
     }
 
+    /// 手动排序：按给定 id 顺序写 sort_order（表格拖拽后调用）
+    pub async fn reorder_applications(&self, ordered_ids: &[String]) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
+        for (i, id) in ordered_ids.iter().enumerate() {
+            sqlx::query("UPDATE application SET sort_order = ? WHERE id = ?")
+                .bind((i + 1) as i64)
+                .bind(id)
+                .execute(&mut *tx)
+                .await?;
+        }
+        tx.commit().await?;
+        Ok(())
+    }
+
     pub async fn list_applications(&self, f: &ListFilter) -> Result<Vec<ApplicationListItem>> {
         let mut qb: QueryBuilder<Sqlite> = QueryBuilder::new(
             "SELECT a.id, a.company_id, c.name AS company_name, a.position_title, a.department, \
@@ -642,7 +656,7 @@ impl Services {
             qb.push_bind(like);
             qb.push(")");
         }
-        qb.push(" ORDER BY a.updated_at DESC LIMIT 500");
+        qb.push(" ORDER BY a.sort_order ASC, a.updated_at DESC LIMIT 500");
 
         let rows = qb.build().fetch_all(&self.pool).await?;
         Ok(rows.iter().map(ApplicationListItem::from_row).collect())

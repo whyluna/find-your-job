@@ -65,6 +65,8 @@ export const api = {
 
   setApplicationArchived: (id: string, archived: boolean) =>
     invoke<void>("set_application_archived", { id, archived }),
+  reorderApplications: (orderedIds: string[]) =>
+    invoke<void>("reorder_applications", { orderedIds }),
 
   addEvent: (input: AddEventInput) => invoke<AppEvent>("add_event", { input }),
   updateEvent: (id: string, input: UpdateEventInput) =>

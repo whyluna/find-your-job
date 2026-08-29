@@ -270,6 +270,14 @@ async fn list_applications(
 }
 
 #[tauri::command]
+async fn reorder_applications(
+    state: tauri::State<'_, AppState>,
+    ordered_ids: Vec<String>,
+) -> CmdResult<()> {
+    state.0.reorder_applications(&ordered_ids).await.map_err(e2s)
+}
+
+#[tauri::command]
 async fn get_application_detail(
     state: tauri::State<'_, AppState>,
     id: String,
@@ -734,6 +742,7 @@ pub fn run() {
             search_companies,
             upsert_company,
             list_applications,
+            reorder_applications,
             get_application_detail,
             create_application,
             update_application,
