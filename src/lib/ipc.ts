@@ -94,4 +94,10 @@ export const api = {
   uploadAttachment: (parentType: "APPLICATION" | "INTERVIEW", parentId: string, sourcePath: string) =>
     invoke<import("@shared").Attachment>("upload_attachment", { parentType, parentId, sourcePath }),
   deleteAttachment: (id: string) => invoke<void>("delete_attachment", { id }),
+
+  localApiStatus: () =>
+    invoke<{ enabled: boolean; running: boolean; port: number; token: string }>("local_api_status"),
+  localApiSetEnabled: (enabled: boolean) =>
+    invoke<void>("local_api_set_enabled", { enabled }),
+  localApiResetToken: () => invoke<void>("local_api_reset_token"),
 };

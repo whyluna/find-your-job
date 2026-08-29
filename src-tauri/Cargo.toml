@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/core"]
+members = ["crates/core", "crates/http"]
 
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }
@@ -29,6 +29,7 @@ tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"
 fyj-core = { path = "crates/core" }
+fyj-http = { path = "crates/http" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sqlx = { workspace = true }

@@ -4,6 +4,7 @@
 use tauri::Manager;
 
 use fyj_core::backup;
+use fyj_http::{self, HttpState};
 use fyj_core::entities::{Application, ApplicationListItem, Attachment, Company, CustomEventType, DictionaryItem, Interview, InterviewQuestion, ResumeVersion};
 use fyj_core::services::{
     AddEventInput, AddInterviewInput, AddQuestionInput, CreateApplicationInput, ListFilter,
@@ -12,6 +13,129 @@ use fyj_core::services::{
 use fyj_core::entities::{ApplicationDetail, ApplicationEvent};
 
 pub struct AppState(pub Services);
+
+/// 本地 HTTP API 的运行句柄（P1：浏览器扩展剪藏入口）
+pub struct LocalApiHandle {
+    pub task: tauri::async_runtime::JoinHandle<()>,
+    pub running: std::sync::atomic::AtomicBool,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalApiStatus {
+    pub enabled: bool,
+    pub running: bool,
+    pub port: u16,
+    pub token: String,
+}
+
+const LOCAL_API_PORT: u16 = fyj_http::DEFAULT_PORT;
+
+async fn read_or_create_token(svc: &Services) -> Result<String, String> {
+    if let Some(t) = svc.get_setting("local_api_token").await.map_err(e2s)? {
+        if !t.trim_matches('"').is_empty() {
+            return Ok(t.trim_matches('"').to_string());
+        }
+    }
+    let token = uuid::Uuid::new_v4().to_string();
+    svc.set_setting("local_api_token", &format!("\"{token}\""))
+        .await
+        .map_err(e2s)?;
+    Ok(token)
+}
+
+fn spawn_local_api(app: &tauri::AppHandle) -> Result<(), String> {
+    let handle_slot: tauri::State<std::sync::Mutex<Option<LocalApiHandle>>> = app.state();
+    let mut slot = handle_slot.lock().unwrap();
+    if let Some(h) = slot.as_ref() {
+        if h.running.load(std::sync::atomic::Ordering::SeqCst) {
+            return Ok(()); // 已在运行
+        }
+    }
+    let app2 = app.clone();
+    let task = tauri::async_runtime::spawn(async move {
+        let svc = &app2.state::<AppState>().0;
+        let Ok(token) = read_or_create_token(svc).await else {
+            eprintln!("本地 API：读取 token 失败");
+            return;
+        };
+        let http_state = std::sync::Arc::new(HttpState {
+            services: svc.clone(),
+            token,
+        });
+        fyj_http::serve(LOCAL_API_PORT, http_state);
+    });
+    *slot = Some(LocalApiHandle {
+        task,
+        running: std::sync::atomic::AtomicBool::new(true),
+    });
+    Ok(())
+}
+
+fn stop_local_api(app: &tauri::AppHandle) {
+    let handle_slot: tauri::State<std::sync::Mutex<Option<LocalApiHandle>>> = app.state();
+    let mut slot = handle_slot.lock().unwrap();
+    if let Some(h) = slot.take() {
+        h.running.store(false, std::sync::atomic::Ordering::SeqCst);
+        h.task.abort();
+    }
+}
+
+#[tauri::command]
+async fn local_api_status(app: tauri::AppHandle) -> CmdResult<LocalApiStatus> {
+    let svc = &app.state::<AppState>().0;
+    let enabled = svc
+        .get_setting("local_api_enabled")
+        .await
+        .map_err(e2s)?
+        .as_deref()
+        .map(|v| v == "true")
+        .unwrap_or(false);
+    let token = read_or_create_token(svc).await?;
+    let running = app
+        .state::<std::sync::Mutex<Option<LocalApiHandle>>>()
+        .lock()
+        .unwrap()
+        .as_ref()
+        .map(|h| h.running.load(std::sync::atomic::Ordering::SeqCst))
+        .unwrap_or(false);
+    Ok(LocalApiStatus {
+        enabled,
+        running,
+        port: LOCAL_API_PORT,
+        token,
+    })
+}
+
+#[tauri::command]
+async fn local_api_set_enabled(app: tauri::AppHandle, enabled: bool) -> CmdResult<()> {
+    {
+        let svc = &app.state::<AppState>().0;
+        svc.set_setting("local_api_enabled", if enabled { "true" } else { "false" })
+            .await
+            .map_err(e2s)?;
+    }
+    if enabled {
+        spawn_local_api(&app)?;
+    } else {
+        stop_local_api(&app);
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn local_api_reset_token(app: tauri::AppHandle) -> CmdResult<()> {
+    {
+        let svc = &app.state::<AppState>().0;
+        let token = uuid::Uuid::new_v4().to_string();
+        svc.set_setting("local_api_token", &format!("\"{token}\""))
+            .await
+            .map_err(e2s)?;
+    }
+    stop_local_api(&app);
+    spawn_local_api(&app)?;
+    Ok(())
+}
 
 fn e2s(e: fyj_core::Error) -> String {
     e.to_string()
@@ -430,6 +554,19 @@ pub fn run() {
             let pool = tauri::async_runtime::block_on(fyj_core::db::init_pool(&db_path))
                 .expect("数据库初始化失败");
             app.manage(AppState(Services::new(pool)));
+            app.manage(std::sync::Mutex::<Option<LocalApiHandle>>::new(None));
+            // 若设置中已开启扩展接入，自动启动本地 API
+            {
+                let svc = &app.state::<AppState>().0;
+                let enabled = tauri::async_runtime::block_on(svc.get_setting("local_api_enabled"))
+                    .ok()
+                    .flatten()
+                    .map(|v| v == "true")
+                    .unwrap_or(false);
+                if enabled {
+                    let _ = spawn_local_api(app.handle());
+                }
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -458,6 +595,9 @@ pub fn run() {
             delete_resume_file,
             list_dictionary,
             list_custom_event_types,
+            local_api_status,
+            local_api_set_enabled,
+            local_api_reset_token,
             export_json,
             import_json,
             reveal_data_dir,
