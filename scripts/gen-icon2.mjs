@@ -36,24 +36,31 @@ for (let y = 0; y < S; y++) {
   }
 }
 
-// ---- 矢量层：白色进度环（缺口在右上）+ 大对勾 ----
-// 环：中心 (512,512) 半径 300，线宽 56，缺口 70°（从 -35° 到 +35° 顶部）
+// ---- 矢量层：白色进度环（顶部窄缺口，圆头端点）+ 大对勾 ----
+// 环：中心 (512,512) 半径 300，线宽 56，缺口 34°（±17°，窄口保证"环"的可读性）
 const CX = 512, CY = 512, RR = 300, LW = 56;
+const GAP = (17 * Math.PI) / 180; // 缺口半角
+// 弧两端圆头（round cap）：θ = 90° ± 17°
+const capA = [CX + RR * Math.cos(Math.PI / 2 - GAP), CY - RR * Math.sin(Math.PI / 2 - GAP)];
+const capB = [CX + RR * Math.cos(Math.PI / 2 + GAP), CY - RR * Math.sin(Math.PI / 2 + GAP)];
+const inCap = (x, y) =>
+  Math.hypot(x - capA[0], y - capA[1]) <= LW / 2 ||
+  Math.hypot(x - capB[0], y - capB[1]) <= LW / 2;
 const inRing = (x, y) => {
+  if (inCap(x, y)) return true;
   const dx = x - CX, dy = y - CY;
   const d2 = dx * dx + dy * dy;
   const lo = (RR - LW / 2) ** 2, hi = (RR + LW / 2) ** 2;
   if (d2 < lo || d2 > hi) return false;
-  // 顶部 90° 缺口（屏幕坐标 y 向下：顶部 = 角度在 -π/2 附近）
   const ang = Math.atan2(-(dy), dx); // 数学角度，顶部为 +π/2
   const top = Math.PI / 2;
   let diff = Math.abs(ang - top);
   if (diff > Math.PI) diff = 2 * Math.PI - diff;
-  return diff > (35 * Math.PI) / 180; // 缺口±35°
+  return diff > GAP; // 顶部 ±17° 之外为弧
 };
-// 对勾：三段折线（粗 56，端点圆头），完全在环内
-// 点：短臂起点(400,530) → 轇(485,615) → 长臂终(655,420)
-const A = [400, 530], B = [485, 615], C = [655, 420];
+// 对勾：两段折线（粗 58，端点圆头），完全在环内，整体上移 25 视觉居中
+// 点：短臂起点(400,505) → 轇(485,590) → 长臂终(655,395)
+const A = [400, 505], B = [485, 590], C = [655, 395];
 const CK_W = 58;
 function distSeg(p, a, b) {
   const vx = b[0] - a[0], vy = b[1] - a[1];
