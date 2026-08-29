@@ -215,9 +215,21 @@ export default function ApplicationDetailPage() {
 
       {/* 时间线 */}
       {tab === "timeline" && (
-        <div className="mt-5 grid grid-cols-[1fr_320px] gap-6">
+        <div className="mt-5">
           <div className="space-y-3">
-            <AddEventForm applicationId={app.id} />
+            <div className="flex items-start gap-3">
+              <div className="min-w-0 flex-1">
+                <AddEventForm applicationId={app.id} />
+              </div>
+              <Button
+                className="mt-0.5 shrink-0"
+                disabled={hasScheduled}
+                title={hasScheduled ? "还有已约未进行的面试，先完成或取消该轮" : undefined}
+                onClick={() => setShowAddInterview(true)}
+              >
+                <Plus className="size-3.5" /> 添加面试（第 {nextRound} 轮）
+              </Button>
+            </div>
             {timeline.length === 0 && (
               <div className="rounded-xl border border-dashed border-slate-300 py-8 text-center text-sm text-slate-400 dark:border-slate-700">
                 还没有记录，用上方表单记录第一笔
@@ -272,32 +284,6 @@ export default function ApplicationDetailPage() {
                 </div>
               ),
             )}
-          </div>
-          <div className="rounded-xl border border-slate-200 p-4 text-xs text-slate-500 dark:border-slate-800">
-            <div className="mb-2 font-medium text-slate-600 dark:text-slate-300">面试速览</div>
-            {app.interviews.length === 0 ? (
-              <div className="mb-3">暂无面试</div>
-            ) : (
-              <div className="mb-3 space-y-1">
-                {app.interviews.map((iv) => (
-                  <div key={iv.id} className="flex justify-between">
-                    <span>
-                      第 {iv.round} 轮{iv.roundLabel ? `（${iv.roundLabel}）` : ""}
-                    </span>
-                    <span className="text-slate-400">{fmtDate(iv.scheduledAt)}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-            <Button
-              size="sm"
-              className="w-full"
-              disabled={hasScheduled}
-              title={hasScheduled ? "还有已约未进行的面试，先完成或取消该轮" : undefined}
-              onClick={() => setShowAddInterview(true)}
-            >
-              <Plus className="size-3.5" /> 添加面试
-            </Button>
           </div>
         </div>
       )}

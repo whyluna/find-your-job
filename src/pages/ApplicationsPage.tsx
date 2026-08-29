@@ -241,9 +241,6 @@ function Row({ item, onClick }: { item: ApplicationListItem; onClick: () => void
       </td>
       <td className="px-4 py-2.5">
         <div className="text-slate-500">{lastLabel ?? "—"}</div>
-        {item.interviewCount > 0 && (
-          <div className="text-xs text-slate-400">{item.interviewCount} 轮面试</div>
-        )}
       </td>
     </tr>
   );
