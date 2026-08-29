@@ -218,14 +218,14 @@ export default function ApplicationDetailPage() {
             {timeline.map((t) =>
               t.kind === "event" ? (
                 <div key={`e-${t.id}`} className="flex gap-3">
-                  <div className="mt-2 size-[9px] shrink-0 rounded-full bg-slate-300 dark:bg-slate-600" />
+                  <div className="mt-[7px] size-[9px] shrink-0 rounded-full bg-slate-300 dark:bg-slate-600" />
                   <div className="min-w-0 flex-1">
                     <EventItem event={t} applicationId={app.id} />
                   </div>
                 </div>
               ) : (
                 <div key={`iv-${t.id}`} className="flex gap-3">
-                  <div className="mt-[17px] size-[9px] shrink-0 rounded-full border-2 border-indigo-400 bg-white dark:bg-slate-900" />
+                  <div className="mt-[9px] size-[9px] shrink-0 rounded-full border-2 border-indigo-400 bg-white dark:bg-slate-900" />
                   <div className="min-w-0 flex-1">
                     <InterviewCard interview={t as InterviewDetail} applicationId={app.id} />
                   </div>

@@ -151,7 +151,7 @@ export default function ReviewPage() {
                 onClick={() => navigate(`/applications/${g.applicationId}`)}
                 className="min-w-0 text-left"
               >
-                <div className="truncate text-sm font-semibold tracking-tight">
+                <div className="truncate text-[15px] font-semibold tracking-tight">
                   {g.companyName}
                   {g.department && <span className="font-normal text-slate-500"> · {g.department}</span>}
                   <span> · {g.positionTitle}</span>
@@ -159,7 +159,7 @@ export default function ReviewPage() {
               </button>
               <button
                 onClick={() => navigate(`/applications/${g.applicationId}`)}
-                className="shrink-0 text-xs text-slate-400 hover:text-indigo-500"
+                className="shrink-0 text-[13px] text-slate-400 hover:text-indigo-500"
               >
                 {[...g.rounds.values()].flat().length} 道题 · 查看投递 →
               </button>
@@ -169,7 +169,7 @@ export default function ReviewPage() {
               .sort((a, b) => +b[0] - +a[0])
               .map(([roundKey, qs]) => (
                 <div key={roundKey} className="border-b border-slate-100/90 last:border-0 dark:border-slate-800/70">
-                  <div className="px-4 pb-1 pt-2.5 text-[13px] font-medium text-slate-400 dark:text-slate-500">
+                  <div className="px-4 pb-1 pt-2.5 text-sm font-medium text-slate-400 dark:text-slate-500">
                     第 {roundKey} 轮{qs[0]?.roundLabel ? ` · ${qs[0].roundLabel}` : ""}
                   </div>
                   <div className="divide-y divide-slate-100/80 dark:divide-slate-800/60">
@@ -177,18 +177,18 @@ export default function ReviewPage() {
                       <div key={q.questionId} className="group px-4 py-3">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0 flex-1">
-                            <div className="text-[15px] font-medium leading-relaxed"><LatexText>{q.question}</LatexText></div>
+                            <div className="text-base font-medium leading-relaxed"><LatexText>{q.question}</LatexText></div>
                             {(q.myAnswer || q.reflection) && (
                               <div className="mt-2 space-y-1.5 border-l-2 border-slate-200 pl-3 dark:border-slate-700/70">
                                 {q.myAnswer && (
-                                  <div className="text-[15px] leading-relaxed text-slate-600 dark:text-slate-300">
-                                    <span className="mr-1.5 select-none text-xs font-medium text-slate-400 dark:text-slate-500">我的回答</span>
+                                  <div className="text-base leading-relaxed text-slate-600 dark:text-slate-300">
+                                    <span className="mr-1.5 select-none text-[13px] font-medium text-slate-400 dark:text-slate-500">我的回答</span>
                                     <LatexText>{q.myAnswer}</LatexText>
                                   </div>
                                 )}
                                 {q.reflection && (
-                                  <div className="text-[15px] leading-relaxed text-slate-700 dark:text-slate-200">
-                                    <span className="mr-1.5 select-none text-xs font-medium text-amber-600 dark:text-amber-400">理想回答</span>
+                                  <div className="text-base leading-relaxed text-slate-700 dark:text-slate-200">
+                                    <span className="mr-1.5 select-none text-[13px] font-medium text-amber-600 dark:text-amber-400">理想回答</span>
                                     <LatexText>{q.reflection}</LatexText>
                                   </div>
                                 )}
@@ -198,7 +198,7 @@ export default function ReviewPage() {
                           <div className="flex shrink-0 items-center gap-2">
                             <span
                               className={cn(
-                                "rounded-md px-2 py-0.5 text-xs font-medium",
+                                "rounded-md px-2 py-0.5 text-[13px] font-medium",
                                 q.quality === "GOOD"
                                   ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300"
                                   : q.quality === "BAD"
@@ -237,7 +237,7 @@ export default function ReviewPage() {
                                   e.stopPropagation();
                                   setTag(t === tag ? null : t);
                                 }}
-                                className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-indigo-900/30 dark:hover:text-indigo-300"
+                                className="rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-indigo-900/30 dark:hover:text-indigo-300"
                               >
                                 {t}
                               </button>

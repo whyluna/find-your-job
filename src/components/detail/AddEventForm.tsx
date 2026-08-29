@@ -156,7 +156,7 @@ export function AddEventForm({
     return (
       <button
         onClick={() => setOpen(true)}
-        className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-slate-300 py-2.5 text-[13px] text-slate-500 transition-colors hover:border-indigo-400 hover:text-indigo-500 dark:border-slate-600 dark:text-slate-400"
+        className="flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 px-3 py-1.5 text-[13px] text-slate-500 transition-colors hover:border-indigo-400 hover:text-indigo-500 dark:border-slate-600 dark:text-slate-400"
       >
         <Plus className="size-3.5" /> 添加事件
       </button>
@@ -179,7 +179,7 @@ export function AddEventForm({
   const menuValue = String(type);
 
   return (
-    <div className="rounded-xl border border-indigo-200 bg-indigo-50/40 p-4 dark:border-indigo-800 dark:bg-indigo-900/15">
+    <div className="max-w-xl rounded-xl border border-indigo-200 bg-indigo-50/40 p-4 dark:border-indigo-800 dark:bg-indigo-900/15">
       <div className="grid grid-cols-2 gap-3">
         <div className="col-span-2">
           <div className="mb-1.5 text-[13px] font-medium text-slate-500">事件类型</div>
