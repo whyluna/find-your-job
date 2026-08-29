@@ -17,7 +17,7 @@ export default function DashboardPage() {
   const { data: db } = useQuery({ queryKey: ["db-ready"], queryFn: api.dbReady });
 
   return (
-    <div className="px-6 py-5">
+    <div className="px-6 pb-10 pt-0">
       <PageHeader title="仪表盘" subtitle="最近的截止与面试安排" />
 
       {/* 今日待办 */}

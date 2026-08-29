@@ -17,9 +17,9 @@ interface Props {
 
 const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"];
 
-function fmtLocal(d: Date): string {
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:00`;
+// 输出必须带时区（RFC3339），否则 Rust 端 DateTime 反序列化失败
+function fmtIso(d: Date): string {
+  return d.toISOString();
 }
 
 function parseIso(v: string | null): Date | null {
@@ -75,7 +75,7 @@ export function DatePicker({ value, onChange, withTime = false, minIso, placehol
     } else {
       setHint("");
     }
-    onChange(fmtLocal(d));
+    onChange(fmtIso(d));
   }
 
   function pickDay(d: Date) {

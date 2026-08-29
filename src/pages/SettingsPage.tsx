@@ -90,7 +90,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="px-6 py-5">
+    <div className="px-6 pb-10 pt-0">
       <h1 className="text-[17px] font-semibold tracking-tight">设置</h1>
 
       {/* 数据 */}

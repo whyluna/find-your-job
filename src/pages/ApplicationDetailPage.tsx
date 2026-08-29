@@ -76,7 +76,7 @@ export default function ApplicationDetailPage() {
   if (isLoading) return <div className="p-8 text-slate-400">加载中…</div>;
   if (isError)
     return (
-      <div className="px-6 py-5">
+      <div className="px-6 pb-10 pt-0">
         <div className="text-red-500">加载失败：{String(error)}</div>
         <Link to="/applications" className="mt-2 inline-block text-sm text-indigo-500">
           返回列表
@@ -99,7 +99,7 @@ export default function ApplicationDetailPage() {
   ].sort((a, b) => (a.at < b.at ? 1 : -1));
 
   return (
-    <div className="px-6 py-5">
+    <div className="px-6 pb-10 pt-0">
       <Link
         to="/applications"
         className="inline-flex items-center gap-1 text-[13px] text-slate-400 hover:text-slate-600"
@@ -108,7 +108,7 @@ export default function ApplicationDetailPage() {
       </Link>
 
       {/* 头部 */}
-      <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
+      <div className="toolbar-sticky -mx-6 mt-2 flex flex-wrap items-start justify-between gap-3 !px-6">
         <div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
             <h1 className="text-[17px] font-semibold tracking-tight">
@@ -208,7 +208,8 @@ export default function ApplicationDetailPage() {
       {/* 时间线 */}
       {tab === "timeline" && (
         <div className="mt-5">
-          <div className="space-y-3">
+          <div className="relative space-y-3">
+            <div className="absolute bottom-3 left-[4px] top-3 w-px bg-slate-200/90 dark:bg-slate-700/60" />
             <AddEventForm applicationId={app.id} nextRound={nextRound} hasScheduled={hasScheduled} />
             {timeline.length === 0 && (
               <div className="rounded-xl border border-dashed border-slate-300 py-8 text-center text-sm text-slate-400 dark:border-slate-700">

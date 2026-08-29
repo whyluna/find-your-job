@@ -30,7 +30,7 @@ export default function CompaniesPage() {
   });
 
   return (
-    <div className="px-6 py-5">
+    <div className="px-6 pb-10 pt-0">
       <div>
         <h1 className="text-[17px] font-semibold tracking-tight">公司</h1>
         <p className="mt-0.5 text-[13px] text-slate-500">

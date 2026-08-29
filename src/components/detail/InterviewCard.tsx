@@ -5,9 +5,12 @@ import {
   ArrowUp,
   Check,
   ChevronDown,
+  Clock,
   Loader2,
+  MapPin,
   Plus,
   Trash2,
+  User,
 } from "lucide-react";
 import { useState } from "react";
 import { api } from "@/lib/ipc";
@@ -181,10 +184,16 @@ export function InterviewCard({
       {open && (
         <div className="border-t border-slate-100 px-4 py-3 dark:border-slate-800/80">
           {(interview.locationOrLink || interview.interviewerNote || interview.durationMin) && (
-            <div className="mb-3 space-y-0.5 text-xs text-slate-500">
-              {interview.locationOrLink && <div>📍 {interview.locationOrLink}</div>}
-              {interview.durationMin && <div>⏱ {interview.durationMin} 分钟</div>}
-              {interview.interviewerNote && <div>👤 {interview.interviewerNote}</div>}
+            <div className="mb-3 space-y-1 text-xs text-slate-500">
+              {interview.locationOrLink && (
+                <div className="flex items-center gap-1.5"><MapPin className="size-3 text-slate-400" />{interview.locationOrLink}</div>
+              )}
+              {interview.durationMin && (
+                <div className="flex items-center gap-1.5"><Clock className="size-3 text-slate-400" />{interview.durationMin} 分钟</div>
+              )}
+              {interview.interviewerNote && (
+                <div className="flex items-center gap-1.5"><User className="size-3 text-slate-400" />{interview.interviewerNote}</div>
+              )}
             </div>
           )}
 

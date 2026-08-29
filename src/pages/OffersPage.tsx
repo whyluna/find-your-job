@@ -82,7 +82,7 @@ export default function OffersPage() {
   const ranked = [...offers].sort((a, b) => total(b.id) - total(a.id));
 
   return (
-    <div className="px-6 py-5">
+    <div className="px-6 pb-10 pt-0">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="flex items-center gap-2 text-[17px] font-semibold tracking-tight">
@@ -118,7 +118,7 @@ export default function OffersPage() {
 
       {offers.length === 0 ? (
         <div className="mt-6 rounded-xl border border-dashed border-slate-300 py-14 text-center text-sm text-slate-400 dark:border-slate-700">
-          还没有进入 OC / offer 阶段的投递。先把好消息记进时间线 🎉
+          还没有进入 OC / offer 阶段的投递。先在时间线记录好消息
         </div>
       ) : (
         <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200/80 dark:border-slate-800/80">
@@ -183,7 +183,7 @@ function OfferRow({
       <td className="px-4 py-3">
         <button onClick={onOpen} className="text-left hover:underline">
           <div className="font-medium">
-            {rank === 0 && total > 0 && <span className="mr-1">🥇</span>}
+            {rank === 0 && total > 0 && <span className="mr-1 text-xs text-slate-400">最优</span>}
             {app.companyName}
             {app.department && <span className="font-normal"> · {app.department}</span>}
           </div>

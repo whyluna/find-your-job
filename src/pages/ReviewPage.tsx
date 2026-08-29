@@ -94,7 +94,7 @@ export default function ReviewPage() {
   });
 
   return (
-    <div className="px-6 py-5">
+    <div className="px-6 pb-10 pt-0">
       <PageHeader
         title="面经"
         subtitle={`${data?.length ?? 0} 道面试题`}

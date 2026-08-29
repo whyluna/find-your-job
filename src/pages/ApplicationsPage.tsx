@@ -90,7 +90,7 @@ export default function ApplicationsPage() {
   }
 
   return (
-    <div className="px-6 py-5">
+    <div className="px-6 pb-10 pt-0">
       <PageHeader
         title="投递"
         subtitle={`共 ${items.length} 条`}

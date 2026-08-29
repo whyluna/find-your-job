@@ -102,7 +102,7 @@ export default function CalendarPage() {
   const selectedEntries = byDate.get(selected) ?? [];
 
   return (
-    <div className="px-6 py-5">
+    <div className="px-6 pb-10 pt-0">
       <div className="flex items-center justify-between">
         <h1 className="text-[17px] font-semibold tracking-tight">
           {cursor.y} 年 {cursor.m + 1} 月
