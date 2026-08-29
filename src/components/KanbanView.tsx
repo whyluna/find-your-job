@@ -4,10 +4,12 @@ import {
   DndContext,
   DragOverlay,
   PointerSensor,
+  pointerWithin,
   useDroppable,
   useSensor,
   useSensors,
   closestCenter,
+  type CollisionDetection,
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
@@ -20,7 +22,7 @@ import {
 } from "@dnd-kit/sortable";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Eye, EyeOff } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { api } from "@/lib/ipc";
 import { deadlineLabel, isUrgent } from "@/lib/format";
@@ -62,6 +64,7 @@ export function KanbanView({ items, canReorder }: { items: ApplicationListItem[]
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
+  // 指针命中检测：指针在行内任意位置（含前半段）都能命中该行；悬停卡片时优先命中卡片
   const base = boardColumns ?? (Object.keys(STATUS_LABELS) as Status[]);
   const present = new Set(items.map((i) => i.status));
   const extra = (Object.keys(STATUS_LABELS) as Status[]).filter(
@@ -77,6 +80,24 @@ export function KanbanView({ items, canReorder }: { items: ApplicationListItem[]
   const byStatus = new Map<Status, ApplicationListItem[]>();
   for (const row of allRows) byStatus.set(row, []);
   for (const item of items) byStatus.get(item.status)?.push(item);
+
+  // 指针命中检测：指针在行内任意位置（含前半段）都能命中该行；悬停卡片时优先命中卡片
+  const collisionDetection = useMemo<CollisionDetection>(() => {
+    return (args) => {
+      const pointerCollisions = pointerWithin(args);
+      if (pointerCollisions.length > 0) {
+        const cardHit = pointerCollisions.find((c) =>
+          !(allRows as string[]).includes(String(c.id)),
+        );
+        if (cardHit) return [cardHit];
+        const rowHit = pointerCollisions.find((c) =>
+          (allRows as string[]).includes(String(c.id)),
+        );
+        return rowHit ? [rowHit] : pointerCollisions;
+      }
+      return closestCenter(args);
+    };
+  }, [allRows]);
 
   // 拖动全程锁定 grabbing 光标
   useEffect(() => {
@@ -209,7 +230,7 @@ export function KanbanView({ items, canReorder }: { items: ApplicationListItem[]
 
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCenter}
+        collisionDetection={collisionDetection}
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
@@ -232,7 +253,7 @@ export function KanbanView({ items, canReorder }: { items: ApplicationListItem[]
             />
           ))}
         </div>
-        <DragOverlay>{activeItem && <Card item={activeItem} dragging />}</DragOverlay>
+        <DragOverlay dropAnimation={null}>{activeItem && <Card item={activeItem} dragging />}</DragOverlay>
       </DndContext>
 
       {confirmTarget && (
