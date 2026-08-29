@@ -83,11 +83,11 @@ export interface EventTypeDef {
 
 export const EVENT_TYPE_DEFS: Record<EventType, EventTypeDef> = {
   APPLIED: { label: "已投递", needsDeadline: false, needsResult: false },
-  ASSESSMENT_INVITED: { label: "测评邀请", needsDeadline: true, needsResult: false },
-  ASSESSMENT_DONE: { label: "测评完成", needsDeadline: false, needsResult: true },
+  ASSESSMENT_INVITED: { label: "测评", needsDeadline: true, needsResult: true },
+  ASSESSMENT_DONE: { label: "测评（记结果）", needsDeadline: false, needsResult: true },
   ASSESSMENT_FAILED: { label: "测评挂", needsDeadline: false, needsResult: false },
-  WRITTEN_INVITED: { label: "笔试邀请", needsDeadline: true, needsResult: false },
-  WRITTEN_DONE: { label: "笔试完成", needsDeadline: false, needsResult: true },
+  WRITTEN_INVITED: { label: "笔试", needsDeadline: true, needsResult: true },
+  WRITTEN_DONE: { label: "笔试（记结果）", needsDeadline: false, needsResult: true },
   WRITTEN_FAILED: { label: "笔试挂", needsDeadline: false, needsResult: false },
   RESUME_PASS: { label: "简历过筛", needsDeadline: false, needsResult: false },
   RESUME_FAIL: { label: "简历挂", needsDeadline: false, needsResult: false },

@@ -467,14 +467,12 @@ async fn stage_gate_rules_enforced() {
     }).await;
     assert!(blocked.is_err(), "测评未通过不能加笔试");
 
-    // 测评挂（result=FAIL）→ 已挂；终态后任何阶段事件被拒
-    s.add_event(AddEventInput {
-        application_id: app.id.clone(),
-        event_type: "ASSESSMENT_INVITED".into(),
-        occurred_at: Some(dt(3, 10)),
-        deadline: None,
+    // 新模型：直接把已有测评事件标记为未过 → 已挂；终态后任何阶段事件被拒
+    let d1 = s.get_application_detail(&app.id).await.unwrap();
+    let inv = d1.events.iter().find(|e| e.event_type == "ASSESSMENT_INVITED").unwrap();
+    s.update_event(&inv.id, UpdateEventInput {
         result: Some(EventResult::Fail),
-        note: None, source: None,
+        ..Default::default()
     }).await.unwrap();
     assert_eq!(s.get_application(&app.id).await.unwrap().status, Status::Rejected);
     let after_fail = s.add_event(AddEventInput {
@@ -485,15 +483,8 @@ async fn stage_gate_rules_enforced() {
     }).await;
     assert!(after_fail.is_err(), "终态后不能加阶段事件");
 
-    // 复活：删除 FAIL 事件 → 回测评，标记通过 → 加笔试 → 笔试通过 → 加面试
-    let logs = s.list_mail_logs(None).await; // 无关调用，保持结构一致
-    let _ = logs;
-    let detail = s.get_application_detail(&app.id).await.unwrap();
-    let fail_ev = detail.events.iter().find(|e| e.result == Some(EventResult::Fail)).unwrap();
-    s.delete_event(&fail_ev.id).await.unwrap();
-    let re_detail = s.get_application_detail(&app.id).await.unwrap();
-    let invited = re_detail.events.iter().find(|e| e.event_type == "ASSESSMENT_INVITED").unwrap();
-    s.update_event(&invited.id, UpdateEventInput {
+    // 复活：把测评结果改回通过 → 加笔试
+    s.update_event(&inv.id, UpdateEventInput {
         result: Some(EventResult::Pass),
         ..Default::default()
     }).await.unwrap();
@@ -512,6 +503,51 @@ async fn stage_gate_rules_enforced() {
         deadline: None, result: None, note: None, source: None,
     }).await;
     assert!(oc_blocked.is_err(), "笔试未通过不能加 OC");
+}
+
+#[tokio::test]
+async fn no_backward_stage_after_interview_or_written() {
+    let (_dir, s) = setup().await;
+    let app = s.create_application(create_input("顺序科技", "后端")).await.unwrap();
+
+    // 测评通过 → 笔试进入但未通过 → 不可加测评（回退被拦）
+    s.add_event(AddEventInput {
+        application_id: app.id.clone(),
+        event_type: "ASSESSMENT_INVITED".into(),
+        occurred_at: Some(dt(1, 10)), deadline: None,
+        result: Some(EventResult::Pass), note: None, source: None,
+    }).await.unwrap();
+    s.add_event(AddEventInput {
+        application_id: app.id.clone(),
+        event_type: "WRITTEN_INVITED".into(),
+        occurred_at: Some(dt(2, 10)), deadline: None,
+        result: None, note: None, source: None,
+    }).await.unwrap();
+    let back = s.add_event(AddEventInput {
+        application_id: app.id.clone(),
+        event_type: "ASSESSMENT_INVITED".into(),
+        occurred_at: Some(dt(3, 10)), deadline: None,
+        result: None, note: None, source: None,
+    }).await;
+    assert!(back.is_err(), "笔试未出结果时不可回退加测评");
+
+    // 面试开始后未通过 → 不可加笔试/测评
+    let d = s.get_application_detail(&app.id).await.unwrap();
+    let w = d.events.iter().find(|e| e.event_type == "WRITTEN_INVITED").unwrap();
+    s.update_event(&w.id, UpdateEventInput { result: Some(EventResult::Pass), ..Default::default() }).await.unwrap();
+    s.add_interview(AddInterviewInput {
+        application_id: app.id.clone(), round: Some(1),
+        round_label: Some("一面".into()), format: None, scheduled_at: Some(dt(5, 10)),
+        duration_min: None, location_or_link: None, interviewer_note: None,
+        status: None, outcome: None,
+    }).await.unwrap();
+    let back2 = s.add_event(AddEventInput {
+        application_id: app.id.clone(),
+        event_type: "WRITTEN_INVITED".into(),
+        occurred_at: Some(dt(6, 10)), deadline: None,
+        result: None, note: None, source: None,
+    }).await;
+    assert!(back2.is_err(), "面试未完成时不可回退加笔试");
 }
 
 #[tokio::test]

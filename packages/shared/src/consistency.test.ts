@@ -40,11 +40,11 @@ describe("事件类型", () => {
     expect(Object.keys(EVENT_TYPE_DEFS).sort()).toEqual([...EVENT_TYPES].sort());
   });
 
-  it("邀请类事件需要 deadline，完成类需要 result", () => {
+  it("阶段类事件需要 deadline 与 result", () => {
     expect(EVENT_TYPE_DEFS.ASSESSMENT_INVITED.needsDeadline).toBe(true);
     expect(EVENT_TYPE_DEFS.WRITTEN_INVITED.needsDeadline).toBe(true);
-    expect(EVENT_TYPE_DEFS.ASSESSMENT_DONE.needsResult).toBe(true);
-    expect(EVENT_TYPE_DEFS.WRITTEN_DONE.needsResult).toBe(true);
+    expect(EVENT_TYPE_DEFS.ASSESSMENT_INVITED.needsResult).toBe(true);
+    expect(EVENT_TYPE_DEFS.WRITTEN_INVITED.needsResult).toBe(true);
     expect(EVENT_TYPE_DEFS.APPLIED.needsDeadline).toBe(false);
   });
 });

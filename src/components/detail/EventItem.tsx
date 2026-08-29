@@ -123,7 +123,7 @@ export function EventItem({ event, applicationId }: { event: AppEvent; applicati
             <span className={cn("font-medium", isCustom && "text-violet-600 dark:text-violet-400")}>
               {eventLabel(event.type)}
             </span>
-            {event.result && (
+            {(event.result || isGateStage) && (
               <span
                 className={
                   event.result === "PASS"
@@ -133,7 +133,7 @@ export function EventItem({ event, applicationId }: { event: AppEvent; applicati
                       : "text-xs text-slate-400"
                 }
               >
-                {EVENT_RESULT_LABELS[event.result]}
+                {EVENT_RESULT_LABELS[event.result ?? "PENDING"]}
               </span>
             )}
             {event.source === "EMAIL" && (

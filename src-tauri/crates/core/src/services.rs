@@ -27,77 +27,67 @@ fn ensure_not_terminal(status: &str) -> Result<()> {
     Ok(())
 }
 
-/// 某阶段若已开始（存在该阶段的任一事件），则其最新结果必须为通过，才能进入下一阶段
-async fn ensure_gate_passed(
+/// 阶段定义：固定顺序（阶段链）。任何阶段事件加入前，它之前的所有阶段必须已通过；
+/// 未经历的更早阶段按用户模型视为跳过（公司没安排该环节）。
+const STAGE_CHAIN: &[(&str, &[&str], &str)] = &[
+    // (该阶段的代表事件类型, 该阶段的全部事件类型, 名称)
+    ("ASSESSMENT_INVITED", &["ASSESSMENT_INVITED", "ASSESSMENT_DONE", "ASSESSMENT_FAILED"], "测评"),
+    ("WRITTEN_INVITED", &["WRITTEN_INVITED", "WRITTEN_DONE", "WRITTEN_FAILED"], "笔试"),
+    // 面试阶段单独处理（多轮 + 结果在 interview 表）
+];
+
+/// 取某阶段的最新结果：None=未经历；Some(None)=已进入未出结果；Some(Some(r))=已出结果
+async fn stage_latest_result(
     tx: &mut sqlx::SqliteConnection,
     app_id: &str,
-    stage_types: &[&str],
-    label: &str,
-) -> Result<()> {
-    let placeholders = vec!["?"; stage_types.len()].join(", ");
+    types: &[&str],
+) -> Result<Option<Option<String>>> {
+    let placeholders = vec!["?"; types.len()].join(", ");
     let sql = format!(
         "SELECT result FROM application_event \
          WHERE application_id = ? AND type IN ({placeholders}) \
          ORDER BY occurred_at DESC, created_at DESC LIMIT 1"
     );
     let mut q = sqlx::query_scalar::<_, Option<String>>(&sql).bind(app_id);
-    for t in stage_types {
+    for t in types {
         q = q.bind(t);
     }
-    let latest: Option<Option<String>> = q.fetch_optional(tx).await?;
-    if let Some(res) = latest {
-        if res.as_deref() != Some("PASS") {
-            return Err(Error::Invalid(format!(
-                "{label}尚未通过，通过后才能进入下一阶段"
-            )));
-        }
-    }
-    Ok(())
+    Ok(q.fetch_optional(tx).await?)
 }
 
-/// 所有已存在的阶段门都必须通过（用于 OC/offer/签约 等推进节点）
-async fn ensure_all_gates_passed(tx: &mut sqlx::SqliteConnection, app_id: &str) -> Result<()> {
-    ensure_gate_passed(
-        tx,
-        app_id,
-        &["ASSESSMENT_INVITED", "ASSESSMENT_DONE", "ASSESSMENT_FAILED"],
-        "测评",
-    )
-    .await?;
-    ensure_gate_passed(
-        tx,
-        app_id,
-        &["WRITTEN_INVITED", "WRITTEN_DONE", "WRITTEN_FAILED"],
-        "笔试",
-    )
-    .await?;
-    let (status, outcome): (String, String) = sqlx::query_as(
+/// 面试阶段状态：None=无面试；Some(通过)=最后一轮已完成且过；
+/// Some(未完成)=存在已约未进行或最后一轮未出结果
+async fn interview_stage_state(
+    tx: &mut sqlx::SqliteConnection,
+    app_id: &str,
+) -> Result<Option<bool>> {
+    let row: Option<(String, String)> = sqlx::query_as(
         "SELECT status, outcome FROM interview WHERE application_id = ? \
          ORDER BY round DESC LIMIT 1",
     )
     .bind(app_id)
     .fetch_optional(tx)
-    .await?
-    .unwrap_or(("NONE".into(), "NONE".into()));
-    if status != "NONE" && !(status == "COMPLETED" && outcome == "PASS") {
-        return Err(Error::Invalid(
-            "面试尚未全部通过，通过后才能进入下一阶段".into(),
-        ));
-    }
-    Ok(())
+    .await?;
+    Ok(row.map(|(status, outcome)| status == "COMPLETED" && outcome == "PASS"))
 }
 
-/// 添加事件前的阶段门禁规则（用户模型：阶段结果通过才能进入下一阶段）
+/// 统一顺序门禁（用户模型）：
+/// 添加阶段事件时，按阶段链依次检查——出现在目标阶段之前的每个"已经历"阶段，
+/// 其最新结果必须为通过；面试未全部通过时，任何前序/后续阶段都不可添加。
 async fn ensure_stage_rules(
     tx: &mut sqlx::SqliteConnection,
     app_id: &str,
     status_now: &str,
     event_type: &str,
 ) -> Result<()> {
-    let gate_or_advance = matches!(
+    let gate_or_stage = matches!(
         event_type,
         "ASSESSMENT_INVITED"
+            | "ASSESSMENT_DONE"
+            | "ASSESSMENT_FAILED"
             | "WRITTEN_INVITED"
+            | "WRITTEN_DONE"
+            | "WRITTEN_FAILED"
             | "OC"
             | "INTENT_LETTER"
             | "OFFER"
@@ -105,24 +95,67 @@ async fn ensure_stage_rules(
             | "TRIPARTITE"
             | "SIGNED"
     );
-    if !gate_or_advance {
+    if !gate_or_stage {
         // 已挂/主动放弃本身即终态事件；沟通/简历结果/备注不设门禁
         return ensure_not_terminal(status_now);
     }
     ensure_not_terminal(status_now)?;
-    match event_type {
-        // 测评：需已投递（尚在"已保存"不能直接测评）
-        "ASSESSMENT_INVITED" => {
-            if status_now == "SAVED" {
-                return Err(Error::Invalid("请先记录投递，再添加测评".into()));
-            }
-            Ok(())
-        }
-        // 笔试：测评若存在须已通过（未做测评则视为跳过）
-        "WRITTEN_INVITED" => ensure_gate_passed(tx, app_id, &["ASSESSMENT_INVITED", "ASSESSMENT_DONE", "ASSESSMENT_FAILED"], "测评").await,
-        // OC/意向/offer/两方/三方/签约：所有已存在阶段门须通过
-        _ => ensure_all_gates_passed(tx, app_id).await,
+
+    // 已投递是前提
+    if status_now == "SAVED" {
+        return Err(Error::Invalid("请先记录投递，再添加后续阶段事件".into()));
     }
+
+    // 阶段链上的位置：测评=0，笔试=1，面试=2，OC及以后=3
+    let target_pos: usize = match event_type {
+        "ASSESSMENT_INVITED" | "ASSESSMENT_DONE" | "ASSESSMENT_FAILED" => 0,
+        "WRITTEN_INVITED" | "WRITTEN_DONE" | "WRITTEN_FAILED" => 1,
+        "__INTERVIEW__" => 2,
+        _ => 3,
+    };
+
+    // 结果事件（同阶段的完成/挂）是对已进入阶段的收尾，永远放行
+    let is_result_event = event_type.ends_with("_DONE") || event_type.ends_with("_FAILED");
+
+    for (pos, (_repr, types, name)) in STAGE_CHAIN.iter().enumerate() {
+        let experienced = stage_latest_result(tx, app_id, types).await?;
+        if let Some(res) = experienced {
+            let passed = res.as_deref() == Some("PASS");
+            if pos >= target_pos {
+                // 目标为更早或同阶段（不含该阶段自身的收尾事件）：
+                // 已经历且未通过 → 不可重复进入 / 不可回退
+                if !passed && !(pos == target_pos && is_result_event) {
+                    return Err(Error::Invalid(format!(
+                        "{name}尚未通过，通过后才能进行后续操作"
+                    )));
+                }
+            } else if !passed {
+                // 前置阶段未通过 → 任何后续阶段都不可添加
+                return Err(Error::Invalid(format!(
+                    "{name}尚未通过，通过后才能进入下一阶段"
+                )));
+            }
+        }
+    }
+
+    // 面试阶段：一旦开始（存在面试），未全部通过时任何阶段事件都不可添加
+    let iv_state = interview_stage_state(tx, app_id).await?;
+    if let Some(passed) = iv_state {
+        if !passed && target_pos != 3 {
+            // 未通过时不可添加测评/笔试（回退被拦）
+            return Err(Error::Invalid(
+                "面试尚未全部通过，不能回退添加测评/笔试；如需记录请先删除或完成对应面试".into(),
+            ));
+        }
+        if !passed {
+            return Err(Error::Invalid(
+                "面试尚未全部通过，通过后才能进入下一阶段".into(),
+            ));
+        }
+    }
+
+    // 目标为 OC+ 时：前置的测评/笔试若经历过必须通过，面试若开始必须通过（上面已覆盖）
+    Ok(())
 }
 
 fn status_label(s: crate::models::Status) -> String {
@@ -1536,8 +1569,8 @@ impl Services {
                 .fetch_one(&mut *tx)
                 .await?;
         ensure_not_terminal(&status_now)?;
-        ensure_gate_passed(&mut *tx, &input.application_id, &["ASSESSMENT_INVITED", "ASSESSMENT_DONE", "ASSESSMENT_FAILED"], "测评").await?;
-        ensure_gate_passed(&mut *tx, &input.application_id, &["WRITTEN_INVITED", "WRITTEN_DONE", "WRITTEN_FAILED"], "笔试").await?;
+        // 添加面试 = 面试阶段事件：统一顺序门禁（测评/笔试未通过则拦截）
+        ensure_stage_rules(&mut *tx, &input.application_id, &status_now, "__INTERVIEW__").await?;
         // 逐轮约束：上一轮必须已完结（完成/取消），新轮次必须恰好为最大轮次 + 1
         let (max_round, pending): (i64, i64) = sqlx::query_as(
             "SELECT COALESCE(MAX(round), 0), \

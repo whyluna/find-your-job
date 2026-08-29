@@ -290,13 +290,14 @@ function QuestionItem({
           <div className="text-xs font-medium leading-relaxed">{question.question}</div>
           {question.myAnswer && (
             <div className="mt-1 text-[11px] leading-relaxed text-slate-500">
-              <span className="text-slate-400">我的回答：</span>
+              <span className="mr-1 rounded bg-slate-100 px-1 py-0.5 text-[10px] text-slate-400 dark:bg-slate-800 dark:text-slate-500">我的回答</span>
               {question.myAnswer}
             </div>
           )}
           {question.reflection && (
             <div className="mt-1 rounded bg-amber-50 px-2 py-1 text-[11px] leading-relaxed text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
-              理想回答：{question.reflection}
+              <span className="mr-1 rounded bg-white/70 px-1 py-0.5 text-[10px] dark:bg-slate-900/50">理想回答</span>
+              {question.reflection}
             </div>
           )}
           {question.tags.length > 0 && (

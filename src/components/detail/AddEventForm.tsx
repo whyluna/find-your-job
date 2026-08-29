@@ -25,6 +25,7 @@ const GROUPS: { name: string; items: { type: EventType | "INTERVIEW"; label: str
       { type: "INTERVIEW", label: "面试" },
     ],
   },
+  // 旧版完成/挂事件保留在菜单外（历史数据兼容显示，新记录用条目上的结果标记）
   {
     name: "沟通",
     items: [
