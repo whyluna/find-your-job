@@ -7,6 +7,7 @@ import ApplicationDetailPage from "@/pages/ApplicationDetailPage";
 import ResumeLibraryPage from "@/pages/ResumeLibraryPage";
 import CompaniesPage from "@/pages/CompaniesPage";
 import SettingsPage from "@/pages/SettingsPage";
+import StatsPage from "@/pages/StatsPage";
 
 export default function App() {
   return (
@@ -16,6 +17,7 @@ export default function App() {
           <Route path="/" element={<DashboardPage />} />
           <Route path="/applications" element={<ApplicationsPage />} />
           <Route path="/applications/:id" element={<ApplicationDetailPage />} />
+          <Route path="/stats" element={<StatsPage />} />
           <Route path="/resumes" element={<ResumeLibraryPage />} />
           <Route path="/companies" element={<CompaniesPage />} />
           <Route path="/settings" element={<SettingsPage />} />

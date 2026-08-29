@@ -101,6 +101,24 @@ export const api = {
     invoke<void>("local_api_set_enabled", { enabled }),
   localApiResetToken: () => invoke<void>("local_api_reset_token"),
 
+  getStats: () =>
+    invoke<
+      {
+        statusCounts: { key: string; count: number }[];
+        channelCounts: { key: string; count: number }[];
+        batchCounts: { key: string; count: number }[];
+        dailyApplied: { key: string; count: number }[];
+        silent: {
+          id: string;
+          companyName: string;
+          positionTitle: string;
+          status: import("@shared").Status;
+          updatedAt: string;
+        }[];
+        resumeFunnel: { resumeName: string; total: number; interviewed: number; offered: number }[];
+      }
+    >("get_stats"),
+
   getUpcoming: (deadlineDays = 3, interviewDays = 7) =>
     invoke<
       {

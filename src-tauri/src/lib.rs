@@ -527,6 +527,13 @@ async fn delete_attachment(state: tauri::State<'_, AppState>, id: String) -> Cmd
 }
 
 #[tauri::command]
+async fn get_stats(
+    state: tauri::State<'_, AppState>,
+) -> CmdResult<fyj_core::services::StatsDto> {
+    state.0.get_stats().await.map_err(e2s)
+}
+
+#[tauri::command]
 async fn get_upcoming(
     state: tauri::State<'_, AppState>,
     deadline_days: Option<i64>,
@@ -609,6 +616,7 @@ pub fn run() {
             delete_resume_file,
             list_dictionary,
             list_custom_event_types,
+            get_stats,
             get_upcoming,
             local_api_status,
             local_api_set_enabled,

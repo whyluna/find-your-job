@@ -167,6 +167,33 @@ pub struct UpcomingItem {
     pub at: chrono::DateTime<Utc>,
 }
 
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
+#[serde(rename_all = "camelCase")]
+pub struct CountRow {
+    pub key: String,
+    pub count: i64,
+}
+
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
+#[serde(rename_all = "camelCase")]
+pub struct ResumeFunnelRow {
+    pub resume_name: String,
+    pub total: i64,
+    pub interviewed: i64,
+    pub offered: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StatsDto {
+    pub status_counts: Vec<CountRow>,
+    pub channel_counts: Vec<CountRow>,
+    pub batch_counts: Vec<CountRow>,
+    pub daily_applied: Vec<CountRow>,
+    pub silent: Vec<Application>,
+    pub resume_funnel: Vec<ResumeFunnelRow>,
+}
+
 #[derive(Debug, Clone, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ListFilter {
@@ -675,6 +702,78 @@ impl Services {
                 at: r.try_get("at").unwrap_or_default(),
             })
             .collect())
+    }
+
+    // ---------- 统计（P1-c） ----------
+
+    pub async fn get_stats(&self) -> Result<StatsDto> {
+        let group = |col: &str| {
+            format!(
+                "SELECT {col} AS key, COUNT(*) AS count FROM application \
+                 WHERE is_archived = 0 GROUP BY {col} ORDER BY count DESC"
+            )
+        };
+        let to_rows = |rows: Vec<SqliteRow>| -> Vec<CountRow> {
+            rows.iter()
+                .map(|r| CountRow {
+                    key: r.try_get("key").unwrap_or_default(),
+                    count: r.try_get("count").unwrap_or(0),
+                })
+                .collect()
+        };
+        let status_counts = to_rows(
+            sqlx::query(&group("status")).fetch_all(&self.pool).await?,
+        );
+        let channel_counts = to_rows(
+            sqlx::query(&group("channel")).fetch_all(&self.pool).await?,
+        );
+        let batch_counts = to_rows(sqlx::query(&group("batch")).fetch_all(&self.pool).await?);
+
+        let daily_rows = sqlx::query(
+            "SELECT substr(applied_date, 1, 10) AS key, COUNT(*) AS count \
+             FROM application WHERE applied_date IS NOT NULL GROUP BY key ORDER BY key",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        let daily_applied = to_rows(daily_rows);
+
+        let silent_rows = sqlx::query(&format!(
+            "{APP_SELECT} WHERE a.is_archived = 0 \
+             AND a.status NOT IN ('REJECTED','WITHDRAWN','SIGNED') \
+             AND a.updated_at <= ? ORDER BY a.updated_at ASC LIMIT 50",
+        ))
+        .bind(ts(&(Utc::now() - chrono::Duration::days(14))))
+        .fetch_all(&self.pool)
+        .await?;
+        let silent = silent_rows.iter().map(Application::from_row).collect();
+
+        let funnel_rows = sqlx::query(
+            "SELECT rv.name AS key, COUNT(a.id) AS count, \
+             SUM(CASE WHEN a.status IN ('INTERVIEWING','OC','INTENT','OFFER','SIGNED') THEN 1 ELSE 0 END) AS interviewed, \
+             SUM(CASE WHEN a.status IN ('OC','INTENT','OFFER','SIGNED') THEN 1 ELSE 0 END) AS offered \
+             FROM resume_version rv LEFT JOIN application a ON a.resume_version_id = rv.id \
+             GROUP BY rv.id ORDER BY rv.created_at",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        let resume_funnel = funnel_rows
+            .iter()
+            .map(|r| ResumeFunnelRow {
+                resume_name: r.try_get("key").unwrap_or_default(),
+                total: r.try_get("count").unwrap_or(0),
+                interviewed: r.try_get("interviewed").unwrap_or(0),
+                offered: r.try_get("offered").unwrap_or(0),
+            })
+            .collect();
+
+        Ok(StatsDto {
+            status_counts,
+            channel_counts,
+            batch_counts,
+            daily_applied,
+            silent,
+            resume_funnel,
+        })
     }
 
     // ---------- 附件 ----------
