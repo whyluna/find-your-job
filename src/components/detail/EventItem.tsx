@@ -32,6 +32,14 @@ export function EventItem({ event, applicationId }: { event: AppEvent; applicati
     queryClient.invalidateQueries({ queryKey: ["application-detail", applicationId] });
   };
 
+  // 测评/笔试事件：阶段结果快捷标记
+  const isGateStage =
+    event.type === "ASSESSMENT_INVITED" || event.type === "WRITTEN_INVITED";
+  const mark = useMutation({
+    mutationFn: (r: "PASS" | "FAIL") => api.updateEvent(event.id, { result: r }),
+    onSuccess: invalidate,
+  });
+
   const save = useMutation({
     mutationFn: () =>
       api.updateEvent(event.id, {
@@ -50,6 +58,13 @@ export function EventItem({ event, applicationId }: { event: AppEvent; applicati
     mutationFn: () => api.deleteEvent(event.id),
     onSuccess: invalidate,
   });
+  const [markError, setMarkError] = useState("");
+  const markWithError = (r: "PASS" | "FAIL") => {
+    setMarkError("");
+    mark.mutate(r, {
+      onError: (err) => setMarkError(String(err)),
+    });
+  };
 
   const def = EVENT_TYPE_DEFS[event.type as EventType];
   const isCustom = event.type.startsWith("custom:");
@@ -68,7 +83,7 @@ export function EventItem({ event, applicationId }: { event: AppEvent; applicati
               <DateTimePicker value={deadline} onChange={setDeadline} withTime />
             </div>
           )}
-          {def?.needsResult && (
+          {(def?.needsResult || isGateStage) && (
             <div>
               <div className="mb-1 text-[11px] text-slate-500">结果</div>
               <Select value={result} onChange={(e) => setResult(e.target.value as EventResult)} className="w-36">
@@ -142,7 +157,24 @@ export function EventItem({ event, applicationId }: { event: AppEvent; applicati
             </div>
           )}
         </div>
-        <div className="flex shrink-0 gap-0.5 opacity-0 transition-opacity group-hover/event:opacity-100">
+        {markError && <div className="mb-1 text-right text-[10px] text-red-500">{markError}</div>}
+        <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover/event:opacity-100">
+          {isGateStage && event.result !== "FAIL" && (
+            <>
+              <button
+                onClick={() => markWithError("PASS")}
+                className="rounded px-1.5 py-0.5 text-[11px] text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
+              >
+                通过
+              </button>
+              <button
+                onClick={() => markWithError("FAIL")}
+                className="rounded px-1.5 py-0.5 text-[11px] text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30"
+              >
+                未过
+              </button>
+            </>
+          )}
           <button
             onClick={() => setEditing(true)}
             className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700"

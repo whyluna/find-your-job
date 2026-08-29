@@ -43,7 +43,21 @@ fn projection_of(event_type: &EventType, result: Option<EventResult>) -> Project
     use ProjectionEffect as P;
     match event_type {
         E::Applied => P::Applied,
-        E::AssessmentInvited => P::Assessment,
+        // 邀请类事件带 FAIL 结果 = 该阶段未通过 → 挂（新模型：阶段结果驱动状态）
+        E::AssessmentInvited => {
+            if result == Some(EventResult::Fail) {
+                P::Rejected
+            } else {
+                P::Assessment
+            }
+        }
+        E::WrittenInvited => {
+            if result == Some(EventResult::Fail) {
+                P::Rejected
+            } else {
+                P::Written
+            }
+        }
         // 完成类事件若结果为 FAIL 视同挂掉（与 ASSESSMENT_FAILED 等价）
         E::AssessmentDone | E::WrittenDone => {
             if result == Some(EventResult::Fail) {
@@ -55,7 +69,6 @@ fn projection_of(event_type: &EventType, result: Option<EventResult>) -> Project
                 }
             }
         }
-        E::WrittenInvited => P::Written,
         E::AssessmentFailed | E::WrittenFailed | E::ResumeFail | E::Rejected => P::Rejected,
         E::ResumePass | E::HrContact | E::Note => P::NoChange,
         E::Oc => P::Oc,
@@ -231,6 +244,22 @@ mod tests {
                 "{et:?} 不应改变状态"
             );
         }
+    }
+
+    #[test]
+    fn invited_with_fail_result_rejects() {
+        // 新模型：测评邀请 + 未过结果 → 已挂（阶段结果驱动）
+        let d = derive_status(&[
+            ev(0, E::Applied),
+            ev_r(5, E::AssessmentInvited, EventResult::Fail),
+        ]);
+        assert_eq!(d.status, Status::Rejected);
+        assert_eq!(d.rejected_stage, Some(Status::Applied));
+        let d2 = derive_status(&[
+            ev(0, E::Applied),
+            ev_r(5, E::WrittenInvited, EventResult::Fail),
+        ]);
+        assert_eq!(d2.status, Status::Rejected);
     }
 
     #[test]

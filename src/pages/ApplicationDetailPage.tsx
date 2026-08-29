@@ -11,7 +11,6 @@ import {
   Loader2,
   Paperclip,
   Pencil,
-  Plus,
   Save,
   Trash2,
   Upload,
@@ -31,7 +30,6 @@ import { AddEventForm } from "@/components/detail/AddEventForm";
 import { EventItem } from "@/components/detail/EventItem";
 import { InterviewCard } from "@/components/detail/InterviewCard";
 import { EditApplicationDialog } from "@/components/detail/EditApplicationDialog";
-import { AddInterviewDialog } from "@/components/AddInterviewDialog";
 import { cn } from "@/lib/utils";
 
 type Tab = "timeline" | "jd" | "materials";
@@ -42,7 +40,6 @@ export default function ApplicationDetailPage() {
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>("timeline");
   const [showEdit, setShowEdit] = useState(false);
-  const [showAddInterview, setShowAddInterview] = useState(false);
   const [jdEditing, setJdEditing] = useState(false);
   const [jdDraft, setJdDraft] = useState("");
 
@@ -212,19 +209,7 @@ export default function ApplicationDetailPage() {
       {tab === "timeline" && (
         <div className="mt-5">
           <div className="space-y-3">
-            <div className="flex items-start gap-3">
-              <div className="min-w-0 flex-1">
-                <AddEventForm applicationId={app.id} />
-              </div>
-              <Button
-                className="mt-0.5 shrink-0"
-                disabled={hasScheduled}
-                title={hasScheduled ? "还有已约未进行的面试，先完成或取消该轮" : undefined}
-                onClick={() => setShowAddInterview(true)}
-              >
-                <Plus className="size-3.5" /> 添加面试（第 {nextRound} 轮）
-              </Button>
-            </div>
+            <AddEventForm applicationId={app.id} nextRound={nextRound} hasScheduled={hasScheduled} />
             {timeline.length === 0 && (
               <div className="rounded-xl border border-dashed border-slate-300 py-8 text-center text-sm text-slate-400 dark:border-slate-700">
                 还没有记录，用上方表单记录第一笔
@@ -385,12 +370,6 @@ export default function ApplicationDetailPage() {
       )}
 
       <EditApplicationDialog open={showEdit} application={app} onClose={() => setShowEdit(false)} />
-      <AddInterviewDialog
-        open={showAddInterview}
-        applicationId={app.id}
-        nextRound={nextRound}
-        onClose={() => setShowAddInterview(false)}
-      />
     </div>
   );
 }

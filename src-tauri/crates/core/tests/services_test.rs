@@ -106,6 +106,17 @@ async fn full_journey_events_derive_status() {
     }).await.unwrap();
     assert_eq!(s.get_application(id).await.unwrap().status, Status::Written);
 
+    // 笔试通过后才能进入 OC（阶段门禁）
+    s.add_event(AddEventInput {
+        application_id: id.clone(),
+        event_type: "WRITTEN_DONE".into(),
+        occurred_at: Some(dt(5, 20)),
+        deadline: None,
+        result: Some(EventResult::Pass),
+        note: None,
+        source: None,
+    }).await.unwrap();
+
     s.add_event(AddEventInput {
         application_id: id.clone(),
         event_type: "OC".into(),
@@ -423,6 +434,84 @@ async fn question_crud_and_reorder() {
     let detail2 = s.get_application_detail(&app.id).await.unwrap();
     assert_eq!(detail2.interviews[0].questions.len(), 1);
     assert_eq!(detail2.interviews[0].questions[0].quality, fyj_core::entities::QuestionQuality::Bad);
+}
+
+#[tokio::test]
+async fn stage_gate_rules_enforced() {
+    let (_dir, s) = setup().await;
+    // 未投递（SAVED）不能加测评
+    let mut not_applied = create_input("门禁科技", "测试");
+    not_applied.applied = Some(false);
+    let app0 = s.create_application(not_applied).await.unwrap();
+    let e0 = s.add_event(AddEventInput {
+        application_id: app0.id.clone(),
+        event_type: "ASSESSMENT_INVITED".into(),
+        occurred_at: None, deadline: None, result: None, note: None, source: None,
+    }).await;
+    assert!(e0.is_err(), "已保存状态不能加测评");
+
+    let app = s.create_application(create_input("门禁科技", "后端")).await.unwrap();
+
+    // 测评邀请（进入测评）→ 未通过前不能加笔试
+    s.add_event(AddEventInput {
+        application_id: app.id.clone(),
+        event_type: "ASSESSMENT_INVITED".into(),
+        occurred_at: Some(dt(2, 10)),
+        deadline: None, result: None, note: None, source: None,
+    }).await.unwrap();
+    let blocked = s.add_event(AddEventInput {
+        application_id: app.id.clone(),
+        event_type: "WRITTEN_INVITED".into(),
+        occurred_at: Some(dt(3, 10)),
+        deadline: None, result: None, note: None, source: None,
+    }).await;
+    assert!(blocked.is_err(), "测评未通过不能加笔试");
+
+    // 测评挂（result=FAIL）→ 已挂；终态后任何阶段事件被拒
+    s.add_event(AddEventInput {
+        application_id: app.id.clone(),
+        event_type: "ASSESSMENT_INVITED".into(),
+        occurred_at: Some(dt(3, 10)),
+        deadline: None,
+        result: Some(EventResult::Fail),
+        note: None, source: None,
+    }).await.unwrap();
+    assert_eq!(s.get_application(&app.id).await.unwrap().status, Status::Rejected);
+    let after_fail = s.add_event(AddEventInput {
+        application_id: app.id.clone(),
+        event_type: "WRITTEN_INVITED".into(),
+        occurred_at: Some(dt(4, 10)),
+        deadline: None, result: None, note: None, source: None,
+    }).await;
+    assert!(after_fail.is_err(), "终态后不能加阶段事件");
+
+    // 复活：删除 FAIL 事件 → 回测评，标记通过 → 加笔试 → 笔试通过 → 加面试
+    let logs = s.list_mail_logs(None).await; // 无关调用，保持结构一致
+    let _ = logs;
+    let detail = s.get_application_detail(&app.id).await.unwrap();
+    let fail_ev = detail.events.iter().find(|e| e.result == Some(EventResult::Fail)).unwrap();
+    s.delete_event(&fail_ev.id).await.unwrap();
+    let re_detail = s.get_application_detail(&app.id).await.unwrap();
+    let invited = re_detail.events.iter().find(|e| e.event_type == "ASSESSMENT_INVITED").unwrap();
+    s.update_event(&invited.id, UpdateEventInput {
+        result: Some(EventResult::Pass),
+        ..Default::default()
+    }).await.unwrap();
+    s.add_event(AddEventInput {
+        application_id: app.id.clone(),
+        event_type: "WRITTEN_INVITED".into(),
+        occurred_at: Some(dt(5, 10)),
+        deadline: None, result: None, note: None, source: None,
+    }).await.unwrap();
+
+    // 笔试未通过前不能加 OC
+    let oc_blocked = s.add_event(AddEventInput {
+        application_id: app.id.clone(),
+        event_type: "OC".into(),
+        occurred_at: Some(dt(6, 10)),
+        deadline: None, result: None, note: None, source: None,
+    }).await;
+    assert!(oc_blocked.is_err(), "笔试未通过不能加 OC");
 }
 
 #[tokio::test]

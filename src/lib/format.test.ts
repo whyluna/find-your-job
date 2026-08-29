@@ -38,8 +38,14 @@ describe("isUrgent", () => {
 
 describe("deadlineLabel", () => {
   it("临近截止的文案", () => {
-    expect(deadlineLabel(new Date(Date.now() + 3600 * 1000).toISOString())).toBe("今天截止");
-    expect(deadlineLabel(new Date(Date.now() + 30 * 3600 * 1000).toISOString())).toBe("明天截止");
+    // 一小时后：同一日历日 → 今天截止（若跨午夜则已是明天，断言非过期即可）
+    const in1h = new Date(Date.now() + 3600 * 1000);
+    const label1h = deadlineLabel(in1h.toISOString());
+    expect(["今天截止", "明天截止"]).toContain(label1h);
+    // 明天中午：日历日 +1 → 明天截止
+    const n = new Date();
+    const tomorrowNoon = new Date(n.getFullYear(), n.getMonth(), n.getDate() + 1, 12);
+    expect(deadlineLabel(tomorrowNoon.toISOString())).toBe("明天截止");
     expect(deadlineLabel(new Date(Date.now() - 3600 * 1000).toISOString())).toBe("已过期");
     expect(deadlineLabel(null)).toBe("");
   });
