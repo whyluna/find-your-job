@@ -527,6 +527,18 @@ async fn delete_attachment(state: tauri::State<'_, AppState>, id: String) -> Cmd
 }
 
 #[tauri::command]
+async fn list_all_questions(
+    state: tauri::State<'_, AppState>,
+    search: Option<String>,
+) -> CmdResult<Vec<fyj_core::services::QuestionBankItem>> {
+    state
+        .0
+        .list_all_questions(search.as_deref())
+        .await
+        .map_err(e2s)
+}
+
+#[tauri::command]
 async fn export_csv(state: tauri::State<'_, AppState>, path: String) -> CmdResult<u64> {
     state.0.export_csv(&path).await.map_err(e2s)
 }
@@ -627,6 +639,7 @@ pub fn run() {
             delete_resume_file,
             list_dictionary,
             list_custom_event_types,
+            list_all_questions,
             export_csv,
             read_text_file,
             get_stats,

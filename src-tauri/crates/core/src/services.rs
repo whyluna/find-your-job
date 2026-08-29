@@ -183,6 +183,23 @@ pub struct UpcomingItem {
     pub at: chrono::DateTime<Utc>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QuestionBankItem {
+    pub question_id: String,
+    pub question: String,
+    pub my_answer: Option<String>,
+    pub quality: String,
+    pub reflection: Option<String>,
+    pub tags: Vec<String>,
+    pub round: i64,
+    pub round_label: Option<String>,
+    pub application_id: String,
+    pub company_name: String,
+    pub position_title: String,
+    pub status: String,
+}
+
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct CountRow {
@@ -716,6 +733,57 @@ impl Services {
                 position_title: r.try_get("position_title").unwrap_or_default(),
                 detail: r.try_get::<Option<String>, _>("detail").ok().flatten(),
                 at: r.try_get("at").unwrap_or_default(),
+            })
+            .collect())
+    }
+
+    // ---------- 面经知识库（P2-a） ----------
+
+    pub async fn list_all_questions(&self, search: Option<&str>) -> Result<Vec<QuestionBankItem>> {
+        const BASE_SQL: &str = "SELECT q.id AS question_id, q.question, q.my_answer, q.quality, q.reflection, q.tags, \
+             iv.round, iv.round_label, a.id AS application_id, c.name AS company_name, \
+             a.position_title, a.status \
+             FROM interview_question q \
+             JOIN interview iv ON iv.id = q.interview_id \
+             JOIN application a ON a.id = iv.application_id \
+             JOIN company c ON c.id = a.company_id ";
+        let term = search.map(str::trim).filter(|t| !t.is_empty());
+        let rows = if let Some(t) = term {
+            // 参数绑定防注入
+            let like = format!("%{t}%");
+            sqlx::query(&format!(
+                "{BASE_SQL} WHERE q.question LIKE ? OR q.reflection LIKE ? OR q.tags LIKE ? OR c.name LIKE ? \
+                 ORDER BY q.created_at DESC LIMIT 1000"
+            ))
+            .bind(&like)
+            .bind(&like)
+            .bind(&like)
+            .bind(&like)
+            .fetch_all(&self.pool)
+            .await?
+        } else {
+            sqlx::query(&format!("{BASE_SQL} ORDER BY q.created_at DESC LIMIT 1000"))
+                .fetch_all(&self.pool)
+                .await?
+        };
+        Ok(rows
+            .iter()
+            .map(|r| QuestionBankItem {
+                question_id: r.try_get("question_id").unwrap_or_default(),
+                question: r.try_get("question").unwrap_or_default(),
+                my_answer: r.try_get("my_answer").ok().flatten(),
+                quality: r.try_get("quality").unwrap_or_default(),
+                reflection: r.try_get("reflection").ok().flatten(),
+                tags: r
+                    .try_get::<String, _>("tags")
+                    .map(|t| crate::entities::parse_json_strings(&t))
+                    .unwrap_or_default(),
+                round: r.try_get("round").unwrap_or(0),
+                round_label: r.try_get("round_label").ok().flatten(),
+                application_id: r.try_get("application_id").unwrap_or_default(),
+                company_name: r.try_get("company_name").unwrap_or_default(),
+                position_title: r.try_get("position_title").unwrap_or_default(),
+                status: r.try_get("status").unwrap_or_default(),
             })
             .collect())
     }

@@ -87,6 +87,23 @@ export const api = {
     invoke<void>("set_setting", { key, value }),
 
   exportJson: (path: string) => invoke<number>("export_json", { path }),
+  listAllQuestions: (search: string | null) =>
+    invoke<
+      {
+        questionId: string;
+        question: string;
+        myAnswer?: string | null;
+        quality: import("@shared").QuestionQuality;
+        reflection?: string | null;
+        tags: string[];
+        round: number;
+        roundLabel?: string | null;
+        applicationId: string;
+        companyName: string;
+        positionTitle: string;
+      }[]
+    >("list_all_questions", { search }),
+
   exportCsv: (path: string) => invoke<number>("export_csv", { path }),
   readTextFile: (path: string) => invoke<string>("read_text_file", { path }),
   importJson: (path: string) =>
