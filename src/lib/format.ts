@@ -30,7 +30,12 @@ export function isUrgent(iso?: string | null, hours = 72): boolean {
 export function deadlineLabel(iso?: string | null): string {
   if (!iso) return "";
   const d = new Date(iso);
-  const diffDays = Math.ceil((d.getTime() - Date.now()) / 86400000);
+  // 按日历日差计算（"今天/明天"是日历语义，不是 24 小时语义）
+  const day0 = new Date();
+  day0.setHours(0, 0, 0, 0);
+  const day1 = new Date(d);
+  day1.setHours(0, 0, 0, 0);
+  const diffDays = Math.round((day1.getTime() - day0.getTime()) / 86400000);
   if (diffDays < 0) return "已过期";
   if (diffDays === 0) return "今天截止";
   if (diffDays === 1) return "明天截止";
