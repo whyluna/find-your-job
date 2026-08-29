@@ -2,12 +2,12 @@ import { NavLink } from "react-router";
 import {
   BarChart3,
   BookOpen,
-  Scale,
-  CalendarDays,
   BriefcaseBusiness,
   Building2,
+  CalendarDays,
   FileText,
   LayoutDashboard,
+  Scale,
   Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -28,17 +28,14 @@ const NAV_ITEMS = [
 export function SidebarLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex h-full">
-      <aside className="flex w-56 shrink-0 flex-col border-r border-slate-200 bg-slate-900 text-slate-100 dark:border-slate-800 dark:bg-black">
-        <div className="flex items-center gap-2.5 px-5 pb-2 pt-5">
-          <div className="flex size-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-cyan-400">
-            <BriefcaseBusiness className="size-4.5 text-white" strokeWidth={2.2} />
+      <aside className="flex w-[200px] shrink-0 flex-col border-r border-slate-200/70 bg-slate-100/70 backdrop-blur-xl dark:border-slate-800/70 dark:bg-slate-900/50">
+        <div className="flex items-center gap-2 px-4 pb-3 pt-4">
+          <div className="flex size-7 items-center justify-center rounded-[8px] bg-gradient-to-br from-indigo-500 to-cyan-400">
+            <BriefcaseBusiness className="size-4 text-white" strokeWidth={2.2} />
           </div>
-          <div>
-            <div className="text-sm font-semibold tracking-wide">FindYourJob</div>
-            <div className="text-[11px] text-slate-400">求职投递记录</div>
-          </div>
+          <span className="text-[13px] font-semibold tracking-tight">FindYourJob</span>
         </div>
-        <nav className="mt-4 flex flex-1 flex-col gap-1 px-3">
+        <nav className="mt-1 flex flex-1 flex-col gap-0.5 px-3">
           {NAV_ITEMS.map(({ to, label, icon: Icon, end }) => (
             <NavLink
               key={to}
@@ -46,21 +43,18 @@ export function SidebarLayout({ children }: { children: ReactNode }) {
               end={end}
               className={({ isActive }) =>
                 cn(
-                  "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors",
+                  "flex items-center gap-2.5 rounded-lg px-2.5 py-[6px] text-[13px] transition-colors",
                   isActive
-                    ? "bg-white/12 font-medium text-white"
-                    : "text-slate-300 hover:bg-white/6 hover:text-white",
+                    ? "bg-indigo-500/10 font-medium text-indigo-600 dark:bg-indigo-400/10 dark:text-indigo-300"
+                    : "text-slate-600 hover:bg-black/[0.04] dark:text-slate-300 dark:hover:bg-white/[0.05]",
                 )
               }
             >
-              <Icon className="size-4" />
+              <Icon className="size-4 shrink-0" strokeWidth={1.8} />
               {label}
             </NavLink>
           ))}
         </nav>
-        <div className="px-5 pb-4 text-[11px] text-slate-500">
-          本地数据 · v0.1.0
-        </div>
       </aside>
       <main className="min-w-0 flex-1 overflow-y-auto">{children}</main>
     </div>
