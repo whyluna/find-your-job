@@ -198,7 +198,10 @@ export interface ScenarioTemplate {
   defaultBatch: Batch;
 }
 
+export * from "./ipc-types";
+
 export const SCENARIO_TEMPLATES: ScenarioTemplate[] = [
+
   {
     key: "campus",
     name: "校招（全流程）",

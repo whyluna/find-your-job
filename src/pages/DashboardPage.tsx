@@ -1,20 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
-import { invoke } from "@tauri-apps/api/core";
 import { Database, Loader2 } from "lucide-react";
-
-interface DbReadyInfo {
-  ok: boolean;
-  db_path: string;
-  companies: number;
-  applications: number;
-  events: number;
-}
+import { Link } from "react-router";
+import { api } from "@/lib/ipc";
 
 /** P0-1 脚手架健康检查：IPC → Rust → SQLite 迁移全链路 */
 export function DbHealthCard() {
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["db-ready"],
-    queryFn: () => invoke<DbReadyInfo>("db_ready"),
+    queryFn: api.dbReady,
   });
 
   return (
@@ -47,7 +40,7 @@ export function DbHealthCard() {
             </span>
             <span className="text-slate-500">表结构已初始化</span>
           </div>
-          <div className="font-mono text-xs text-slate-400">{data.db_path}</div>
+          <div className="font-mono text-xs text-slate-400">{data.dbPath}</div>
           <div className="text-slate-500">
             公司 {data.companies} · 投递 {data.applications} · 事件 {data.events}
           </div>
@@ -62,7 +55,11 @@ export default function DashboardPage() {
     <div className="p-8">
       <h1 className="text-xl font-semibold">仪表盘</h1>
       <p className="mt-1 text-sm text-slate-500">
-        今日截止与未来面试将在 P1 完善；当前为脚手架阶段。
+        今日截止与未来面试将在 P1 完善；先去
+        <Link to="/applications" className="mx-1 text-indigo-500 hover:underline">
+          投递列表
+        </Link>
+        记录你的第一条投递。
       </p>
       <div className="mt-6 max-w-xl">
         <DbHealthCard />

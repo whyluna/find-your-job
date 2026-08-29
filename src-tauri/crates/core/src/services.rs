@@ -476,7 +476,7 @@ impl Services {
         );
 
         let mut first = true;
-        let mut cond = |qb: &mut QueryBuilder<Sqlite>, first: &mut bool| {
+        let cond = |qb: &mut QueryBuilder<Sqlite>, first: &mut bool| {
             // 简化 where 拼接：调用方保证只在有条件时进入
             let sep = if *first { " WHERE " } else { " AND " };
             *first = false;
