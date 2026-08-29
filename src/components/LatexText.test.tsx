@@ -20,14 +20,15 @@ describe("LatexText", () => {
   });
 
   it("非法公式回退为红字原文提示", () => {
-    const { container } = render(<LatexText>错误 $\frac{$ 试一下</LatexText>);
+    const bad = "错误 $\\frac{$ 试一下";
+    const { container } = render(<LatexText>{bad}</LatexText>);
     // 不抛异常、页面仍有内容
     expect(container.textContent).toContain("错误");
   });
 
   it("中文与公式混排", () => {
     const { container } = render(
-      <LatexText>softmax 定义为 $\sigma(z)_i = \frac{e^{z_i}}{\sum_j e^{z_j}}$，用于多分类。</LatexText>,
+      <LatexText>{"softmax 定义为 $\\sigma(z)_i = \\frac{e^{z_i}}{\\sum_j e^{z_j}}$，用于多分类。"}</LatexText>,
     );
     expect(container.querySelectorAll(".katex").length).toBeGreaterThanOrEqual(1);
     expect(container.textContent).toContain("softmax");
