@@ -4,7 +4,7 @@ import { BookOpen, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { api } from "@/lib/ipc";
-import { QUESTION_QUALITY_LABELS, type QuestionQuality } from "@shared";
+import { QUESTION_QUALITY_LABELS } from "@shared";
 import { TextInput } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
