@@ -34,6 +34,20 @@ export const api = {
 
   searchCompanies: (query: string, limit = 8) =>
     invoke<Company[]>("search_companies", { query, limit }),
+  listCompanies: () => invoke<(Company & { applicationCount: number })[]>("list_companies"),
+  updateCompany: (
+    id: string,
+    input: {
+      name: string;
+      aliases: string[];
+      industry?: string | null;
+      nature?: string | null;
+      website?: string | null;
+      careersUrl?: string | null;
+      notes?: string | null;
+    },
+  ) => invoke<Company>("update_company", { id, ...input }),
+  deleteCompany: (id: string) => invoke<void>("delete_company", { id }),
 
   listApplications: (filter?: ListFilter) =>
     invoke<ApplicationListItem[]>("list_applications", { filter: filter ?? null }),

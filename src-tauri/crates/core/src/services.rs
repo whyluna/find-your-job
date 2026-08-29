@@ -758,6 +758,77 @@ impl Services {
             .collect())
     }
 
+    // ---------- 公司库管理 ----------
+
+    pub async fn list_companies(&self) -> Result<Vec<Company>> {
+        let rows = sqlx::query(
+            "SELECT c.*, (SELECT COUNT(*) FROM application a WHERE a.company_id = c.id) AS application_count \
+             FROM company c ORDER BY application_count DESC, c.name",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows.iter().map(Company::from_row).collect())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn update_company(
+        &self,
+        id: &str,
+        name: &str,
+        aliases: Vec<String>,
+        industry: Option<String>,
+        nature: Option<String>,
+        website: Option<String>,
+        careers_url: Option<String>,
+        notes: Option<String>,
+    ) -> Result<Company> {
+        if name.trim().is_empty() {
+            return Err(Error::Invalid("公司名不能为空".into()));
+        }
+        let n = sqlx::query(
+            "UPDATE company SET name = ?, aliases = ?, industry = ?, nature = ?, website = ?, \
+             careers_url = ?, notes = ?, updated_at = ? WHERE id = ?",
+        )
+        .bind(name.trim())
+        .bind(serde_json::to_string(&aliases).unwrap_or_else(|_| "[]".into()))
+        .bind(industry)
+        .bind(nature)
+        .bind(website)
+        .bind(careers_url)
+        .bind(notes)
+        .bind(now_ts())
+        .bind(id)
+        .execute(&self.pool)
+        .await?
+        .rows_affected();
+        if n == 0 {
+            return Err(not_found("company"));
+        }
+        self.get_company(id).await
+    }
+
+    /// 删除公司；有投递引用时拒绝（FK 为 RESTRICT，这里提前给出友好错误）
+    pub async fn delete_company(&self, id: &str) -> Result<()> {
+        let in_use: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM application WHERE company_id = ?")
+            .bind(id)
+            .fetch_one(&self.pool)
+            .await?;
+        if in_use > 0 {
+            return Err(Error::Invalid(format!(
+                "该公司下还有 {in_use} 条投递，暂不能删除"
+            )));
+        }
+        let n = sqlx::query("DELETE FROM company WHERE id = ?")
+            .bind(id)
+            .execute(&self.pool)
+            .await?
+            .rows_affected();
+        if n == 0 {
+            return Err(not_found("company"));
+        }
+        Ok(())
+    }
+
     // ---------- 邮件解析（P2-c） ----------
 
     /// 导入 .eml 文件：解析 → 规则分类 → 待审核队列

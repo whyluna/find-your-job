@@ -203,6 +203,45 @@ async fn search_companies(
 }
 
 #[tauri::command]
+async fn list_companies(state: tauri::State<'_, AppState>) -> CmdResult<Vec<Company>> {
+    state.0.list_companies().await.map_err(e2s)
+}
+
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+async fn update_company(
+    state: tauri::State<'_, AppState>,
+    id: String,
+    name: String,
+    aliases: Option<Vec<String>>,
+    industry: Option<String>,
+    nature: Option<String>,
+    website: Option<String>,
+    careers_url: Option<String>,
+    notes: Option<String>,
+) -> CmdResult<Company> {
+    state
+        .0
+        .update_company(
+            &id,
+            &name,
+            aliases.unwrap_or_default(),
+            industry,
+            nature,
+            website,
+            careers_url,
+            notes,
+        )
+        .await
+        .map_err(e2s)
+}
+
+#[tauri::command]
+async fn delete_company(state: tauri::State<'_, AppState>, id: String) -> CmdResult<()> {
+    state.0.delete_company(&id).await.map_err(e2s)
+}
+
+#[tauri::command]
 async fn upsert_company(
     state: tauri::State<'_, AppState>,
     name: String,
@@ -699,6 +738,9 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             db_ready,
+            list_companies,
+            update_company,
+            delete_company,
             search_companies,
             upsert_company,
             list_applications,

@@ -137,6 +137,9 @@ pub struct Company {
     pub notes: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// 在投投递数（列表查询联出，无该列时为 0）
+    #[serde(default)]
+    pub application_count: i64,
 }
 
 impl Company {
@@ -155,6 +158,7 @@ impl Company {
             notes: row.try_get("notes").ok().flatten(),
             created_at: row.try_get("created_at").unwrap_or_default(),
             updated_at: row.try_get("updated_at").unwrap_or_default(),
+            application_count: row.try_get("application_count").unwrap_or(0),
         }
     }
 }
