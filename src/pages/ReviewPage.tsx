@@ -8,20 +8,6 @@ import { QUESTION_QUALITY_LABELS, type QuestionQuality } from "@shared";
 import { TextInput } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
-interface QuestionBankItem {
-  questionId: string;
-  question: string;
-  myAnswer?: string | null;
-  quality: QuestionQuality;
-  reflection?: string | null;
-  tags: string[];
-  round: number;
-  roundLabel?: string | null;
-  applicationId: string;
-  companyName: string;
-  positionTitle: string;
-}
-
 export default function ReviewPage() {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
