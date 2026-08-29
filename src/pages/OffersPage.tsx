@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { api } from "@/lib/ipc";
 import { fmtDate } from "@/lib/format";
-import { STATUS_LABELS, type Status } from "@shared";
+import { type Status } from "@shared";
 import { Button, StatusBadge, TextInput } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
