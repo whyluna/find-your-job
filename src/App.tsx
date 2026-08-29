@@ -1,6 +1,9 @@
+import { useEffect, useState } from "react";
 import { Routes, Route } from "react-router";
 import { SidebarLayout } from "@/components/SidebarLayout";
 import { OnboardingGate } from "@/components/OnboardingGate";
+import { CommandPalette } from "@/components/CommandPalette";
+import { CreateApplicationDialog } from "@/components/CreateApplicationDialog";
 import DashboardPage from "@/pages/DashboardPage";
 import ApplicationsPage from "@/pages/ApplicationsPage";
 import ApplicationDetailPage from "@/pages/ApplicationDetailPage";
@@ -11,6 +14,20 @@ import StatsPage from "@/pages/StatsPage";
 import CalendarPage from "@/pages/CalendarPage";
 
 export default function App() {
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   return (
     <OnboardingGate>
       <SidebarLayout>
@@ -24,6 +41,12 @@ export default function App() {
           <Route path="/companies" element={<CompaniesPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Routes>
+        <CommandPalette
+          open={paletteOpen}
+          onClose={() => setPaletteOpen(false)}
+          onCreateApplication={() => setShowCreate(true)}
+        />
+        <CreateApplicationDialog open={showCreate} onClose={() => setShowCreate(false)} defaultBatch="FORMAL" />
       </SidebarLayout>
     </OnboardingGate>
   );
