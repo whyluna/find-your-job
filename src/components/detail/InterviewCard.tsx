@@ -70,13 +70,19 @@ export function InterviewCard({
 
   return (
     <div className="rounded-xl border border-slate-200 dark:border-slate-800">
-      {/* 头部 */}
-      <div
-        className="flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3"
-        onClick={() => setOpen((v) => !v)}
-      >
+      {/* 头部：左区负责展开，快捷操作区在语义上独立，避免误触 */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3">
+        <div
+          role="button"
+          tabIndex={0}
+          className="flex min-w-0 flex-1 cursor-pointer items-center gap-x-3 gap-y-1 outline-none focus-visible:bg-slate-50 dark:focus-visible:bg-slate-800/50"
+          onClick={() => setOpen((v) => !v)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") setOpen((v) => !v);
+          }}
+        >
         <ChevronDown
-          className={cn("size-4 text-slate-400 transition-transform", !open && "-rotate-90")}
+          className={cn("size-4 shrink-0 text-slate-400 transition-transform", !open && "-rotate-90")}
         />
         <span className="text-sm font-semibold text-indigo-600 dark:text-indigo-400">
           第 {interview.round} 轮{interview.roundLabel ? `（${interview.roundLabel}）` : ""}
@@ -99,7 +105,8 @@ export function InterviewCard({
         {interview.selfRating && (
           <span className="text-xs text-amber-500">{"★".repeat(interview.selfRating)}</span>
         )}
-        <div className="ml-auto flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+        </div>
+        <div className="ml-auto flex items-center gap-1">
           {interview.status === "SCHEDULED" && (
             <>
               <Button

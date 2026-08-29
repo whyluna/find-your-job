@@ -195,9 +195,14 @@ function Card({
 }) {
   return (
     <div
+      role="button"
+      tabIndex={0}
       onClick={() => onOpen?.(item.id)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") onOpen?.(item.id);
+      }}
       className={cn(
-        "cursor-pointer rounded-lg border border-slate-200 bg-white p-2.5 shadow-sm transition-shadow dark:border-slate-700 dark:bg-slate-800",
+        "cursor-pointer rounded-lg border border-slate-200 bg-white p-2.5 shadow-sm transition-shadow focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:border-slate-700 dark:bg-slate-800",
         !dragging && "hover:shadow-md",
         dragging && "rotate-1 shadow-xl",
       )}

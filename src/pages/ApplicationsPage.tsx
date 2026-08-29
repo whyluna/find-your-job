@@ -191,7 +191,11 @@ function Row({ item, onClick }: { item: ApplicationListItem; onClick: () => void
   return (
     <tr
       onClick={onClick}
-      className="cursor-pointer border-b border-slate-100 transition-colors last:border-0 hover:bg-slate-50 dark:border-slate-800/60 dark:hover:bg-slate-800/40"
+      onKeyDown={(e) => {
+        if (e.key === "Enter") onClick();
+      }}
+      tabIndex={0}
+      className="cursor-pointer border-b border-slate-100 transition-colors last:border-0 outline-none focus-visible:bg-indigo-50 hover:bg-slate-50 dark:border-slate-800/60 dark:hover:bg-slate-800/40 dark:focus-visible:bg-indigo-900/20"
     >
       <td className="px-4 py-2.5">
         <div className="flex items-center gap-2">
