@@ -240,7 +240,7 @@ export default function ApplicationDetailPage() {
                 </div>
               ) : (
                 <div key={`iv-${t.id}`} className="flex gap-3">
-                  <div className="mt-2 size-[9px] shrink-0 rounded-full border-2 border-indigo-400 bg-white dark:bg-slate-900" />
+                  <div className="mt-[17px] size-[9px] shrink-0 rounded-full border-2 border-indigo-400 bg-white dark:bg-slate-900" />
                   <div className="min-w-0 flex-1">
                     <InterviewCard interview={t as InterviewDetail} applicationId={app.id} />
                   </div>
