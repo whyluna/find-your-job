@@ -565,6 +565,77 @@ async fn delete_attachment(state: tauri::State<'_, AppState>, id: String) -> Cmd
     Ok(())
 }
 
+// ---------- 智能识别（LLM，可选增强） ----------
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LlmSettings {
+    pub base_url: String,
+    pub api_key: String,
+    pub model: String,
+}
+
+async fn read_setting_str(state: &tauri::State<'_, AppState>, key: &str) -> String {
+    state
+        .0
+        .get_setting(key)
+        .await
+        .ok()
+        .flatten()
+        .map(|v| v.trim_matches('"').to_string())
+        .unwrap_or_default()
+}
+
+#[tauri::command]
+async fn llm_get_settings(state: tauri::State<'_, AppState>) -> CmdResult<LlmSettings> {
+    let base_url = read_setting_str(&state, "llm_base_url").await;
+    let api_key = read_setting_str(&state, "llm_api_key").await;
+    let model = read_setting_str(&state, "llm_model").await;
+    Ok(LlmSettings {
+        base_url,
+        api_key,
+        model,
+    })
+}
+
+async fn save_setting_str(
+    state: &tauri::State<'_, AppState>,
+    key: &str,
+    value: &Option<String>,
+) -> CmdResult<()> {
+    if let Some(v) = value {
+        let v = v.trim();
+        state
+            .0
+            .set_setting(key, &format!("\"{v}\""))
+            .await
+            .map_err(e2s)?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn llm_save_settings(
+    state: tauri::State<'_, AppState>,
+    base_url: Option<String>,
+    api_key: Option<String>,
+    model: Option<String>,
+) -> CmdResult<()> {
+    save_setting_str(&state, "llm_base_url", &base_url).await?;
+    save_setting_str(&state, "llm_api_key", &api_key).await?;
+    save_setting_str(&state, "llm_model", &model).await?;
+    Ok(())
+}
+
+#[tauri::command]
+async fn llm_test(state: tauri::State<'_, AppState>) -> CmdResult<String> {
+    let Some(cfg) = fyj_core::llm::config_from_settings(&state.0).await else {
+        return Err("请先填写并保存 API Key".into());
+    };
+    let reply = fyj_core::llm::ping(&cfg).await.map_err(e2s)?;
+    Ok(format!("连接成功，模型 {} 已响应：{reply}", cfg.model))
+}
+
 // ---------- PIN（P2-d） ----------
 
 #[tauri::command]
@@ -693,6 +764,9 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             db_ready,
+            llm_get_settings,
+            llm_save_settings,
+            llm_test,
             list_companies,
             update_company,
             delete_company,

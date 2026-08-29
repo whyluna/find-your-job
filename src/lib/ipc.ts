@@ -133,6 +133,12 @@ export const api = {
   clearPin: () => invoke<void>("clear_pin"),
   hasPin: () => invoke<boolean>("has_pin"),
 
+  llmGetSettings: () =>
+    invoke<{ baseUrl: string; apiKey: string; model: string }>("llm_get_settings"),
+  llmSaveSettings: (input: { baseUrl: string | null; apiKey: string | null; model: string | null }) =>
+    invoke<void>("llm_save_settings", input),
+  llmTest: () => invoke<string>("llm_test"),
+
   localApiStatus: () =>
     invoke<{ enabled: boolean; running: boolean; port: number; token: string }>("local_api_status"),
   localApiSetEnabled: (enabled: boolean) =>

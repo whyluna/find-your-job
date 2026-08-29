@@ -6,6 +6,7 @@ import { useState } from "react";
 import { api } from "@/lib/ipc";
 import { Button } from "@/components/ui";
 import { CsvImportWizard } from "@/components/CsvImportWizard";
+import { LlmSettingsCard } from "@/components/LlmSettingsCard";
 import { Lock } from "lucide-react";
 
 export default function SettingsPage() {
@@ -140,7 +141,7 @@ export default function SettingsPage() {
         </h2>
         <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
           开启后应用在本机监听 127.0.0.1:{apiStatus?.port ?? 37321}
-          ，配合浏览器扩展可在招聘网站一键收录岗位，收录落为「已保存」状态。
+          ，配合浏览器扩展可在招聘网站一键收录岗位（配置下方「智能识别」后可自动识别公司/岗位/城市并清洗 JD）。
         </p>
         {statusError && <div className="mt-2 text-xs text-red-500">{String(statusError)}</div>}
         {apiStatus && (
@@ -176,6 +177,8 @@ export default function SettingsPage() {
           </div>
         )}
       </section>
+
+      <LlmSettingsCard />
 
       {/* PIN */}
       <PinSection />

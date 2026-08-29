@@ -128,6 +128,41 @@ export function extractJobInPage(): ExtractResult {
   return result;
 }
 
+export interface PageContext {
+  title: string;
+  url: string;
+  text: string;
+}
+
+/** 抓取页面原文（优先主内容区，截断 12000 字），交给应用内 LLM 做智能识别 */
+export function extractPageContextInPage(): PageContext {
+  const pickBest = (): string => {
+    const selectors = [
+      "main",
+      "article",
+      '[class*="job-detail"]',
+      '[class*="position-detail"]',
+      '[class*="job-desc"]',
+      '[class*="detail-content"]',
+      '[class*="job-sec"]',
+      "#content",
+      ".content",
+    ];
+    let best = "";
+    for (const el of document.querySelectorAll<HTMLElement>(selectors.join(","))) {
+      const t = el.innerText || "";
+      if (t.length > best.length) best = t;
+    }
+    const body = document.body?.innerText || "";
+    return (best.length > 1500 ? best : body).slice(0, 12000);
+  };
+  return {
+    title: document.title || "",
+    url: location.href,
+    text: pickBest(),
+  };
+}
+
 /** 从 URL 推断渠道（当提取器未给出时） */
 export function channelFromUrl(url: string): string {
   if (url.includes("zhipin.com")) return "BOSS";

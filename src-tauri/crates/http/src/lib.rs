@@ -65,6 +65,31 @@ async fn health() -> &'static str {
     "ok"
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtractInput {
+    pub title: String,
+    pub url: String,
+    pub text: String,
+}
+
+/// 智能识别：页面原文 → 应用内 LLM → 结构化字段（未配置 LLM 时返回 400 提示）
+async fn extract(
+    State(state): State<Arc<HttpState>>,
+    Json(input): Json<ExtractInput>,
+) -> Response {
+    let Some(cfg) = fyj_core::llm::config_from_settings(&state.services).await else {
+        return err(
+            StatusCode::BAD_REQUEST,
+            "应用未配置智能识别 LLM：请打开 FindYourJob → 设置 → 智能识别（LLM），填写 API Key",
+        );
+    };
+    match fyj_core::llm::extract(&cfg, &input.title, &input.url, &input.text).await {
+        Ok(job) => (StatusCode::OK, Json(job)).into_response(),
+        Err(e) => err(StatusCode::BAD_GATEWAY, &e.to_string()),
+    }
+}
+
 async fn clip(
     State(state): State<Arc<HttpState>>,
     Json(input): Json<ClipInput>,
@@ -101,6 +126,7 @@ pub fn router(state: Arc<HttpState>) -> Router {
     Router::new()
         .route("/api/health", get(health))
         .route("/api/ext/clip", post(clip))
+        .route("/api/ext/extract", post(extract))
         .layer(middleware::from_fn_with_state(state.clone(), auth))
         .with_state(state)
 }
@@ -195,6 +221,30 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(list.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn extract_without_llm_config_returns_400() {
+        let (state, _d) = setup().await;
+        let app = router(state);
+        let res = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/ext/extract")
+                    .header("authorization", "Bearer test-token")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        serde_json::json!({"title":"t","url":"https://x","text":"正文"}).to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+        let bytes = res.into_body().collect().await.unwrap().to_bytes();
+        let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert!(body["error"].as_str().unwrap().contains("未配置"));
     }
 
     #[tokio::test]
