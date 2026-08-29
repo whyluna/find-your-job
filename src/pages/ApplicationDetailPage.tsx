@@ -102,7 +102,7 @@ export default function ApplicationDetailPage() {
     <div className="px-6 py-5">
       <Link
         to="/applications"
-        className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600"
+        className="inline-flex items-center gap-1 text-[13px] text-slate-400 hover:text-slate-600"
       >
         <ArrowLeft className="size-3.5" /> 返回投递列表
       </Link>
@@ -117,23 +117,23 @@ export default function ApplicationDetailPage() {
             </h1>
             <StatusBadge status={app.status} />
             {app.status === "INTERVIEWING" && app.interviews.length > 0 && (
-              <span className="rounded bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
+              <span className="rounded bg-indigo-100 px-2 py-0.5 text-[13px] font-medium text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
                 第 {app.interviews[0].round} 轮
               </span>
             )}
-            <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+            <span className="rounded bg-slate-100 px-2 py-0.5 text-[13px] text-slate-600 dark:bg-slate-800 dark:text-slate-300">
               {BATCH_LABELS[app.batch as keyof typeof BATCH_LABELS] ?? app.batch}
             </span>
-            <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+            <span className="rounded bg-slate-100 px-2 py-0.5 text-[13px] text-slate-600 dark:bg-slate-800 dark:text-slate-300">
               {CHANNEL_LABELS[app.channel as keyof typeof CHANNEL_LABELS] ?? app.channel}
             </span>
             {app.isArchived && (
-              <span className="rounded bg-slate-200 px-2 py-0.5 text-xs text-slate-500 dark:bg-slate-700">
+              <span className="rounded bg-slate-200 px-2 py-0.5 text-[13px] text-slate-500 dark:bg-slate-700">
                 已归档
               </span>
             )}
           </div>
-          <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+          <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-slate-500">
             <span>投递日 {fmtDate(app.appliedDate)}</span>
             {app.workLocation && <span>Base {app.workLocation}</span>}
             <span>优先级 {PRIORITY_LABELS[app.priority]}</span>
@@ -197,7 +197,7 @@ export default function ApplicationDetailPage() {
             {key === "timeline" && <FileText className="size-3.5" />}
             {label}
             {count !== null && count > 0 && (
-              <span className="rounded-full bg-slate-100 px-1.5 text-[10px] text-slate-500 dark:bg-slate-800">
+              <span className="rounded-full bg-slate-100 px-1.5 text-[11px] text-slate-500 dark:bg-slate-800">
                 {count}
               </span>
             )}
@@ -240,7 +240,7 @@ export default function ApplicationDetailPage() {
       {tab === "jd" && (
         <div className="mt-5">
           <div className="mb-2 flex items-center justify-between">
-            <div className="text-xs text-slate-400">
+            <div className="text-[13px] text-slate-400">
               {app.jdSnapshotAt ? `快照保存于 ${fmtDateTime(app.jdSnapshotAt)}` : "未保存快照"}
               {app.jobUrl && (
                 <a
@@ -281,10 +281,10 @@ export default function ApplicationDetailPage() {
               onChange={(e) => setJdDraft(e.target.value)}
               rows={18}
               placeholder="粘贴 JD 全文，保存后将记录快照时间…"
-              className="w-full rounded-xl border border-slate-200/80 bg-white p-4 font-mono text-xs leading-relaxed focus:border-indigo-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800"
+              className="w-full rounded-xl border border-slate-200/80 bg-white p-4 font-mono text-[13px] leading-relaxed focus:border-indigo-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800"
             />
           ) : app.jdText ? (
-            <pre className="max-h-[60vh] overflow-y-auto whitespace-pre-wrap break-words rounded-xl border border-slate-200/80 p-4 text-xs leading-relaxed text-slate-600 dark:border-slate-800 dark:text-slate-300">
+            <pre className="max-h-[60vh] overflow-y-auto whitespace-pre-wrap break-words rounded-xl border border-slate-200/80 p-4 text-[13px] leading-relaxed text-slate-600 dark:border-slate-800 dark:text-slate-300">
               {app.jdText}
             </pre>
           ) : (
@@ -299,7 +299,7 @@ export default function ApplicationDetailPage() {
       {tab === "materials" && (
         <div className="mt-5">
           <div className="mb-3 flex items-center justify-between">
-            <p className="text-xs text-slate-500">笔试截图、offer 扫描件、三方协议等（存于本机应用数据目录）</p>
+            <p className="text-[13px] text-slate-500">笔试截图、offer 扫描件、三方协议等（存于本机应用数据目录）</p>
             <Button
               size="sm"
               onClick={async () => {
@@ -333,7 +333,7 @@ export default function ApplicationDetailPage() {
                   <Paperclip className="size-4 shrink-0 text-slate-400" />
                   <span className="min-w-0 flex-1 truncate text-sm">{a.fileName}</span>
                   {a.size && (
-                    <span className="text-xs text-slate-400">
+                    <span className="text-[13px] text-slate-400">
                       {a.size > 1048576 ? `${(a.size / 1048576).toFixed(1)}MB` : `${Math.round(a.size / 1024)}KB`}
                     </span>
                   )}

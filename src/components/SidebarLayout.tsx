@@ -33,7 +33,7 @@ export function SidebarLayout({ children }: { children: ReactNode }) {
           <div className="flex size-7 items-center justify-center rounded-[8px] bg-gradient-to-br from-indigo-500 to-cyan-400">
             <BriefcaseBusiness className="size-4 text-white" strokeWidth={2.2} />
           </div>
-          <span className="text-[13px] font-semibold tracking-tight">FindYourJob</span>
+          <span className="text-sm font-semibold tracking-tight">FindYourJob</span>
         </div>
         <nav className="mt-1 flex flex-1 flex-col gap-0.5 px-3">
           {NAV_ITEMS.map(({ to, label, icon: Icon, end }) => (
@@ -43,7 +43,7 @@ export function SidebarLayout({ children }: { children: ReactNode }) {
               end={end}
               className={({ isActive }) =>
                 cn(
-                  "flex items-center gap-2.5 rounded-lg px-2.5 py-[6px] text-[13px] transition-colors",
+                  "flex items-center gap-2.5 rounded-lg px-2.5 py-[6px] text-sm transition-colors",
                   isActive
                     ? "bg-indigo-500/10 font-medium text-indigo-600 dark:bg-indigo-400/10 dark:text-indigo-300"
                     : "text-slate-600 hover:bg-black/[0.04] dark:text-slate-300 dark:hover:bg-white/[0.05]",

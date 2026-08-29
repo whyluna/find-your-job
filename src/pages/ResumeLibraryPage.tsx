@@ -70,7 +70,7 @@ export default function ResumeLibraryPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-[17px] font-semibold tracking-tight">简历库</h1>
-          <p className="mt-0.5 text-xs text-slate-500">
+          <p className="mt-0.5 text-[13px] text-slate-500">
             不同方向用不同版本；每条投递都会记录所用版本，P1 可统计各版本过筛率
           </p>
         </div>
@@ -103,21 +103,21 @@ export default function ResumeLibraryPage() {
                   <div className="flex items-center gap-1.5 text-sm font-semibold">
                     {r.name}
                     {r.isDefault && (
-                      <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+                      <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
                         默认
                       </span>
                     )}
                   </div>
-                  <div className="mt-0.5 text-[11px] text-slate-400">
+                  <div className="mt-0.5 text-xs text-slate-400">
                     {r.targetRole ? `${r.targetRole} · ` : ""}
                     {r.fileName} {r.fileSize ? `· ${fmtSize(r.fileSize)}` : ""}
                   </div>
                 </div>
               </div>
             </div>
-            {r.notes && <div className="mt-2 text-xs text-slate-500">{r.notes}</div>}
+            {r.notes && <div className="mt-2 text-[13px] text-slate-500">{r.notes}</div>}
             <div className="mt-3 flex items-center justify-between">
-              <span className="text-[11px] text-slate-400">被 {r.usageCount} 条投递引用</span>
+              <span className="text-xs text-slate-400">被 {r.usageCount} 条投递引用</span>
               <div className="flex gap-0.5">
                 <button
                   title="打开文件"
@@ -166,7 +166,7 @@ export default function ResumeLibraryPage() {
       {/* 上传信息弹窗 */}
       <Modal open={!!uploadModal} onClose={() => setUploadModal(null)} title="登记简历版本">
         <div className="space-y-4">
-          <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500 dark:bg-slate-800">
+          <div className="rounded-lg bg-slate-50 px-3 py-2 text-[13px] text-slate-500 dark:bg-slate-800">
             文件：{uploadModal?.fileName}（将复制到应用数据目录，原文件不动）
           </div>
           <Field label="版本名称 *">

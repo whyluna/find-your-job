@@ -221,7 +221,7 @@ export function KanbanView({ items, canReorder }: { items: ApplicationListItem[]
             setShowAllRows(next);
             localStorage.setItem("fyj-show-all-rows", next ? "1" : "0");
           }}
-          className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
+          className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
         >
           {showAllRows ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
           {showAllRows ? "隐藏空状态" : `显示全部状态（${allRows.length}）`}
@@ -306,13 +306,13 @@ function SwimLane({
       <div className="mb-2 flex items-center gap-2">
         <span
           className={cn(
-            "text-[13px] font-semibold",
+            "text-sm font-semibold",
             isTerminal ? "text-slate-400 dark:text-slate-500" : "text-slate-500 dark:text-slate-400",
           )}
         >
           {STATUS_LABELS[status]}
         </span>
-        <span className="text-xs tabular-nums text-slate-400 dark:text-slate-500">
+        <span className="text-[13px] tabular-nums text-slate-400 dark:text-slate-500">
           {colItems.length}
         </span>
         <div className="h-px flex-1 bg-slate-200/70 dark:bg-slate-800/70" />
@@ -320,7 +320,7 @@ function SwimLane({
       <SortableContext items={colItems.map((i) => i.id)} strategy={horizontalListSortingStrategy}>
         <div className="flex flex-wrap gap-2">
           {colItems.length === 0 && (
-            <div className="rounded-lg border border-dashed border-slate-200 px-6 py-2.5 text-[11px] text-slate-300 dark:border-slate-700/60 dark:text-slate-600">
+            <div className="rounded-lg border border-dashed border-slate-200 px-6 py-2.5 text-xs text-slate-300 dark:border-slate-700/60 dark:text-slate-600">
               拖到这里
             </div>
           )}
@@ -388,7 +388,7 @@ function Card({
             {item.companyName}
             {item.department && <span className="font-normal"> · {item.department}</span>}
           </div>
-          <div className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
+          <div className="mt-0.5 truncate text-[13px] text-slate-500 dark:text-slate-400">
             {item.positionTitle}
           </div>
         </div>
@@ -401,16 +401,16 @@ function Card({
       </div>
       <div className="mt-1.5 flex flex-wrap items-center gap-1">
         {item.status === "INTERVIEWING" && item.interviewCount > 0 ? (
-          <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-[11px] font-medium text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
+          <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
             第 {item.interviewCount} 轮
           </span>
         ) : item.interviewCount > 0 ? (
-          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500 dark:bg-slate-800 dark:text-slate-400">
             {item.interviewCount} 轮面试
           </span>
         ) : null}
         {item.batch && item.batch !== "OTHER" && (
-          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-500 dark:bg-slate-700 dark:text-slate-300">
+          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500 dark:bg-slate-700 dark:text-slate-300">
             {BATCH_LABELS[item.batch as keyof typeof BATCH_LABELS] ?? item.batch}
           </span>
         )}

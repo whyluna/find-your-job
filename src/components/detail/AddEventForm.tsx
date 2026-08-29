@@ -156,7 +156,7 @@ export function AddEventForm({
     return (
       <button
         onClick={() => setOpen(true)}
-        className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-slate-300 py-2.5 text-xs text-slate-500 transition-colors hover:border-indigo-400 hover:text-indigo-500 dark:border-slate-600 dark:text-slate-400"
+        className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-slate-300 py-2.5 text-[13px] text-slate-500 transition-colors hover:border-indigo-400 hover:text-indigo-500 dark:border-slate-600 dark:text-slate-400"
       >
         <Plus className="size-3.5" /> 添加事件
       </button>
@@ -182,7 +182,7 @@ export function AddEventForm({
     <div className="rounded-xl border border-indigo-200 bg-indigo-50/40 p-4 dark:border-indigo-800 dark:bg-indigo-900/15">
       <div className="grid grid-cols-2 gap-3">
         <div className="col-span-2">
-          <div className="mb-1.5 text-xs font-medium text-slate-500">事件类型</div>
+          <div className="mb-1.5 text-[13px] font-medium text-slate-500">事件类型</div>
           <Select
             value={menuValue}
             onChange={(e) => {
@@ -221,14 +221,14 @@ export function AddEventForm({
             )}
           </Select>
           {isInterview && (
-            <div className="mt-2 rounded-lg bg-white/80 px-3 py-2 text-xs text-slate-500 dark:bg-slate-800/80">
+            <div className="mt-2 rounded-lg bg-white/80 px-3 py-2 text-[13px] text-slate-500 dark:bg-slate-800/80">
               将创建<b>第 {nextRound} 轮</b>面试（逐轮添加，需上一轮完成或取消）；记录后可在时间线该条目上标记结果
             </div>
           )}
         </div>
 
         <div>
-          <div className="mb-1.5 text-xs font-medium text-slate-500">
+          <div className="mb-1.5 text-[13px] font-medium text-slate-500">
             {isInterview ? "面试时间" : "发生时间"}
           </div>
           <DateTimePicker
@@ -241,7 +241,7 @@ export function AddEventForm({
         {isInterview ? (
           <>
             <div>
-              <div className="mb-1.5 text-xs font-medium text-slate-500">轮次标签</div>
+              <div className="mb-1.5 text-[13px] font-medium text-slate-500">轮次标签</div>
               <Select value={roundLabel} onChange={(e) => setRoundLabel(e.target.value)}>
                 <option value="">（无）</option>
                 {ROUND_LABEL_PRESETS.map((r) => (
@@ -250,7 +250,7 @@ export function AddEventForm({
               </Select>
             </div>
             <div>
-              <div className="mb-1.5 text-xs font-medium text-slate-500">形式</div>
+              <div className="mb-1.5 text-[13px] font-medium text-slate-500">形式</div>
               <Select value={format} onChange={(e) => setFormat(e.target.value)}>
                 {Object.entries(INTERVIEW_FORMAT_LABELS).map(([k, v]) => (
                   <option key={k} value={k}>{v}</option>
@@ -258,7 +258,7 @@ export function AddEventForm({
               </Select>
             </div>
             <div>
-              <div className="mb-1.5 text-xs font-medium text-slate-500">时长（分钟）</div>
+              <div className="mb-1.5 text-[13px] font-medium text-slate-500">时长（分钟）</div>
               <TextInput
                 type="number"
                 value={durationMin}
@@ -267,7 +267,7 @@ export function AddEventForm({
               />
             </div>
             <div className="col-span-2">
-              <div className="mb-1.5 text-xs font-medium text-slate-500">地点 / 会议链接</div>
+              <div className="mb-1.5 text-[13px] font-medium text-slate-500">地点 / 会议链接</div>
               <TextInput
                 value={locationOrLink}
                 placeholder="如：望京 / 腾讯会议 123-456"
@@ -275,7 +275,7 @@ export function AddEventForm({
               />
             </div>
             <div className="col-span-2">
-              <div className="mb-1.5 text-xs font-medium text-slate-500">面试官印象（可选）</div>
+              <div className="mb-1.5 text-[13px] font-medium text-slate-500">面试官印象（可选）</div>
               <TextInput
                 value={interviewerNote}
                 placeholder="如：部门主管，关注系统设计"
@@ -287,13 +287,13 @@ export function AddEventForm({
           <>
             {needsDeadline && (
               <div>
-                <div className="mb-1.5 text-xs font-medium text-slate-500">截止时间 *</div>
+                <div className="mb-1.5 text-[13px] font-medium text-slate-500">截止时间 *</div>
                 <DateTimePicker value={deadline} onChange={setDeadline} withTime />
               </div>
             )}
             {needsResult && (
               <div>
-                <div className="mb-1.5 text-xs font-medium text-slate-500">结果</div>
+                <div className="mb-1.5 text-[13px] font-medium text-slate-500">结果</div>
                 <Select value={result} onChange={(e) => setResult(e.target.value as EventResult)}>
                   {Object.entries(EVENT_RESULT_LABELS).map(([k, v]) => (
                     <option key={k} value={k}>{v}</option>
@@ -306,7 +306,7 @@ export function AddEventForm({
 
         {!isInterview && (
           <div className="col-span-2">
-            <div className="mb-1.5 text-xs font-medium text-slate-500">备注</div>
+            <div className="mb-1.5 text-[13px] font-medium text-slate-500">备注</div>
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
@@ -318,7 +318,7 @@ export function AddEventForm({
         )}
       </div>
 
-      {error && <div className="mt-2 text-xs text-red-500">{error}</div>}
+      {error && <div className="mt-2 text-[13px] text-red-500">{error}</div>}
       <div className="mt-3 flex justify-end gap-2">
         <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>
           收起

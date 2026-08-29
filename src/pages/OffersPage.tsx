@@ -88,7 +88,7 @@ export default function OffersPage() {
           <h1 className="flex items-center gap-2 text-[17px] font-semibold tracking-tight">
             <Scale className="size-5" /> offer 对比
           </h1>
-          <p className="mt-0.5 text-xs text-slate-500">
+          <p className="mt-0.5 text-[13px] text-slate-500">
             五维加权评分，分数 1–10；改完记得保存（数据存本地）
           </p>
         </div>
@@ -100,9 +100,9 @@ export default function OffersPage() {
 
       {/* 权重 */}
       <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200/80 px-4 py-3 dark:border-slate-800/80">
-        <span className="text-xs font-medium text-slate-500">权重</span>
+        <span className="text-[13px] font-medium text-slate-500">权重</span>
         {DIMENSIONS.map((d) => (
-          <label key={d.key} className="flex items-center gap-1.5 text-xs text-slate-500">
+          <label key={d.key} className="flex items-center gap-1.5 text-[13px] text-slate-500">
             {d.label}
             <input
               type="number"
@@ -110,7 +110,7 @@ export default function OffersPage() {
               min="0"
               value={weightOf(d.key)}
               onChange={(e) => setWeight(d.key, +e.target.value || 0)}
-              className="w-14 rounded border border-slate-200/80 px-1.5 py-0.5 text-xs dark:border-slate-700 dark:bg-slate-800"
+              className="w-14 rounded border border-slate-200/80 px-1.5 py-0.5 text-[13px] dark:border-slate-700 dark:bg-slate-800"
             />
           </label>
         ))}
@@ -124,7 +124,7 @@ export default function OffersPage() {
         <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200/80 dark:border-slate-800/80">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-800/50">
+              <tr className="border-b border-slate-200 bg-slate-50 text-left text-[13px] text-slate-500 dark:border-slate-800 dark:bg-slate-800/50">
                 <th className="px-4 py-2.5 font-medium">公司 · 岗位</th>
                 <th className="px-4 py-2.5 font-medium">状态</th>
                 <th className="px-4 py-2.5 font-medium">薪资结构（点击编辑）</th>
@@ -187,9 +187,9 @@ function OfferRow({
             {app.companyName}
             {app.department && <span className="font-normal"> · {app.department}</span>}
           </div>
-          <div className="text-xs text-slate-400">{app.positionTitle}{app.workLocation ? ` · ${app.workLocation}` : ""}</div>
+          <div className="text-[13px] text-slate-400">{app.positionTitle}{app.workLocation ? ` · ${app.workLocation}` : ""}</div>
         </button>
-        <div className="mt-0.5 text-[11px] text-slate-400">投递 {fmtDate(app.appliedDate)}</div>
+        <div className="mt-0.5 text-xs text-slate-400">投递 {fmtDate(app.appliedDate)}</div>
       </td>
       <td className="px-4 py-3"><StatusBadge status={app.status} /></td>
       <td className="px-4 py-3">
@@ -198,11 +198,11 @@ function OfferRow({
             value={salary}
             onChange={(e) => setSalary(e.target.value)}
             placeholder="25k×15+签字费"
-            className="w-40 text-xs"
+            className="w-40 text-[13px]"
           />
           <button
             onClick={saveSalary}
-            className={cn("text-[11px]", salarySaved ? "text-emerald-500" : "text-indigo-500 hover:underline")}
+            className={cn("text-xs", salarySaved ? "text-emerald-500" : "text-indigo-500 hover:underline")}
           >
             {salarySaved ? "已存" : "存"}
           </button>
@@ -217,7 +217,7 @@ function OfferRow({
             value={scores[d.key] ?? 0}
             onChange={(e) => onScore(d.key, Math.min(10, Math.max(0, +e.target.value || 0)))}
             className={cn(
-              "w-14 rounded border px-1.5 py-1 text-center text-xs dark:bg-slate-800",
+              "w-14 rounded border px-1.5 py-1 text-center text-[13px] dark:bg-slate-800",
               (scores[d.key] ?? 0) >= 8
                 ? "border-emerald-300 text-emerald-600 dark:border-emerald-700"
                 : (scores[d.key] ?? 0) > 0 && (scores[d.key] ?? 0) <= 4

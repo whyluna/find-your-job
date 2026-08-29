@@ -12,7 +12,7 @@ export default defineConfig({
     },
   },
   test: {
-    environment: "node",
-    include: ["src/**/*.test.ts", "packages/shared/src/**/*.test.ts"],
+    environment: "jsdom",
+    include: ["src/**/*.test.{ts,tsx}", "packages/shared/src/**/*.test.ts"],
   },
 });

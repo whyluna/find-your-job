@@ -134,7 +134,7 @@ export default function ApplicationsPage() {
       </div>
 
       {showYellowBar && (
-        <div className="mt-3 flex items-center gap-2 rounded-lg border border-amber-200/70 bg-amber-50/80 px-3.5 py-2 text-[13px] text-amber-700 dark:border-amber-800/70 dark:bg-amber-900/15 dark:text-amber-300">
+        <div className="mt-3 flex items-center gap-2 rounded-lg border border-amber-200/70 bg-amber-50/80 px-3.5 py-2 text-sm text-amber-700 dark:border-amber-800/70 dark:bg-amber-900/15 dark:text-amber-300">
           <TriangleAlert className="size-4 shrink-0" />
           <span>
             有 {missingResume.length} 条投递未标注简历版本
@@ -146,7 +146,7 @@ export default function ApplicationsPage() {
             ，统计各版本过筛率需要它。
           </span>
           <button
-            className="ml-auto text-xs text-amber-600/70 hover:underline"
+            className="ml-auto text-[13px] text-amber-600/70 hover:underline"
             onClick={() => setNoResumeDismissed(true)}
           >
             知道了
@@ -168,7 +168,7 @@ export default function ApplicationsPage() {
       <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200/80 dark:border-slate-800/80">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-200/80 text-left text-xs text-slate-400 dark:border-slate-800/80 dark:text-slate-500">
+            <tr className="border-b border-slate-200/80 text-left text-[13px] text-slate-400 dark:border-slate-800/80 dark:text-slate-500">
               <th className="w-8 px-2 py-2.5" />
               <th className="whitespace-nowrap px-3 py-2.5 font-medium">公司</th>
               <th className="whitespace-nowrap px-3 py-2.5 font-medium">部门</th>
@@ -297,7 +297,7 @@ function Row({
         <div className="flex flex-nowrap items-center gap-1.5 whitespace-nowrap">
           <StatusBadge status={item.status} />
           {item.status === "INTERVIEWING" && item.interviewCount > 0 && (
-            <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
+            <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-[11px] font-medium text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
               第 {item.interviewCount} 轮
             </span>
           )}
@@ -318,11 +318,11 @@ function Row({
       <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-slate-500">{fmtDate(item.appliedDate)}</td>
       <td className="whitespace-nowrap px-3 py-2.5">
         {item.resumeVersionName ? (
-          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[13px] text-slate-600 dark:bg-slate-800 dark:text-slate-300">
             {item.resumeVersionName}
           </span>
         ) : (
-          <span className={cn("text-xs text-amber-500")}>未标注</span>
+          <span className={cn("text-[13px] text-amber-500")}>未标注</span>
         )}
       </td>
     </tr>

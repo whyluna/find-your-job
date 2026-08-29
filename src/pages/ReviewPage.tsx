@@ -7,6 +7,7 @@ import { api } from "@/lib/ipc";
 import { QUESTION_QUALITY_LABELS } from "@shared";
 import { Button, PageHeader, TextInput } from "@/components/ui";
 import { QuestionModal } from "@/components/QuestionModal";
+import { LatexText } from "@/components/LatexText";
 import { cn } from "@/lib/utils";
 
 interface BankItem {
@@ -176,19 +177,19 @@ export default function ReviewPage() {
                       <div key={q.questionId} className="group px-4 py-3">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0 flex-1">
-                            <div className="text-[15px] font-medium leading-relaxed">{q.question}</div>
+                            <div className="text-[15px] font-medium leading-relaxed"><LatexText>{q.question}</LatexText></div>
                             {(q.myAnswer || q.reflection) && (
                               <div className="mt-2 space-y-1.5 border-l-2 border-slate-200 pl-3 dark:border-slate-700/70">
                                 {q.myAnswer && (
                                   <div className="text-[15px] leading-relaxed text-slate-600 dark:text-slate-300">
                                     <span className="mr-1.5 select-none text-xs font-medium text-slate-400 dark:text-slate-500">我的回答</span>
-                                    {q.myAnswer}
+                                    <LatexText>{q.myAnswer}</LatexText>
                                   </div>
                                 )}
                                 {q.reflection && (
                                   <div className="text-[15px] leading-relaxed text-slate-700 dark:text-slate-200">
                                     <span className="mr-1.5 select-none text-xs font-medium text-amber-600 dark:text-amber-400">理想回答</span>
-                                    {q.reflection}
+                                    <LatexText>{q.reflection}</LatexText>
                                   </div>
                                 )}
                               </div>

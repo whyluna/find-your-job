@@ -74,18 +74,18 @@ export function EventItem({ event, applicationId }: { event: AppEvent; applicati
       <div className="rounded-lg border border-indigo-200 bg-indigo-50/40 p-3 dark:border-indigo-800 dark:bg-indigo-900/15">
         <div className="grid gap-3">
           <div>
-            <div className="mb-1 text-[11px] text-slate-500">发生时间</div>
+            <div className="mb-1 text-xs text-slate-500">发生时间</div>
             <DateTimePicker value={occurredAt} onChange={(iso) => setOccurredAt(iso ?? event.occurredAt)} withTime />
           </div>
           {event.deadline !== null && (
             <div>
-              <div className="mb-1 text-[11px] text-slate-500">截止时间</div>
+              <div className="mb-1 text-xs text-slate-500">截止时间</div>
               <DateTimePicker value={deadline} onChange={setDeadline} withTime />
             </div>
           )}
           {(def?.needsResult || isGateStage) && (
             <div>
-              <div className="mb-1 text-[11px] text-slate-500">结果</div>
+              <div className="mb-1 text-xs text-slate-500">结果</div>
               <Select value={result} onChange={(e) => setResult(e.target.value as EventResult)} className="w-36">
                 {Object.entries(EVENT_RESULT_LABELS).map(([k, v]) => (
                   <option key={k} value={k}>{v}</option>
@@ -94,12 +94,12 @@ export function EventItem({ event, applicationId }: { event: AppEvent; applicati
             </div>
           )}
           <div>
-            <div className="mb-1 text-[11px] text-slate-500">备注</div>
+            <div className="mb-1 text-xs text-slate-500">备注</div>
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
               rows={2}
-              className="w-full rounded-lg border border-slate-200/80 bg-white px-2.5 py-1.5 text-xs focus:border-indigo-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800"
+              className="w-full rounded-lg border border-slate-200/80 bg-white px-2.5 py-1.5 text-[13px] focus:border-indigo-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800"
             />
           </div>
         </div>
@@ -127,49 +127,49 @@ export function EventItem({ event, applicationId }: { event: AppEvent; applicati
               <span
                 className={
                   event.result === "PASS"
-                    ? "text-xs text-emerald-600 dark:text-emerald-400"
+                    ? "text-[13px] text-emerald-600 dark:text-emerald-400"
                     : event.result === "FAIL"
-                      ? "text-xs text-red-500"
-                      : "text-xs text-slate-400"
+                      ? "text-[13px] text-red-500"
+                      : "text-[13px] text-slate-400"
                 }
               >
                 {EVENT_RESULT_LABELS[event.result ?? "PENDING"]}
               </span>
             )}
             {event.source === "EMAIL" && (
-              <span className="rounded bg-slate-100 px-1 text-[10px] text-slate-400 dark:bg-slate-800">
+              <span className="rounded bg-slate-100 px-1 text-[11px] text-slate-400 dark:bg-slate-800">
                 邮件导入
               </span>
             )}
             {isUrgent(event.deadline) && (
-              <span className="text-xs text-red-500">{deadlineLabel(event.deadline)}</span>
+              <span className="text-[13px] text-red-500">{deadlineLabel(event.deadline)}</span>
             )}
           </div>
-          <div className="mt-0.5 text-xs text-slate-400">
+          <div className="mt-0.5 text-[13px] text-slate-400">
             {fmtDateTime(event.occurredAt)}
             {event.deadline && !isUrgent(event.deadline) && (
               <span className="ml-2">截止 {fmtDateTime(event.deadline)}</span>
             )}
           </div>
           {event.note && (
-            <div className="mt-1 whitespace-pre-wrap text-xs text-slate-500 dark:text-slate-400">
+            <div className="mt-1 whitespace-pre-wrap text-[13px] text-slate-500 dark:text-slate-400">
               {event.note}
             </div>
           )}
         </div>
-        {markError && <div className="mb-1 text-right text-[10px] text-red-500">{markError}</div>}
+        {markError && <div className="mb-1 text-right text-[11px] text-red-500">{markError}</div>}
         <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover/event:opacity-100">
           {isGateStage && event.result !== "FAIL" && (
             <>
               <button
                 onClick={() => markWithError("PASS")}
-                className="rounded px-1.5 py-0.5 text-[11px] text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
+                className="rounded px-1.5 py-0.5 text-xs text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
               >
                 通过
               </button>
               <button
                 onClick={() => markWithError("FAIL")}
-                className="rounded px-1.5 py-0.5 text-[11px] text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30"
+                className="rounded px-1.5 py-0.5 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30"
               >
                 未过
               </button>

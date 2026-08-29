@@ -33,13 +33,13 @@ export default function CompaniesPage() {
     <div className="px-6 py-5">
       <div>
         <h1 className="text-[17px] font-semibold tracking-tight">公司</h1>
-        <p className="mt-0.5 text-xs text-slate-500">
+        <p className="mt-0.5 text-[13px] text-slate-500">
           投递时填写过的公司会自动沉淀到这里；维护「招聘官网」和「别名」可提升邮件解析的公司匹配准确度
         </p>
       </div>
 
       {error && (
-        <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600 dark:bg-red-900/20 dark:text-red-300">
+        <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-[13px] text-red-600 dark:bg-red-900/20 dark:text-red-300">
           {error}
         </div>
       )}
@@ -47,7 +47,7 @@ export default function CompaniesPage() {
       <div className="mt-4 overflow-hidden rounded-xl border border-slate-200/80 dark:border-slate-800/80">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
+            <tr className="border-b border-slate-200 bg-slate-50 text-left text-[13px] text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
               <th className="px-4 py-2.5 font-medium">公司</th>
               <th className="px-4 py-2.5 font-medium">性质 / 行业</th>
               <th className="px-4 py-2.5 font-medium">招聘官网</th>
@@ -81,7 +81,7 @@ export default function CompaniesPage() {
                     <div className="min-w-0">
                       <div className="font-medium">{c.name}</div>
                       {c.aliases.length > 0 && (
-                        <div className="truncate text-[11px] text-slate-400">
+                        <div className="truncate text-xs text-slate-400">
                           别名：{c.aliases.join("、")}
                         </div>
                       )}
@@ -94,15 +94,15 @@ export default function CompaniesPage() {
                 <td className="px-4 py-2.5">
                   {c.careersUrl ? (
                     <button
-                      className="inline-flex items-center gap-1 text-xs text-indigo-500 hover:underline"
+                      className="inline-flex items-center gap-1 text-[13px] text-indigo-500 hover:underline"
                       onClick={() => openPath(c.careersUrl!).catch(() => undefined)}
                     >
                       打开 <ExternalLink className="size-3" />
                     </button>
                   ) : c.website ? (
-                    <span className="text-xs text-slate-400">{c.website}</span>
+                    <span className="text-[13px] text-slate-400">{c.website}</span>
                   ) : (
-                    <span className="text-xs text-slate-400">—</span>
+                    <span className="text-[13px] text-slate-400">—</span>
                   )}
                 </td>
                 <td className="px-4 py-2.5 tabular-nums text-slate-500">{c.applicationCount}</td>

@@ -117,7 +117,7 @@ export default function CalendarPage() {
             <ChevronLeft className="size-4" />
           </button>
           <button
-            className="rounded-lg px-2 py-1 text-xs text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+            className="rounded-lg px-2 py-1 text-[13px] text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
             onClick={() => {
               const n = new Date();
               setCursor({ y: n.getFullYear(), m: n.getMonth() });
@@ -140,7 +140,7 @@ export default function CalendarPage() {
       <div className="mt-4 grid grid-cols-[1fr_280px] gap-4">
         {/* 月历 */}
         <div className="rounded-xl border border-slate-200/80 p-3 dark:border-slate-800/80">
-          <div className="mb-1 grid grid-cols-7 text-center text-xs text-slate-400">
+          <div className="mb-1 grid grid-cols-7 text-center text-[13px] text-slate-400">
             {WEEKDAYS.map((w) => (
               <div key={w} className="py-1">{w}</div>
             ))}
@@ -167,7 +167,7 @@ export default function CalendarPage() {
                 >
                   <span
                     className={cn(
-                      "text-xs",
+                      "text-[13px]",
                       isToday ? "font-bold text-indigo-600 dark:text-indigo-400" : "text-slate-600 dark:text-slate-300",
                     )}
                   >
@@ -182,7 +182,7 @@ export default function CalendarPage() {
               );
             })}
           </div>
-          <div className="mt-2 flex justify-end gap-3 text-[11px] text-slate-400">
+          <div className="mt-2 flex justify-end gap-3 text-xs text-slate-400">
             <span className="flex items-center gap-1"><span className="size-1.5 rounded-full bg-indigo-500" />面试</span>
             <span className="flex items-center gap-1"><span className="size-1.5 rounded-full bg-red-500" />截止</span>
             <span className="flex items-center gap-1"><span className="size-1.5 rounded-full bg-slate-400" />投递</span>
@@ -193,7 +193,7 @@ export default function CalendarPage() {
         <div className="rounded-xl border border-slate-200/80 p-4 dark:border-slate-800/80">
           <h2 className="text-sm font-semibold">{selected}</h2>
           {selectedEntries.length === 0 ? (
-            <div className="mt-4 text-xs text-slate-400">当天没有安排</div>
+            <div className="mt-4 text-[13px] text-slate-400">当天没有安排</div>
           ) : (
             <div className="mt-3 space-y-2">
               {selectedEntries.map((e, i) => (
@@ -212,7 +212,7 @@ export default function CalendarPage() {
                   <div className="text-sm font-medium">
                     {e.companyName} · {e.positionTitle}
                   </div>
-                  <div className="mt-0.5 text-xs text-slate-400">
+                  <div className="mt-0.5 text-[13px] text-slate-400">
                     {e.kind === "applied"
                       ? "投递日"
                       : e.kind === "deadline"

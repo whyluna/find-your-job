@@ -75,7 +75,7 @@ export default function StatsPage() {
   return (
     <div className="px-6 py-5">
       <h1 className="text-[17px] font-semibold tracking-tight">统计</h1>
-      <p className="mt-0.5 text-xs text-slate-500">
+      <p className="mt-0.5 text-[13px] text-slate-500">
         共 {totalAll} 条在追踪（不含归档）· 漏斗按当前所处阶段计数
       </p>
 
@@ -88,7 +88,7 @@ export default function StatsPage() {
               const n = statusMap.get(st) ?? 0;
               return (
                 <div key={st} className="flex items-center gap-3">
-                  <span className="w-14 shrink-0 text-right text-xs text-slate-500">
+                  <span className="w-14 shrink-0 text-right text-[13px] text-slate-500">
                     {STATUS_LABELS[st]}
                   </span>
                   <div className="h-5 flex-1 overflow-hidden rounded bg-slate-100 dark:bg-slate-800">
@@ -97,13 +97,13 @@ export default function StatsPage() {
                       style={{ width: `${(n / funnelMax) * 100}%` }}
                     />
                   </div>
-                  <span className="w-8 shrink-0 text-xs font-medium tabular-nums">{n}</span>
+                  <span className="w-8 shrink-0 text-[13px] font-medium tabular-nums">{n}</span>
                 </div>
               );
             })}
             <div className="flex items-center gap-3">
-              <span className="w-14 shrink-0 text-right text-xs text-red-400">已挂</span>
-              <span className="text-xs tabular-nums text-red-400">
+              <span className="w-14 shrink-0 text-right text-[13px] text-red-400">已挂</span>
+              <span className="text-[13px] tabular-nums text-red-400">
                 {statusMap.get("REJECTED") ?? 0}
               </span>
             </div>
@@ -141,10 +141,10 @@ export default function StatsPage() {
             <section key={title} className="rounded-xl border border-slate-200/80 p-5 dark:border-slate-800/80">
               <h2 className="text-sm font-semibold">{title}</h2>
               <div className="mt-3 space-y-2">
-                {rows.length === 0 && <div className="text-xs text-slate-400">暂无数据</div>}
+                {rows.length === 0 && <div className="text-[13px] text-slate-400">暂无数据</div>}
                 {rows.slice(0, 7).map((r) => (
                   <div key={r.key} className="flex items-center gap-3">
-                    <span className="w-20 shrink-0 truncate text-xs text-slate-500">
+                    <span className="w-20 shrink-0 truncate text-[13px] text-slate-500">
                       {labels[r.key] ?? r.key}
                     </span>
                     <div className="h-3.5 flex-1 overflow-hidden rounded bg-slate-100 dark:bg-slate-800">
@@ -153,7 +153,7 @@ export default function StatsPage() {
                         style={{ width: `${(r.count / max) * 100}%` }}
                       />
                     </div>
-                    <span className="w-6 shrink-0 text-xs tabular-nums">{r.count}</span>
+                    <span className="w-6 shrink-0 text-[13px] tabular-nums">{r.count}</span>
                   </div>
                 ))}
               </div>
@@ -166,7 +166,7 @@ export default function StatsPage() {
           <h2 className="text-sm font-semibold">简历版本表现</h2>
           <table className="mt-3 w-full text-sm">
             <thead>
-              <tr className="text-left text-xs text-slate-400">
+              <tr className="text-left text-[13px] text-slate-400">
                 <th className="pb-2 font-medium">版本</th>
                 <th className="pb-2 font-medium">投递</th>
                 <th className="pb-2 font-medium">到面试</th>
@@ -175,7 +175,7 @@ export default function StatsPage() {
             </thead>
             <tbody>
               {s.resumeFunnel.length === 0 && (
-                <tr><td colSpan={4} className="py-4 text-center text-xs text-slate-400">上传简历并关联投递后显示</td></tr>
+                <tr><td colSpan={4} className="py-4 text-center text-[13px] text-slate-400">上传简历并关联投递后显示</td></tr>
               )}
               {s.resumeFunnel.map((r) => (
                 <tr key={r.resumeName} className="border-t border-slate-100 dark:border-slate-800/80">
@@ -193,10 +193,10 @@ export default function StatsPage() {
       {/* 沉默投递 */}
       <section className="mt-4 max-w-3xl rounded-xl border border-slate-200/80 p-5 dark:border-slate-800/80">
         <h2 className="text-sm font-semibold">
-          沉默投递 <span className="text-xs font-normal text-slate-400">超过 14 天无动静且未到终态</span>
+          沉默投递 <span className="text-[13px] font-normal text-slate-400">超过 14 天无动静且未到终态</span>
         </h2>
         {s.silent.length === 0 ? (
-          <div className="mt-3 text-xs text-slate-400">没有沉默的投递 👍</div>
+          <div className="mt-3 text-[13px] text-slate-400">没有沉默的投递 👍</div>
         ) : (
           <div className="mt-3 space-y-1">
             {s.silent.map((a) => (
@@ -206,8 +206,8 @@ export default function StatsPage() {
                 className="flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50"
               >
                 <span className="text-sm">{a.companyName} · {a.positionTitle}</span>
-                <span className="text-xs text-slate-400">{STATUS_LABELS[a.status]}</span>
-                <span className="ml-auto text-xs text-slate-400">最后动静 {fmtDate(a.updatedAt)}</span>
+                <span className="text-[13px] text-slate-400">{STATUS_LABELS[a.status]}</span>
+                <span className="ml-auto text-[13px] text-slate-400">最后动静 {fmtDate(a.updatedAt)}</span>
               </button>
             ))}
           </div>

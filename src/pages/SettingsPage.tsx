@@ -98,7 +98,7 @@ export default function SettingsPage() {
         <h2 className="flex items-center gap-2 text-sm font-semibold">
           <Database className="size-4" /> 数据
         </h2>
-        <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
+        <p className="mt-1.5 text-[13px] leading-relaxed text-slate-500">
           所有数据仅存于本机（SQLite + 应用数据目录）。建议在重要节点手动导出 JSON 备份；
           导入为覆盖式恢复。
         </p>
@@ -125,8 +125,8 @@ export default function SettingsPage() {
           <div
             className={
               msg.kind === "ok"
-                ? "mt-3 break-all rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300"
-                : "mt-3 break-all rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600 dark:bg-red-900/20 dark:text-red-300"
+                ? "mt-3 break-all rounded-lg bg-emerald-50 px-3 py-2 text-[13px] text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300"
+                : "mt-3 break-all rounded-lg bg-red-50 px-3 py-2 text-[13px] text-red-600 dark:bg-red-900/20 dark:text-red-300"
             }
           >
             {msg.text}
@@ -139,11 +139,11 @@ export default function SettingsPage() {
         <h2 className="flex items-center gap-2 text-sm font-semibold">
           <Puzzle className="size-4" /> 浏览器扩展接入
         </h2>
-        <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
+        <p className="mt-1.5 text-[13px] leading-relaxed text-slate-500">
           开启后应用在本机监听 127.0.0.1:{apiStatus?.port ?? 37321}
           ，配合浏览器扩展可在招聘网站一键收录岗位（配置下方「智能识别」后可自动识别公司/岗位/城市并清洗 JD）。
         </p>
-        {statusError && <div className="mt-2 text-xs text-red-500">{String(statusError)}</div>}
+        {statusError && <div className="mt-2 text-[13px] text-red-500">{String(statusError)}</div>}
         {apiStatus && (
           <div className="mt-4 space-y-3">
             <label className="flex cursor-pointer items-center gap-2.5 text-sm">
@@ -157,14 +157,14 @@ export default function SettingsPage() {
               <span>
                 {apiStatus.enabled ? "已开启" : "已关闭"}
                 {apiStatus.running && (
-                  <span className="ml-1.5 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                  <span className="ml-1.5 rounded bg-emerald-100 px-1.5 py-0.5 text-[11px] text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
                     服务运行中
                   </span>
                 )}
               </span>
             </label>
             <div className="flex items-center gap-2">
-              <code className="flex-1 truncate rounded-lg bg-slate-100 px-3 py-2 font-mono text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+              <code className="flex-1 truncate rounded-lg bg-slate-100 px-3 py-2 font-mono text-[13px] text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                 {apiStatus.token}
               </code>
               <Button size="sm" onClick={() => navigator.clipboard?.writeText(apiStatus.token)}>
@@ -183,7 +183,7 @@ export default function SettingsPage() {
       {/* 关于 */}
       <section className="mt-4 max-w-2xl rounded-xl border border-slate-200/80 p-5 dark:border-slate-800/80">
         <h2 className="text-sm font-semibold">关于</h2>
-        <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
+        <p className="mt-1.5 text-[13px] leading-relaxed text-slate-500">
           FindYourJob v0.1.0 · 状态由事件时间线推导的本地求职记录工具。
           <br />
           提醒增强等将在后续版本提供。

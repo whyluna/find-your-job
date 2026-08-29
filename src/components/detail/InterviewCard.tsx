@@ -22,6 +22,7 @@ import {
 } from "@shared";
 import { Button } from "@/components/ui";
 import { QuestionModal } from "@/components/QuestionModal";
+import { LatexText } from "@/components/LatexText";
 import { cn } from "@/lib/utils";
 
 export function InterviewCard({
@@ -287,19 +288,19 @@ function QuestionItem({
     <div className="rounded-lg border border-slate-200/80 p-3 dark:border-slate-700">
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
-          <div className="text-[15px] font-medium leading-relaxed">{question.question}</div>
+          <div className="text-[15px] font-medium leading-relaxed"><LatexText>{question.question}</LatexText></div>
           {(question.myAnswer || question.reflection) && (
             <div className="mt-1.5 space-y-1 border-l-2 border-slate-200 pl-2.5 dark:border-slate-700/70">
               {question.myAnswer && (
                 <div className="text-[15px] leading-relaxed text-slate-600 dark:text-slate-300">
                   <span className="mr-1.5 select-none text-xs font-medium text-slate-400 dark:text-slate-500">我的回答</span>
-                  {question.myAnswer}
+                  <LatexText>{question.myAnswer}</LatexText>
                 </div>
               )}
               {question.reflection && (
                 <div className="text-[15px] leading-relaxed text-slate-700 dark:text-slate-200">
                   <span className="mr-1.5 select-none text-xs font-medium text-amber-600 dark:text-amber-400">理想回答</span>
-                  {question.reflection}
+                  <LatexText>{question.reflection}</LatexText>
                 </div>
               )}
             </div>

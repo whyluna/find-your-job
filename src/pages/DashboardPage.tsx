@@ -22,15 +22,15 @@ export default function DashboardPage() {
 
       {/* 今日待办 */}
       <section className="mt-5 max-w-2xl rounded-xl border border-slate-200/80 bg-white p-5 dark:border-slate-800/80 dark:bg-slate-900/60">
-        <h2 className="flex items-center gap-2 text-[13px] font-semibold">
+        <h2 className="flex items-center gap-2 text-sm font-semibold">
           <CalendarClock className="size-4 text-indigo-500" /> 最近待办
-          <span className="text-xs font-normal text-slate-400">3 天内截止 · 7 天内面试</span>
+          <span className="text-[13px] font-normal text-slate-400">3 天内截止 · 7 天内面试</span>
         </h2>
         {isLoading && (
           <div className="mt-3 text-sm text-slate-400">加载中…</div>
         )}
         {!isLoading && (!upcoming || upcoming.length === 0) && (
-          <div className="mt-3 rounded-lg border border-dashed border-slate-200 py-8 text-center text-[13px] text-slate-400 dark:border-slate-700/70">
+          <div className="mt-3 rounded-lg border border-dashed border-slate-200 py-8 text-center text-sm text-slate-400 dark:border-slate-700/70">
             近期没有截止与面试
           </div>
         )}
@@ -56,10 +56,10 @@ export default function DashboardPage() {
                 )}
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-[13px] font-medium">
+                <span className="block truncate text-sm font-medium">
                   {item.companyName} · {item.positionTitle}
                 </span>
-                <span className="block text-xs text-slate-400">
+                <span className="block text-[13px] text-slate-400">
                   {item.kind === "deadline"
                     ? `${EVENT_TYPE_DEFS[item.detail as EventType]?.label ?? item.detail} ${deadlineLabel(item.at)}`
                     : item.detail
@@ -67,7 +67,7 @@ export default function DashboardPage() {
                       : `面试 · ${fmtDateTime(item.at)}`}
                 </span>
               </span>
-              <span className="shrink-0 text-xs tabular-nums text-slate-400">{fmtDateTime(item.at)}</span>
+              <span className="shrink-0 text-[13px] tabular-nums text-slate-400">{fmtDateTime(item.at)}</span>
             </button>
           ))}
         </div>
@@ -77,7 +77,7 @@ export default function DashboardPage() {
       <section className="mt-4 flex max-w-2xl gap-3">
         <div className="flex-1 rounded-xl border border-slate-200/80 bg-white p-4 dark:border-slate-800/80 dark:bg-slate-900/60">
           <div className="text-2xl font-semibold tabular-nums tracking-tight">{db?.applications ?? "—"}</div>
-          <div className="mt-0.5 text-xs text-slate-400">
+          <div className="mt-0.5 text-[13px] text-slate-400">
             投递总数 ·{" "}
             <Link to="/applications" className="text-indigo-500 hover:underline">
               去列表
@@ -86,7 +86,7 @@ export default function DashboardPage() {
         </div>
         <div className="flex-1 rounded-xl border border-slate-200/80 bg-white p-4 dark:border-slate-800/80 dark:bg-slate-900/60">
           <div className="text-2xl font-semibold tabular-nums tracking-tight">{db?.events ?? "—"}</div>
-          <div className="mt-0.5 text-xs text-slate-400">时间线事件</div>
+          <div className="mt-0.5 text-[13px] text-slate-400">时间线事件</div>
         </div>
       </section>
     </div>

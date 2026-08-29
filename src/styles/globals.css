@@ -12,7 +12,7 @@ body {
   font-family:
     -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
     "Microsoft YaHei", "Segoe UI", sans-serif;
-  font-size: 13px;
+  font-size: 14px;
   @apply bg-white text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
 }
 
