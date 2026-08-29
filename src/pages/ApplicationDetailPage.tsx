@@ -6,7 +6,6 @@ import {
   Archive,
   ArchiveRestore,
   ArrowLeft,
-  Briefcase,
   FileText,
   FolderSearch,
   Loader2,
@@ -21,12 +20,10 @@ import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { api } from "@/lib/ipc";
 import { fmtDate, fmtDateTime } from "@/lib/format";
+import type { InterviewDetail } from "@shared";
 import {
   BATCH_LABELS,
   CHANNEL_LABELS,
-  INTERVIEW_FORMAT_LABELS,
-  INTERVIEW_OUTCOME_LABELS,
-  INTERVIEW_STATUS_LABELS,
   PRIORITY_LABELS,
 } from "@shared";
 import { Button, StatusBadge } from "@/components/ui";
@@ -37,7 +34,7 @@ import { EditApplicationDialog } from "@/components/detail/EditApplicationDialog
 import { AddInterviewDialog } from "@/components/AddInterviewDialog";
 import { cn } from "@/lib/utils";
 
-type Tab = "timeline" | "interviews" | "jd" | "materials";
+type Tab = "timeline" | "jd" | "materials";
 
 export default function ApplicationDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -185,8 +182,7 @@ export default function ApplicationDetailPage() {
       <div className="mt-5 flex gap-1 border-b border-slate-200 dark:border-slate-800/80">
         {(
           [
-            ["timeline", "时间线", app.events.length],
-            ["interviews", "面试记录", app.interviews.length],
+            ["timeline", "时间线", app.events.length + app.interviews.length],
             ["jd", "JD 快照", null],
             ["materials", "材料", app.attachments.length],
           ] as [Tab, string, number | null][]
@@ -202,7 +198,6 @@ export default function ApplicationDetailPage() {
             )}
           >
             {key === "timeline" && <FileText className="size-3.5" />}
-            {key === "interviews" && <Briefcase className="size-3.5" />}
             {label}
             {count !== null && count > 0 && (
               <span className="rounded-full bg-slate-100 px-1.5 text-[10px] text-slate-500 dark:bg-slate-800">
@@ -246,70 +241,13 @@ export default function ApplicationDetailPage() {
               ) : (
                 <div key={`iv-${t.id}`} className="flex gap-3">
                   <div className="mt-2 size-[9px] shrink-0 rounded-full border-2 border-indigo-400 bg-white dark:bg-slate-900" />
-                  <div className="min-w-0 flex-1 rounded-lg border border-slate-200/80 px-3 py-2 dark:border-slate-700">
-                    <div className="flex flex-wrap items-center gap-2 text-sm">
-                      <span className="font-medium text-indigo-600 dark:text-indigo-400">
-                        第 {t.round} 轮面试{t.roundLabel ? `（${t.roundLabel}）` : ""}
-                      </span>
-                      {t.format && (
-                        <span className="text-xs text-slate-400">
-                          {INTERVIEW_FORMAT_LABELS[t.format as keyof typeof INTERVIEW_FORMAT_LABELS] ?? t.format}
-                        </span>
-                      )}
-                      <span
-                        className={cn(
-                          "text-xs",
-                          t.outcome === "PASS"
-                            ? "text-emerald-600 dark:text-emerald-400"
-                            : t.outcome === "FAIL"
-                              ? "text-red-500"
-                              : "text-slate-400",
-                        )}
-                      >
-                        {INTERVIEW_STATUS_LABELS[t.status]}
-                        {t.status === "COMPLETED" && ` · ${INTERVIEW_OUTCOME_LABELS[t.outcome]}`}
-                      </span>
-                    </div>
-                    <div className="mt-0.5 flex items-center gap-2 text-xs text-slate-400">
-                      <span>{fmtDateTime(t.scheduledAt)}</span>
-                      {t.questionCount > 0 && <span>{t.questionCount} 道题</span>}
-                      <button
-                        onClick={() => setTab("interviews")}
-                        className="text-indigo-500 hover:underline"
-                      >
-                        查看 →
-                      </button>
-                    </div>
+                  <div className="min-w-0 flex-1">
+                    <InterviewCard interview={t as InterviewDetail} applicationId={app.id} />
                   </div>
                 </div>
               ),
             )}
           </div>
-        </div>
-      )}
-
-      {/* 面试 */}
-      {tab === "interviews" && (
-        <div className="mt-5 space-y-3">
-          <div className="flex justify-end">
-            <Button
-              size="sm"
-              variant="primary"
-              disabled={hasScheduled}
-              title={hasScheduled ? "还有已约未进行的面试，先完成或取消该轮" : undefined}
-              onClick={() => setShowAddInterview(true)}
-            >
-              <Plus className="size-3.5" /> 添加第 {nextRound} 轮面试
-            </Button>
-          </div>
-          {app.interviews.length === 0 && (
-            <div className="rounded-xl border border-dashed border-slate-300 py-10 text-center text-sm text-slate-400 dark:border-slate-700">
-              面试后回来逐题记录，是本应用最核心的价值
-            </div>
-          )}
-          {app.interviews.map((iv) => (
-            <InterviewCard key={iv.id} interview={iv} applicationId={app.id} />
-          ))}
         </div>
       )}
 
