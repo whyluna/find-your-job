@@ -98,19 +98,48 @@ pnpm tauri build
 
 ## 浏览器扩展
 
+### 下载与安装
+
+1. 从 [v0.1.0 Release](https://github.com/whyluna/find-your-job/releases/tag/v0.1.0) 下载 `FindYourJob-browser-extension-v0.1.0.zip`。
+2. 将 ZIP 解压到一个固定目录。浏览器会持续读取这个目录，加载后不要移动或删除。
+3. 打开扩展管理页：
+   - Chrome：`chrome://extensions`
+   - Edge：`edge://extensions`
+4. 开启“开发者模式”，点击“加载已解压的扩展程序”。
+5. 选择解压后包含 `manifest.json` 的目录，并将“FindYourJob 收录”固定到工具栏。
+
+### 与 App 联动
+
+1. 启动 FindYourJob App。
+2. 打开“设置 → 浏览器扩展接入”，勾选开启，确认状态显示“服务运行中”。
+3. 点击 Token 右侧的“复制”。
+4. 首次打开“FindYourJob 收录”扩展，将 Token 粘贴进去并点击“保存 Token”。
+5. 打开招聘岗位页面，再点击扩展图标：
+   - 插件会先在浏览器本地识别公司、岗位、Base、渠道和 JD；
+   - 所有字段都可以在收录前手动修改；
+   - 如已在 App 中配置智能识别，可按需点击“AI 识别”进行公司/岗位识别和 JD 清洗；
+   - 点击“确认收录”。
+6. 出现“已收录到 FindYourJob（已保存状态）”后，岗位会进入 App 的投递看板；之后可补充批次、简历版本并通过时间线记录正式投递。
+
+也可以在岗位页面使用右键菜单“收录到 FindYourJob”快速保存。工具栏角标显示 `✓` 表示成功，`T` 表示尚未配置 Token，`×` 表示连接或保存失败。
+
+如果插件提示无法连接，请确认 App 正在运行且“浏览器扩展接入”已经开启。如果提示 Token 无效，请在 App 中重置 Token，并在扩展的“修改 Token”中同步更新。
+
+普通收录只通过 `127.0.0.1` 与本机 App 通信；使用可选的 AI 识别时，岗位页面内容会发送到你在 App 中配置的模型服务商。
+
+### 从源码构建
+
 ```bash
 cd apps/extension
 pnpm install
 pnpm build
 ```
 
-随后在 Chrome 或 Edge 的扩展管理页开启开发者模式，加载：
+构建完成后，在 Chrome 或 Edge 的扩展管理页加载：
 
 ```text
 apps/extension/build/chrome-mv3
 ```
-
-在 App 的“设置 → 浏览器扩展接入”中开启本地接口，并将 Token 填入扩展。
 
 ## 开发
 
