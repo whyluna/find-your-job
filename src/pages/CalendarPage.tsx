@@ -138,7 +138,7 @@ export default function CalendarPage() {
         }
       />
 
-      <div className="mx-auto mt-5 grid max-w-[1120px] grid-cols-[minmax(520px,1fr)_290px] gap-4">
+      <div className="mx-auto mt-5 grid max-w-[1120px] grid-cols-1 gap-4 lg:grid-cols-[minmax(480px,1fr)_280px]">
         {/* 月历 */}
         <div className="native-panel p-4">
           <div className="mb-4 flex items-center justify-between">

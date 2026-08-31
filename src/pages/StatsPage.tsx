@@ -26,6 +26,7 @@ interface CountRow {
 }
 interface StatsDto {
   statusCounts: CountRow[];
+  stageReachedCounts: CountRow[];
   channelCounts: CountRow[];
   batchCounts: CountRow[];
   dailyApplied: CountRow[];
@@ -34,12 +35,12 @@ interface StatsDto {
     companyName: string;
     positionTitle: string;
     status: Status;
-    updatedAt: string;
+    lastActivityAt: string;
   }[];
 }
 
-/** 漏斗正向阶段顺序（前一阶段包含后一阶段到达数由状态计数近似：以当前状态计数展示层级分布） */
-const FUNNEL: Status[] = [
+/** 流程进展顺序；后端保证到达后续阶段时计入前序阶段。 */
+const PROGRESS_STAGES: Status[] = [
   "APPLIED",
   "ASSESSMENT",
   "WRITTEN",
@@ -48,6 +49,16 @@ const FUNNEL: Status[] = [
   "OFFER",
   "SIGNED",
 ];
+
+const PROGRESS_LABELS: Partial<Record<Status, string>> = {
+  APPLIED: "已投递",
+  ASSESSMENT: "到达测评",
+  WRITTEN: "到达笔试",
+  INTERVIEWING: "到达面试",
+  OC: "到达 OC",
+  OFFER: "获得 offer",
+  SIGNED: "已签约",
+};
 
 export default function StatsPage() {
   const navigate = useNavigate();
@@ -58,7 +69,8 @@ export default function StatsPage() {
 
   const statusMap = new Map(s.statusCounts.map((r) => [r.key, r.count]));
   const totalAll = s.statusCounts.reduce((n, r) => n + r.count, 0);
-  const funnelMax = Math.max(1, ...FUNNEL.map((st) => statusMap.get(st) ?? 0));
+  const reachedMap = new Map(s.stageReachedCounts.map((row) => [row.key, row.count]));
+  const progressMax = Math.max(1, reachedMap.get("APPLIED") ?? 0);
 
   // 近 8 周聚合
   const weeks: { week: string; count: number }[] = [];
@@ -76,35 +88,46 @@ export default function StatsPage() {
     <div className="px-6 pb-10 pt-0">
       <PageHeader
         title="统计"
-        subtitle={`共 ${totalAll} 条在追踪（不含归档）· 漏斗按当前所处阶段计数`}
+        subtitle={`共 ${totalAll} 条在追踪（不含归档）· 流程进展按历史最高到达阶段计算`}
       />
 
       <div className="mx-auto mt-5 grid max-w-[1120px] grid-cols-2 gap-4">
-        {/* 漏斗 */}
+        {/* 流程进展 */}
         <section className="rounded-xl border border-slate-200/80 p-5 dark:border-slate-800/80">
-          <h2 className="text-sm font-semibold">阶段漏斗</h2>
+          <h2 className="text-sm font-semibold">流程进展</h2>
+          <p className="mt-1 text-[11px] text-[var(--fyj-tertiary)]">进入后续阶段时，会同时计入此前阶段。</p>
           <div className="mt-4 space-y-2.5">
-            {FUNNEL.map((st) => {
-              const n = statusMap.get(st) ?? 0;
+            {PROGRESS_STAGES.map((st, index) => {
+              const n = reachedMap.get(st) ?? 0;
+              const previous = index === 0 ? n : reachedMap.get(PROGRESS_STAGES[index - 1]) ?? 0;
+              const conversion = previous > 0 ? Math.round((n / previous) * 100) : 0;
               return (
                 <div key={st} className="flex items-center gap-3">
-                  <span className="w-14 shrink-0 text-right text-[13px] text-slate-500">
-                    {STATUS_LABELS[st]}
+                  <span className="w-[76px] shrink-0 whitespace-nowrap text-right text-[13px] text-slate-500">
+                    {PROGRESS_LABELS[st] ?? STATUS_LABELS[st]}
                   </span>
                   <div className="h-5 flex-1 overflow-hidden rounded bg-slate-100 dark:bg-slate-800">
                     <div
                       className="h-full rounded bg-[var(--fyj-accent)]"
-                      style={{ width: `${(n / funnelMax) * 100}%` }}
+                      style={{ width: `${(n / progressMax) * 100}%` }}
                     />
                   </div>
-                  <span className="w-8 shrink-0 text-[13px] font-medium tabular-nums">{n}</span>
+                  <span className="w-20 shrink-0 text-right text-[12px] tabular-nums text-[var(--fyj-secondary)]">
+                    {n} <span className="text-[var(--fyj-tertiary)]">· {index === 0 ? "基准" : `${conversion}%`}</span>
+                  </span>
                 </div>
               );
             })}
             <div className="flex items-center gap-3">
-              <span className="w-14 shrink-0 text-right text-[13px] text-red-400">已挂</span>
-              <span className="text-[13px] tabular-nums text-red-400">
-                {statusMap.get("REJECTED") ?? 0}
+              <span className="w-[76px] shrink-0 whitespace-nowrap text-right text-[13px] text-red-400">已挂</span>
+              <div className="h-5 flex-1 overflow-hidden rounded bg-red-50 dark:bg-red-950/30">
+                <div
+                  className="h-full rounded bg-red-400/80"
+                  style={{ width: `${((statusMap.get("REJECTED") ?? 0) / Math.max(1, totalAll)) * 100}%` }}
+                />
+              </div>
+              <span className="w-20 shrink-0 text-right text-[12px] tabular-nums text-red-400">
+                {statusMap.get("REJECTED") ?? 0} · 当前
               </span>
             </div>
           </div>
@@ -180,7 +203,7 @@ export default function StatsPage() {
               >
                 <span className="text-sm">{a.companyName} · {a.positionTitle}</span>
                 <span className="text-[13px] text-slate-400">{STATUS_LABELS[a.status]}</span>
-                <span className="ml-auto text-[13px] text-slate-400">最后动静 {fmtDate(a.updatedAt)}</span>
+                <span className="ml-auto text-[13px] text-slate-400">最后流程 {fmtDate(a.lastActivityAt)}</span>
               </button>
             ))}
           </div>

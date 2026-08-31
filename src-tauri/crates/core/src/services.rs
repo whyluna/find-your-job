@@ -5,7 +5,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::sqlite::SqliteRow;
 use sqlx::{QueryBuilder, Row, Sqlite, SqlitePool};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 use crate::entities::{
@@ -16,6 +16,8 @@ use crate::entities::{
 use crate::error::{Error, Result};
 use crate::models::{EventResult, EventType, InterviewOutcome, InterviewStatus, ProjectionEffect};
 use crate::state_machine::{self, TimelineItem, TimelineKind};
+
+pub use crate::analytics::{CountRow, ResumeFunnelRow, SilentApplication, StatsDto};
 
 /// 终态（已挂/已放弃）不可再添加阶段类事件
 fn ensure_not_terminal(status: &str) -> Result<()> {
@@ -240,6 +242,45 @@ pub struct CreateApplicationInput {
     pub notes: Option<String>,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApplicationImportRow {
+    pub row_number: usize,
+    /// 前端无法序列化的原始值（例如非法日期）通过这里进入统一预检结果。
+    pub validation_error: Option<String>,
+    #[serde(flatten)]
+    pub input: CreateApplicationInput,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApplicationImportPreviewItem {
+    pub row_number: usize,
+    pub company_name: String,
+    pub position_title: String,
+    pub status: String,
+    pub message: Option<String>,
+    pub duplicate_application_id: Option<String>,
+    pub normalized_channel: Option<String>,
+    pub normalized_batch: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApplicationImportPreview {
+    pub items: Vec<ApplicationImportPreviewItem>,
+    pub ready: usize,
+    pub duplicates: usize,
+    pub invalid: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApplicationImportSummary {
+    pub imported: usize,
+    pub skipped_duplicates: usize,
+}
+
 #[derive(Debug, Clone, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 #[allow(clippy::too_many_arguments)]
@@ -359,7 +400,7 @@ pub struct UpdateQuestionInput {
     pub tags: Option<Vec<String>>,
 }
 
-#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpcomingItem {
     pub kind: String,
@@ -372,26 +413,9 @@ pub struct UpcomingItem {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct MailLogItem {
-    pub id: String,
-    pub message_id: String,
-    pub received_at: chrono::DateTime<Utc>,
-    pub from_address: String,
-    pub from_name: Option<String>,
-    pub subject: String,
-    pub snippet: Option<String>,
-    pub status: String,
-    pub suggested_event_type: Option<String>,
-    pub suggested_deadline: Option<String>,
-    pub matched_application_id: Option<String>,
-    pub company_name: Option<String>,
-    pub match_reason: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct QuestionBankItem {
     pub question_id: String,
+    pub interview_id: String,
     pub question: String,
     pub my_answer: Option<String>,
     pub quality: String,
@@ -404,33 +428,6 @@ pub struct QuestionBankItem {
     pub position_title: String,
     pub department: Option<String>,
     pub status: String,
-}
-
-#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
-#[serde(rename_all = "camelCase")]
-pub struct CountRow {
-    pub key: String,
-    pub count: i64,
-}
-
-#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
-#[serde(rename_all = "camelCase")]
-pub struct ResumeFunnelRow {
-    pub resume_name: String,
-    pub total: i64,
-    pub interviewed: i64,
-    pub offered: i64,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct StatsDto {
-    pub status_counts: Vec<CountRow>,
-    pub channel_counts: Vec<CountRow>,
-    pub batch_counts: Vec<CountRow>,
-    pub daily_applied: Vec<CountRow>,
-    pub silent: Vec<Application>,
-    pub resume_funnel: Vec<ResumeFunnelRow>,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -535,79 +532,268 @@ impl Services {
 
     // ---------- 投递 ----------
 
-    pub async fn create_application(&self, input: CreateApplicationInput) -> Result<Application> {
-        if input.company_name.trim().is_empty() {
+    async fn normalize_dictionary_value(
+        &self,
+        category: &str,
+        value: Option<String>,
+        builtins: &[&str],
+        fallback: &str,
+    ) -> Result<String> {
+        let value = value.unwrap_or_else(|| fallback.to_string());
+        let value = value.trim();
+        if is_open_enum_key(builtins, value) {
+            return Ok(value.to_string());
+        }
+        let mapped: Option<String> = sqlx::query_scalar(
+            "SELECT key FROM dictionary WHERE category = ? AND is_active = 1 \
+             AND (key = ? OR label = ?) LIMIT 1",
+        )
+        .bind(category)
+        .bind(value)
+        .bind(value)
+        .fetch_optional(&self.pool)
+        .await?;
+        mapped.ok_or_else(|| {
+            Error::Invalid(format!(
+                "未知{}: {value}",
+                if category == "CHANNEL" {
+                    "渠道"
+                } else {
+                    "批次"
+                }
+            ))
+        })
+    }
+
+    async fn normalize_create_input(
+        &self,
+        mut input: CreateApplicationInput,
+    ) -> Result<CreateApplicationInput> {
+        input.company_name = input.company_name.trim().to_string();
+        input.position_title = input.position_title.trim().to_string();
+        if input.company_name.is_empty() {
             return Err(Error::Invalid("公司名不能为空".into()));
         }
-        if input.position_title.trim().is_empty() {
+        if input.position_title.is_empty() {
             return Err(Error::Invalid("岗位名不能为空".into()));
         }
-        let channel = input.channel.unwrap_or_else(|| "COMPANY_SITE".into());
-        let batch = input.batch.unwrap_or_else(|| "FORMAL".into());
+        input.channel = Some(
+            self.normalize_dictionary_value("CHANNEL", input.channel, CHANNEL_KEYS, "COMPANY_SITE")
+                .await?,
+        );
+        input.batch = Some(
+            self.normalize_dictionary_value("BATCH", input.batch, BATCH_KEYS, "FORMAL")
+                .await?,
+        );
         let priority = input.priority.unwrap_or_else(|| "MEDIUM".into());
-        if !is_open_enum_key(CHANNEL_KEYS, &channel) {
-            return Err(Error::Invalid(format!("未知渠道: {channel}")));
-        }
-        if !is_open_enum_key(BATCH_KEYS, &batch) {
-            return Err(Error::Invalid(format!("未知批次: {batch}")));
-        }
-        if !PRIORITY_KEYS.contains(&priority.as_str()) {
+        let priority = match priority.trim() {
+            "高" => "HIGH",
+            "中" => "MEDIUM",
+            "低" => "LOW",
+            other => other,
+        };
+        if !PRIORITY_KEYS.contains(&priority) {
             return Err(Error::Invalid(format!("未知优先级: {priority}")));
+        }
+        input.priority = Some(priority.to_string());
+        input.department = clean_optional(input.department);
+        input.work_location = clean_optional(input.work_location);
+        input.job_url = clean_optional(input.job_url);
+        input.jd_text = clean_optional(input.jd_text);
+        input.salary_range = clean_optional(input.salary_range);
+        input.notes = clean_optional(input.notes);
+        let mut seen_tags = HashSet::new();
+        input.tags = input
+            .tags
+            .into_iter()
+            .map(|tag| tag.trim().to_string())
+            .filter(|tag| !tag.is_empty() && seen_tags.insert(tag.clone()))
+            .collect();
+        Ok(input)
+    }
+
+    pub async fn create_application(&self, input: CreateApplicationInput) -> Result<Application> {
+        let input = self.normalize_create_input(input).await?;
+        let mut tx = self.pool.begin().await?;
+        let id = insert_application_tx(&mut tx, input).await?;
+        tx.commit().await?;
+        self.get_application(&id).await
+    }
+
+    /// 按岗位 URL 优先、公司/岗位/部门/批次/投递日次之查找重复记录。
+    /// 浏览器扩展与批量导入共用同一套指纹规则。
+    pub async fn find_duplicate_application(
+        &self,
+        input: &CreateApplicationInput,
+    ) -> Result<Option<Application>> {
+        let normalized = self.normalize_create_input(input.clone()).await?;
+        let (urls, metadata) = self.import_fingerprints().await?;
+        let duplicate_id = match normalized.job_url.as_deref().and_then(canonical_job_url) {
+            Some(key) => urls.get(&key).cloned(),
+            None => metadata.get(&fingerprint_for_input(&normalized)).cloned(),
+        };
+        match duplicate_id {
+            Some(id) => self.get_application(&id).await.map(Some),
+            None => Ok(None),
+        }
+    }
+
+    async fn import_fingerprints(
+        &self,
+    ) -> Result<(HashMap<String, String>, HashMap<String, String>)> {
+        let rows = sqlx::query(
+            "SELECT a.id, c.name AS company_name, a.position_title, a.department, a.batch, \
+             a.applied_date, a.job_url FROM application a JOIN company c ON c.id = a.company_id",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        let mut urls = HashMap::new();
+        let mut metadata = HashMap::new();
+        for row in rows {
+            let id: String = row.try_get("id").unwrap_or_default();
+            let job_url: Option<String> = row.try_get("job_url").ok().flatten();
+            if let Some(url) = job_url.as_deref().and_then(canonical_job_url) {
+                urls.entry(url).or_insert_with(|| id.clone());
+            }
+            let key = metadata_fingerprint(
+                row.try_get::<String, _>("company_name")
+                    .unwrap_or_default()
+                    .as_str(),
+                row.try_get::<String, _>("position_title")
+                    .unwrap_or_default()
+                    .as_str(),
+                row.try_get::<Option<String>, _>("department")
+                    .ok()
+                    .flatten()
+                    .as_deref(),
+                row.try_get::<String, _>("batch")
+                    .unwrap_or_default()
+                    .as_str(),
+                row.try_get::<Option<String>, _>("applied_date")
+                    .ok()
+                    .flatten()
+                    .as_deref(),
+            );
+            metadata.entry(key).or_insert(id);
+        }
+        Ok((urls, metadata))
+    }
+
+    pub async fn preview_application_import(
+        &self,
+        rows: &[ApplicationImportRow],
+    ) -> Result<ApplicationImportPreview> {
+        let (mut urls, mut metadata) = self.import_fingerprints().await?;
+        let mut items = Vec::with_capacity(rows.len());
+        let mut ready = 0;
+        let mut duplicates = 0;
+        let mut invalid = 0;
+
+        for row in rows {
+            let mut item = ApplicationImportPreviewItem {
+                row_number: row.row_number,
+                company_name: row.input.company_name.trim().to_string(),
+                position_title: row.input.position_title.trim().to_string(),
+                status: "READY".into(),
+                message: None,
+                duplicate_application_id: None,
+                normalized_channel: None,
+                normalized_batch: None,
+            };
+            if let Some(error) = row
+                .validation_error
+                .as_deref()
+                .filter(|value| !value.is_empty())
+            {
+                item.status = "INVALID".into();
+                item.message = Some(error.to_string());
+                invalid += 1;
+                items.push(item);
+                continue;
+            }
+            let input = match self.normalize_create_input(row.input.clone()).await {
+                Ok(value) => value,
+                Err(error) => {
+                    item.status = "INVALID".into();
+                    item.message = Some(error.to_string());
+                    invalid += 1;
+                    items.push(item);
+                    continue;
+                }
+            };
+            item.normalized_channel = input.channel.clone();
+            item.normalized_batch = input.batch.clone();
+            let url_key = input.job_url.as_deref().and_then(canonical_job_url);
+            let meta_key = fingerprint_for_input(&input);
+            let duplicate_id = match url_key.as_ref() {
+                Some(key) => urls.get(key).cloned(),
+                None => metadata.get(&meta_key).cloned(),
+            };
+            if let Some(id) = duplicate_id {
+                item.status = "DUPLICATE".into();
+                item.message = Some("与已有投递或本次文件中的前一行重复".into());
+                item.duplicate_application_id = Some(id);
+                duplicates += 1;
+            } else {
+                let provisional = format!("import-row-{}", row.row_number);
+                if let Some(key) = url_key {
+                    urls.insert(key, provisional.clone());
+                }
+                metadata.insert(meta_key, provisional);
+                ready += 1;
+            }
+            items.push(item);
+        }
+        Ok(ApplicationImportPreview {
+            items,
+            ready,
+            duplicates,
+            invalid,
+        })
+    }
+
+    pub async fn import_application_rows(
+        &self,
+        rows: Vec<ApplicationImportRow>,
+        skip_duplicates: bool,
+    ) -> Result<ApplicationImportSummary> {
+        let preview = self.preview_application_import(&rows).await?;
+        if preview.invalid > 0 {
+            return Err(Error::Invalid(format!(
+                "仍有 {} 行未通过预检，请修正后再导入",
+                preview.invalid
+            )));
+        }
+        let duplicate_rows: HashSet<usize> = preview
+            .items
+            .iter()
+            .filter(|item| item.status == "DUPLICATE")
+            .map(|item| item.row_number)
+            .collect();
+        let mut normalized = Vec::with_capacity(rows.len());
+        for row in rows {
+            normalized.push((
+                row.row_number,
+                self.normalize_create_input(row.input).await?,
+            ));
         }
 
         let mut tx = self.pool.begin().await?;
-        let company_id = upsert_company_tx(
-            &mut tx,
-            input.company_name.trim(),
-            input.company_website.as_deref(),
-            input.company_careers_url.as_deref(),
-        )
-        .await?;
-
-        let id = new_id();
-        let jd_snapshot_at = input.jd_text.as_ref().map(|_| now_ts());
-        sqlx::query(
-            "INSERT INTO application (id, company_id, position_title, department, work_location, \
-             channel, batch, priority, status, job_url, jd_text, jd_snapshot_at, salary_range, tags, \
-             resume_version_id, notes, created_at, updated_at) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'SAVED', ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        )
-        .bind(&id)
-        .bind(&company_id)
-        .bind(input.position_title.trim())
-        .bind(input.department)
-        .bind(input.work_location)
-        .bind(&channel)
-        .bind(&batch)
-        .bind(&priority)
-        .bind(input.job_url)
-        .bind(input.jd_text)
-        .bind(jd_snapshot_at)
-        .bind(input.salary_range)
-        .bind(serde_json::to_string(&input.tags).unwrap_or_else(|_| "[]".into()))
-        .bind(input.resume_version_id)
-        .bind(input.notes)
-        .bind(now_ts())
-        .bind(now_ts())
-        .execute(&mut *tx)
-        .await?;
-
-        if input.applied.unwrap_or(false) {
-            let occurred = input.applied_date.unwrap_or_else(Utc::now);
-            sqlx::query(
-                "INSERT INTO application_event (id, application_id, type, occurred_at, source, created_at) \
-                 VALUES (?, ?, 'APPLIED', ?, 'MANUAL', ?)",
-            )
-            .bind(new_id())
-            .bind(&id)
-            .bind(ts(&occurred))
-            .bind(now_ts())
-            .execute(&mut *tx)
-            .await?;
-            recompute_status(&mut tx, &id).await?;
+        let mut imported = 0;
+        let mut skipped_duplicates = 0;
+        for (row_number, input) in normalized {
+            if skip_duplicates && duplicate_rows.contains(&row_number) {
+                skipped_duplicates += 1;
+                continue;
+            }
+            insert_application_tx(&mut tx, input).await?;
+            imported += 1;
         }
         tx.commit().await?;
-        self.get_application(&id).await
+        Ok(ApplicationImportSummary {
+            imported,
+            skipped_duplicates,
+        })
     }
 
     pub async fn get_application(&self, id: &str) -> Result<Application> {
@@ -780,6 +966,17 @@ impl Services {
         qb.push(
             ") AS next_deadline, \
              (SELECT COUNT(*) FROM interview i WHERE i.application_id = a.id) AS interview_count, \
+             (SELECT COALESCE(MAX(i.round), 0) FROM interview i WHERE i.application_id = a.id) AS max_interview_round, \
+             (SELECT i.round FROM interview i WHERE i.application_id = a.id AND i.status = 'SCHEDULED' \
+                ORDER BY i.round DESC LIMIT 1) AS active_interview_round, \
+             EXISTS(SELECT 1 FROM interview i WHERE i.application_id = a.id \
+                AND i.status = 'SCHEDULED') AS has_scheduled_interview, \
+             EXISTS(SELECT 1 FROM interview i WHERE i.application_id = a.id \
+                AND i.status = 'SCHEDULED' AND i.scheduled_at IS NOT NULL AND i.scheduled_at < ",
+        );
+        qb.push_bind(now_ts());
+        qb.push(
+            ") AS has_overdue_interview, \
              (SELECT e2.type FROM application_event e2 WHERE e2.application_id = a.id \
                 ORDER BY e2.occurred_at DESC, e2.created_at DESC LIMIT 1) AS last_event_type, \
              (SELECT e3.occurred_at FROM application_event e3 WHERE e3.application_id = a.id \
@@ -939,7 +1136,7 @@ impl Services {
 
     // ---------- 今日待办（P1-b） ----------
 
-    /// 未来 days 天内的截止事件 + scheduled 天内面试
+    /// 待补结果的过期面试 + 未来 days 天内截止 + scheduled 天内面试。
     pub async fn get_upcoming(
         &self,
         deadline_days: i64,
@@ -949,22 +1146,30 @@ impl Services {
         let dl_end = ts(&(Utc::now() + chrono::Duration::days(deadline_days)));
         let iv_end = ts(&(Utc::now() + chrono::Duration::days(interview_days)));
         let rows = sqlx::query(
-            "SELECT 'deadline' AS kind, a.id AS application_id, c.name AS company_name, \
+            "SELECT 0 AS bucket, 'overdue_interview' AS kind, a.id AS application_id, c.name AS company_name, \
+             a.position_title, CAST(iv.round AS TEXT) AS detail, iv.scheduled_at AS at \
+             FROM interview iv \
+             JOIN application a ON a.id = iv.application_id \
+             JOIN company c ON c.id = a.company_id \
+             WHERE iv.scheduled_at < ? AND iv.status = 'SCHEDULED' AND a.is_archived = 0 \
+             UNION ALL \
+             SELECT 1 AS bucket, 'deadline' AS kind, a.id AS application_id, c.name AS company_name, \
              a.position_title, e.type AS detail, e.deadline AS at \
              FROM application_event e \
              JOIN application a ON a.id = e.application_id \
              JOIN company c ON c.id = a.company_id \
              WHERE e.deadline >= ? AND e.deadline <= ? AND a.is_archived = 0 \
              UNION ALL \
-             SELECT 'interview' AS kind, a.id AS application_id, c.name AS company_name, \
-             a.position_title, iv.round_label AS detail, iv.scheduled_at AS at \
+             SELECT 1 AS bucket, 'interview' AS kind, a.id AS application_id, c.name AS company_name, \
+             a.position_title, CAST(iv.round AS TEXT) AS detail, iv.scheduled_at AS at \
              FROM interview iv \
              JOIN application a ON a.id = iv.application_id \
              JOIN company c ON c.id = a.company_id \
              WHERE iv.scheduled_at >= ? AND iv.scheduled_at <= ? \
                AND iv.status = 'SCHEDULED' AND a.is_archived = 0 \
-             ORDER BY at ASC",
+             ORDER BY bucket ASC, at ASC",
         )
+        .bind(&now)
         .bind(&now)
         .bind(&dl_end)
         .bind(&now)
@@ -1110,214 +1315,10 @@ impl Services {
         Ok(())
     }
 
-    // ---------- 邮件解析（P2-c） ----------
-
-    /// 导入 .eml 文件：解析 → 规则分类 → 待审核队列
-    pub async fn import_eml(&self, account_id: &str, path: &str) -> Result<Option<String>> {
-        // 保证账户存在（手动导入用占位账户）
-        sqlx::query(
-            "INSERT OR IGNORE INTO email_account (id, host, username, created_at) VALUES (?, 'manual', 'manual', ?)",
-        )
-        .bind(account_id)
-        .bind(now_ts())
-        .execute(&self.pool)
-        .await?;
-        let raw = std::fs::read_to_string(path)?;
-        use mailparse::MailHeaderMap;
-        let parsed = mailparse::parse_mail(raw.as_bytes())
-            .map_err(|e| Error::Invalid(format!("eml 解析失败: {e}")))?;
-        let headers = parsed.get_headers();
-        let get = |name: &str| headers.get_first_value(name).unwrap_or_default();
-        let message_id = get("message-id").trim().to_string();
-        let from_address = get("from").trim().to_string();
-        let from_name = get("from")
-            .split('<')
-            .next()
-            .map(|s| s.trim().trim_matches('"').to_string())
-            .filter(|s| !s.is_empty());
-        let subject = get("subject");
-        let body_snippet: String = parsed
-            .get_body()
-            .map(|b| b.chars().take(400).collect())
-            .unwrap_or_default();
-        let received_raw = get("date");
-        let received_at = mailparse::dateparse(&received_raw)
-            .ok()
-            .and_then(|ts| chrono::DateTime::from_timestamp(ts, 0))
-            .unwrap_or_else(Utc::now);
-
-        // 去重
-        let exists: Option<String> =
-            sqlx::query_scalar("SELECT id FROM email_parse_log WHERE message_id = ?")
-                .bind(&message_id)
-                .fetch_optional(&self.pool)
-                .await?
-                .flatten();
-        if exists.is_some() {
-            return Ok(None);
-        }
-
-        // 公司库
-        let companies: Vec<(String, String, Vec<String>)> =
-            sqlx::query_as::<_, (String, Option<String>, String)>(
-                "SELECT name, website, aliases FROM company",
-            )
-            .fetch_all(&self.pool)
-            .await?
-            .into_iter()
-            .map(|(name, website, aliases)| {
-                (
-                    name,
-                    website.unwrap_or_default(),
-                    crate::entities::parse_json_strings(&aliases),
-                )
-            })
-            .collect();
-
-        let mail = crate::mail_rules::MailInput {
-            message_id: message_id.clone(),
-            from_address: from_address.clone(),
-            from_name: from_name.clone(),
-            subject: subject.clone(),
-            body_snippet: body_snippet.clone(),
-            received_at,
-            raw_path: Some(path.to_string()),
-        };
-        let suggestion = crate::mail_rules::classify(&mail, &companies);
-
-        let id = new_id();
-        sqlx::query(
-            "INSERT INTO email_parse_log (id, email_account_id, message_id, received_at, from_address, \
-             from_name, subject, snippet, raw_path, status, suggested_event_type, suggested_deadline, match_reason) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?)",
-        )
-        .bind(&id)
-        .bind(account_id)
-        .bind(&message_id)
-        .bind(crate::entities::ts(&received_at))
-        .bind(&from_address)
-        .bind(&from_name)
-        .bind(&subject)
-        .bind(&body_snippet)
-        .bind(path)
-        .bind(suggestion.as_ref().map(|s| s.event_type.clone()))
-        .bind(suggestion.as_ref().and_then(|s| s.deadline_hint.clone()))
-        .bind(suggestion.as_ref().map(|s| s.reason.clone()))
-        .execute(&self.pool)
-        .await?;
-        Ok(Some(id))
-    }
-
-    pub async fn list_mail_logs(&self, status: Option<&str>) -> Result<Vec<MailLogItem>> {
-        let sql = match status {
-            Some(_s) => "SELECT l.*, c.name AS company_name FROM email_parse_log l                         LEFT JOIN application a ON a.id = l.matched_application_id                         LEFT JOIN company c ON c.id = a.company_id                         WHERE l.status = ? ORDER BY l.received_at DESC LIMIT 200",
-            None => "SELECT l.*, c.name AS company_name FROM email_parse_log l                      LEFT JOIN application a ON a.id = l.matched_application_id                      LEFT JOIN company c ON c.id = a.company_id                      ORDER BY l.received_at DESC LIMIT 200",
-        };
-        let rows = if let Some(s) = status {
-            sqlx::query(sql).bind(s).fetch_all(&self.pool).await?
-        } else {
-            sqlx::query(sql).fetch_all(&self.pool).await?
-        };
-        Ok(rows
-            .iter()
-            .map(|r| MailLogItem {
-                id: r.try_get("id").unwrap_or_default(),
-                message_id: r.try_get("message_id").unwrap_or_default(),
-                received_at: r.try_get("received_at").unwrap_or_default(),
-                from_address: r.try_get("from_address").unwrap_or_default(),
-                from_name: r.try_get("from_name").ok().flatten(),
-                subject: r.try_get("subject").ok().flatten().unwrap_or_default(),
-                snippet: r.try_get("snippet").ok().flatten(),
-                status: r.try_get("status").unwrap_or_default(),
-                suggested_event_type: r.try_get("suggested_event_type").ok().flatten(),
-                suggested_deadline: r.try_get("suggested_deadline").ok().flatten(),
-                matched_application_id: r.try_get("matched_application_id").ok().flatten(),
-                company_name: r.try_get("company_name").ok().flatten(),
-                match_reason: r.try_get("match_reason").ok().flatten(),
-            })
-            .collect())
-    }
-
-    /// 审核决定：确认导入（写事件 source=EMAIL）或忽略
-    pub async fn decide_mail(
-        &self,
-        log_id: &str,
-        action: &str, // import | ignore
-        application_id: &str,
-    ) -> Result<()> {
-        let log: Option<(Option<String>, Option<String>)> = sqlx::query_as(
-            "SELECT suggested_event_type, suggested_deadline FROM email_parse_log WHERE id = ?",
-        )
-        .bind(log_id)
-        .fetch_optional(&self.pool)
-        .await?;
-        let Some((event_type, deadline)) = log else {
-            return Err(Error::NotFound("邮件记录不存在".into()));
-        };
-        match action {
-            "import" => {
-                let Some(event_type) = event_type else {
-                    return Err(Error::Invalid(
-                        "该邮件没有事件建议，无法导入（可忽略）".into(),
-                    ));
-                };
-                let occurred_at = deadline
-                    .as_deref()
-                    .and_then(crate::entities::parse_date)
-                    .unwrap_or_else(Utc::now);
-                self.add_event(AddEventInput {
-                    application_id: application_id.to_string(),
-                    event_type: event_type.clone(),
-                    occurred_at: Some(occurred_at),
-                    deadline: deadline
-                        .as_deref()
-                        .and_then(crate::entities::parse_date)
-                        .map(|d| d + chrono::Duration::hours(23)),
-                    result: None,
-                    note: Some("邮件导入".into()),
-                    source: Some("EMAIL".into()),
-                })
-                .await?;
-                sqlx::query(
-                    "UPDATE email_parse_log SET status = 'IMPORTED', matched_application_id = ? WHERE id = ?",
-                )
-                .bind(application_id)
-                .bind(log_id)
-                .execute(&self.pool)
-                .await?;
-            }
-            "ignore" => {
-                sqlx::query("UPDATE email_parse_log SET status = 'IGNORED' WHERE id = ?")
-                    .bind(log_id)
-                    .execute(&self.pool)
-                    .await?;
-            }
-            _ => return Err(Error::Invalid("action 必须是 import|ignore".into())),
-        }
-        Ok(())
-    }
-
-    /// 绑定候选投递（按公司名匹配，供审核 UI 选择）
-    pub async fn candidate_applications(&self, company_hint: &str) -> Result<Vec<Application>> {
-        if company_hint.trim().is_empty() {
-            return Ok(vec![]);
-        }
-        let sql = format!(
-            "{APP_SELECT} WHERE c.name LIKE ? OR a.notes LIKE ? ORDER BY a.updated_at DESC LIMIT 10"
-        );
-        let like = format!("%{}%", company_hint.trim());
-        let rows = sqlx::query(&sql)
-            .bind(&like)
-            .bind(&like)
-            .fetch_all(&self.pool)
-            .await?;
-        Ok(rows.iter().map(Application::from_row).collect())
-    }
-
     // ---------- 面经知识库（P2-a） ----------
 
     pub async fn list_all_questions(&self, search: Option<&str>) -> Result<Vec<QuestionBankItem>> {
-        const BASE_SQL: &str = "SELECT q.id AS question_id, q.question, q.my_answer, q.quality, q.reflection, q.tags, \
+        const BASE_SQL: &str = "SELECT q.id AS question_id, q.interview_id, q.question, q.my_answer, q.quality, q.reflection, q.tags, \
              iv.round, iv.round_label, a.id AS application_id, c.name AS company_name, \
              a.position_title, a.department, a.status \
              FROM interview_question q \
@@ -1347,6 +1348,7 @@ impl Services {
             .iter()
             .map(|r| QuestionBankItem {
                 question_id: r.try_get("question_id").unwrap_or_default(),
+                interview_id: r.try_get("interview_id").unwrap_or_default(),
                 question: r.try_get("question").unwrap_or_default(),
                 my_answer: r.try_get("my_answer").ok().flatten(),
                 quality: r.try_get("quality").unwrap_or_default(),
@@ -1375,7 +1377,7 @@ impl Services {
              (SELECT GROUP_CONCAT(e.deadline) FROM application_event e \
                 WHERE e.application_id = a.id AND e.deadline IS NOT NULL) AS deadlines, \
              (SELECT COUNT(*) FROM interview iv WHERE iv.application_id = a.id) AS interview_count, \
-             rv.name AS resume_name, a.job_url, a.notes \
+             rv.name AS resume_name, a.job_url, a.jd_text, a.salary_range, a.notes \
              FROM application a \
              JOIN company c ON c.id = a.company_id \
              LEFT JOIN resume_version rv ON rv.id = a.resume_version_id \
@@ -1410,7 +1412,7 @@ impl Services {
                 .unwrap_or_else(|| s.to_string())
         };
 
-        let mut out = String::from("公司,岗位,部门,Base城市,渠道,批次,优先级,当前状态,投递日期,最近截止,面试轮数,简历版本,岗位链接,标签,备注\n");
+        let mut out = String::from("公司,岗位,部门,Base城市,渠道,批次,优先级,当前状态,投递日期,最近截止,面试轮数,简历版本,岗位链接,JD文本,薪资范围,标签,备注\n");
         for r in &rows {
             let get = |col: &str| {
                 r.try_get::<Option<String>, _>(col)
@@ -1440,6 +1442,8 @@ impl Services {
                     .to_string(),
                 get("resume_name"),
                 get("job_url"),
+                get("jd_text"),
+                get("salary_range"),
                 get("tags"),
                 get("notes"),
             ];
@@ -1448,83 +1452,6 @@ impl Services {
         }
         std::fs::write(path, out)?;
         Ok(rows.len() as u64)
-    }
-
-    // ---------- 统计（P1-c） ----------
-
-    pub async fn get_stats(&self) -> Result<StatsDto> {
-        let group = |col: &str| {
-            format!(
-                "SELECT {col} AS key, COUNT(*) AS count FROM application \
-                 WHERE is_archived = 0 GROUP BY {col} ORDER BY count DESC"
-            )
-        };
-        let to_rows = |rows: Vec<SqliteRow>| -> Vec<CountRow> {
-            rows.iter()
-                .map(|r| CountRow {
-                    key: r.try_get("key").unwrap_or_default(),
-                    count: r.try_get("count").unwrap_or(0),
-                })
-                .collect()
-        };
-        let status_counts = to_rows(sqlx::query(&group("status")).fetch_all(&self.pool).await?);
-        let channel_counts = to_rows(sqlx::query(&group("channel")).fetch_all(&self.pool).await?);
-        let batch_counts = to_rows(sqlx::query(&group("batch")).fetch_all(&self.pool).await?);
-
-        let daily_rows = sqlx::query(
-            "SELECT strftime('%Y-%m-%d', applied_date, 'localtime') AS key, COUNT(*) AS count \
-             FROM application WHERE applied_date IS NOT NULL AND is_archived = 0 \
-             GROUP BY key ORDER BY key",
-        )
-        .fetch_all(&self.pool)
-        .await?;
-        let daily_applied = to_rows(daily_rows);
-
-        let silent_rows = sqlx::query(&format!(
-            "{APP_SELECT} WHERE a.is_archived = 0 \
-             AND a.status NOT IN ('REJECTED','WITHDRAWN','SIGNED') \
-             AND a.updated_at <= ? ORDER BY a.updated_at ASC LIMIT 50",
-        ))
-        .bind(ts(&(Utc::now() - chrono::Duration::days(14))))
-        .fetch_all(&self.pool)
-        .await?;
-        let silent = silent_rows.iter().map(Application::from_row).collect();
-
-        let funnel_rows = sqlx::query(
-            "SELECT rv.name AS key, COUNT(a.id) AS count, \
-             SUM(CASE WHEN a.id IS NOT NULL AND (\
-                 EXISTS (SELECT 1 FROM interview iv WHERE iv.application_id = a.id) OR \
-                 EXISTS (SELECT 1 FROM application_event e WHERE e.application_id = a.id \
-                         AND e.type IN ('OC','INTENT_LETTER','OFFER','DUAL_AGREEMENT','TRIPLICATE','SIGNED'))\
-             ) THEN 1 ELSE 0 END) AS interviewed, \
-             SUM(CASE WHEN a.id IS NOT NULL AND \
-                 EXISTS (SELECT 1 FROM application_event e WHERE e.application_id = a.id \
-                         AND e.type IN ('OC','INTENT_LETTER','OFFER','DUAL_AGREEMENT','TRIPLICATE','SIGNED'))\
-             THEN 1 ELSE 0 END) AS offered \
-             FROM resume_version rv LEFT JOIN application a \
-               ON a.resume_version_id = rv.id AND a.is_archived = 0 \
-             GROUP BY rv.id ORDER BY rv.created_at",
-        )
-        .fetch_all(&self.pool)
-        .await?;
-        let resume_funnel = funnel_rows
-            .iter()
-            .map(|r| ResumeFunnelRow {
-                resume_name: r.try_get("key").unwrap_or_default(),
-                total: r.try_get("count").unwrap_or(0),
-                interviewed: r.try_get("interviewed").unwrap_or(0),
-                offered: r.try_get("offered").unwrap_or(0),
-            })
-            .collect();
-
-        Ok(StatsDto {
-            status_counts,
-            channel_counts,
-            batch_counts,
-            daily_applied,
-            silent,
-            resume_funnel,
-        })
     }
 
     // ---------- 附件 ----------
@@ -1812,15 +1739,60 @@ impl Services {
         input: UpdateInterviewInput,
     ) -> Result<Interview> {
         let mut tx = self.pool.begin().await?;
-        let app_id: String =
-            sqlx::query_scalar("SELECT application_id FROM interview WHERE id = ?")
-                .bind(id)
-                .fetch_optional(&mut *tx)
-                .await?
-                .ok_or_else(|| not_found("interview"))?;
+        let current: Option<(String, i64, String, String, Option<String>)> = sqlx::query_as(
+            "SELECT application_id, round, status, outcome, scheduled_at FROM interview WHERE id = ?",
+        )
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await?;
+        let (app_id, current_round, current_status, current_outcome, current_scheduled_at) =
+            current.ok_or_else(|| not_found("interview"))?;
+
+        if let Some(Some(duration)) = input.duration_min {
+            if duration <= 0 {
+                return Err(Error::Invalid("面试时长必须大于 0".into()));
+            }
+        }
+        let final_status = input
+            .status
+            .map(interview_status_str)
+            .unwrap_or_else(|| current_status.clone());
+        let mut final_outcome = input
+            .outcome
+            .map(interview_outcome_str)
+            .unwrap_or_else(|| current_outcome.clone());
+        if final_status != "COMPLETED" {
+            final_outcome = "PENDING".into();
+        } else if final_outcome == "PENDING" {
+            return Err(Error::Invalid(
+                "已完成面试需要选择通过、未通过或待定".into(),
+            ));
+        }
+        let final_scheduled_at = input
+            .scheduled_at
+            .as_ref()
+            .map(|value| value.as_ref().map(ts))
+            .unwrap_or(current_scheduled_at.clone());
+        if final_status == "SCHEDULED" && final_scheduled_at.is_none() {
+            return Err(Error::Invalid("已约面试必须填写时间".into()));
+        }
+
         if let Some(v) = input.round {
             if v < 1 {
                 return Err(Error::Invalid("轮次必须 ≥ 1".into()));
+            }
+            if v != current_round {
+                let conflict: i64 = sqlx::query_scalar(
+                    "SELECT COUNT(*) FROM interview WHERE application_id = ? AND round = ? AND id != ?",
+                )
+                .bind(&app_id)
+                .bind(v)
+                .bind(id)
+                .fetch_one(&mut *tx)
+                .await?;
+                if conflict > 0 {
+                    return Err(Error::Invalid(format!("第 {v} 轮已经存在")));
+                }
             }
             set_iv_col(&mut tx, id, "round", v.to_string()).await?;
         }
@@ -1842,11 +1814,11 @@ impl Services {
         if let Some(v) = input.interviewer_note {
             set_iv_nullable_col(&mut tx, id, "interviewer_note", v).await?;
         }
-        if let Some(v) = input.status {
-            set_iv_col(&mut tx, id, "status", interview_status_str(v)).await?;
+        if input.status.is_some() {
+            set_iv_col(&mut tx, id, "status", final_status).await?;
         }
-        if let Some(v) = input.outcome {
-            set_iv_col(&mut tx, id, "outcome", interview_outcome_str(v)).await?;
+        if input.outcome.is_some() || input.status.is_some() {
+            set_iv_col(&mut tx, id, "outcome", final_outcome).await?;
         }
         if let Some(v) = input.self_rating {
             if let Some(rating) = v {
@@ -2179,6 +2151,14 @@ impl Services {
         .await?;
         Ok(())
     }
+
+    pub async fn delete_setting(&self, key: &str) -> Result<()> {
+        sqlx::query("DELETE FROM setting WHERE key = ?")
+            .bind(key)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
 }
 
 // ==================== 内部辅助 ====================
@@ -2206,6 +2186,119 @@ async fn ensure_question(tx: &mut sqlx::SqliteConnection, id: &str) -> Result<()
             .fetch_optional(&mut *tx)
             .await?;
     exists.map(|_| ()).ok_or_else(|| not_found("question"))
+}
+
+fn clean_optional(value: Option<String>) -> Option<String> {
+    value
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+fn canonical_job_url(raw: &str) -> Option<String> {
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return None;
+    }
+    if let Ok(mut url) = url::Url::parse(raw) {
+        url.set_fragment(None);
+        let normalized = url.to_string();
+        return Some(normalized.trim_end_matches('/').to_lowercase());
+    }
+    Some(raw.trim_end_matches('/').to_lowercase())
+}
+
+fn normalized_text(value: &str) -> String {
+    value.trim().to_lowercase()
+}
+
+fn metadata_fingerprint(
+    company_name: &str,
+    position_title: &str,
+    department: Option<&str>,
+    batch: &str,
+    applied_date: Option<&str>,
+) -> String {
+    let date = applied_date
+        .and_then(|value| value.get(..10))
+        .unwrap_or_default();
+    format!(
+        "{}|{}|{}|{}|{}",
+        normalized_text(company_name),
+        normalized_text(position_title),
+        department.map(normalized_text).unwrap_or_default(),
+        normalized_text(batch),
+        date,
+    )
+}
+
+fn fingerprint_for_input(input: &CreateApplicationInput) -> String {
+    let applied_date = input.applied_date.as_ref().map(ts);
+    metadata_fingerprint(
+        &input.company_name,
+        &input.position_title,
+        input.department.as_deref(),
+        input.batch.as_deref().unwrap_or("FORMAL"),
+        applied_date.as_deref(),
+    )
+}
+
+async fn insert_application_tx(
+    tx: &mut sqlx::SqliteConnection,
+    input: CreateApplicationInput,
+) -> Result<String> {
+    let channel = input.channel.as_deref().unwrap_or("COMPANY_SITE");
+    let batch = input.batch.as_deref().unwrap_or("FORMAL");
+    let priority = input.priority.as_deref().unwrap_or("MEDIUM");
+    let company_id = upsert_company_tx(
+        tx,
+        input.company_name.trim(),
+        input.company_website.as_deref(),
+        input.company_careers_url.as_deref(),
+    )
+    .await?;
+    let id = new_id();
+    let jd_snapshot_at = input.jd_text.as_ref().map(|_| now_ts());
+    sqlx::query(
+        "INSERT INTO application (id, company_id, position_title, department, work_location, \
+         channel, batch, priority, status, job_url, jd_text, jd_snapshot_at, salary_range, tags, \
+         resume_version_id, notes, created_at, updated_at) \
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'SAVED', ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    )
+    .bind(&id)
+    .bind(&company_id)
+    .bind(input.position_title.trim())
+    .bind(input.department)
+    .bind(input.work_location)
+    .bind(channel)
+    .bind(batch)
+    .bind(priority)
+    .bind(input.job_url)
+    .bind(input.jd_text)
+    .bind(jd_snapshot_at)
+    .bind(input.salary_range)
+    .bind(serde_json::to_string(&input.tags).unwrap_or_else(|_| "[]".into()))
+    .bind(input.resume_version_id)
+    .bind(input.notes)
+    .bind(now_ts())
+    .bind(now_ts())
+    .execute(&mut *tx)
+    .await?;
+
+    if input.applied.unwrap_or(false) {
+        let occurred = input.applied_date.unwrap_or_else(Utc::now);
+        sqlx::query(
+            "INSERT INTO application_event (id, application_id, type, occurred_at, source, created_at) \
+             VALUES (?, ?, 'APPLIED', ?, 'MANUAL', ?)",
+        )
+        .bind(new_id())
+        .bind(&id)
+        .bind(ts(&occurred))
+        .bind(now_ts())
+        .execute(&mut *tx)
+        .await?;
+        recompute_status(tx, &id).await?;
+    }
+    Ok(id)
 }
 
 async fn upsert_company_tx(

@@ -317,7 +317,7 @@ export function KanbanView({ items, canReorder }: { items: ApplicationListItem[]
       <AddInterviewDialog
         open={!!interviewTarget}
         applicationId={interviewTarget?.id ?? null}
-        nextRound={(interviewTarget?.interviewCount ?? 0) + 1}
+        nextRound={(interviewTarget?.maxInterviewRound ?? 0) + 1}
         onClose={() => setInterviewTarget(null)}
       />
     </div>
@@ -475,9 +475,13 @@ function Card({
         )}
       </div>
       <div className="mt-1.5 flex flex-wrap items-center gap-1">
-        {item.status === "INTERVIEWING" && item.interviewCount > 0 ? (
+        {item.hasOverdueInterview ? (
+          <span className="rounded bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-600 dark:bg-red-900/40 dark:text-red-300">
+            待补结果 · 第 {item.activeInterviewRound ?? item.maxInterviewRound} 轮
+          </span>
+        ) : item.status === "INTERVIEWING" && item.maxInterviewRound > 0 ? (
           <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
-            第 {item.interviewCount} 轮
+            第 {item.activeInterviewRound ?? item.maxInterviewRound} 轮
           </span>
         ) : item.interviewCount > 0 ? (
           <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500 dark:bg-slate-800 dark:text-slate-400">

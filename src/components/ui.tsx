@@ -1,6 +1,7 @@
 /** 设计系统原语：macOS 风格的按钮/输入/分段控件/页头/弹窗/徽章 */
 import type { ReactNode, ButtonHTMLAttributes, InputHTMLAttributes, SelectHTMLAttributes } from "react";
-import { useEffect } from "react";
+import { useEffect, useId, useRef } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { STATUS_LABELS, type Status } from "@shared";
@@ -80,11 +81,12 @@ export function Segmented<T extends string>({
   options: { value: T; label: ReactNode }[];
 }) {
   return (
-    <div className="inline-flex items-center rounded-[8px] border border-[var(--fyj-border)] bg-[var(--fyj-surface-muted)] p-[2px]">
+    <div role="group" className="inline-flex items-center rounded-[8px] border border-[var(--fyj-border)] bg-[var(--fyj-surface-muted)] p-[2px]">
       {options.map((o) => (
         <button
           key={o.value}
           onClick={() => onChange(o.value)}
+          aria-pressed={value === o.value}
           className={cn(
             "flex h-[25px] items-center gap-1.5 rounded-[6px] px-3 text-[12px] font-medium transition-all",
             value === o.value
@@ -139,29 +141,83 @@ export function Modal({
   children: ReactNode;
   wide?: boolean;
 }) {
+  const titleId = useId();
+  const panelRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+
   useEffect(() => {
     if (!open) return;
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const root = document.getElementById("root");
+    root?.setAttribute("inert", "");
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const focusTimer = window.setTimeout(() => {
+      const panel = panelRef.current;
+      const preferred =
+        panel?.querySelector<HTMLElement>("[data-autofocus]") ??
+        panel?.querySelector<HTMLElement>(
+          "input:not([disabled]), textarea:not([disabled]), select:not([disabled])",
+        ) ??
+        panel?.querySelector<HTMLElement>("button:not([disabled])");
+      (preferred ?? panel)?.focus();
+    }, 0);
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        e.preventDefault();
+        closeRef.current();
+        return;
+      }
+      if (e.key !== "Tab" || !panelRef.current) return;
+      const focusable = [...panelRef.current.querySelectorAll<HTMLElement>(
+        "button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [href], [tabindex]:not([tabindex='-1'])",
+      )].filter((element) => !element.hasAttribute("hidden"));
+      if (focusable.length === 0) {
+        e.preventDefault();
+        panelRef.current.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+    return () => {
+      window.clearTimeout(focusTimer);
+      window.removeEventListener("keydown", onKey);
+      root?.removeAttribute("inert");
+      document.body.style.overflow = previousOverflow;
+      previous?.focus();
+    };
+  }, [open]);
 
   if (!open) return null;
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-      <div className="absolute inset-0 bg-black/20 backdrop-blur-[3px]" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/20 backdrop-blur-[3px]" onClick={() => closeRef.current()} />
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
         className={cn(
           "relative max-h-[85vh] w-full overflow-y-auto rounded-[12px] bg-[var(--fyj-surface-solid)] p-5 shadow-[0_24px_64px_rgba(0,0,0,0.28),0_0_0_1px_rgba(0,0,0,0.08)]",
           wide ? "max-w-2xl" : "max-w-md",
         )}
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-[15px] font-semibold tracking-[-0.01em]">{title}</h2>
+          <h2 id={titleId} className="text-[15px] font-semibold tracking-[-0.01em]">{title}</h2>
           <button
-            onClick={onClose}
+            onClick={() => closeRef.current()}
+            aria-label="关闭弹窗"
             className="rounded-[6px] p-1 text-[var(--fyj-tertiary)] hover:bg-black/[0.05] hover:text-[var(--fyj-text)] dark:hover:bg-white/[0.08]"
           >
             <X className="size-4" />
@@ -169,7 +225,8 @@ export function Modal({
         </div>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

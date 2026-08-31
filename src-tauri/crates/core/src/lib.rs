@@ -3,12 +3,12 @@
 //! 不依赖 Tauri：模型、状态机（derive_status）、服务与仓储都在这里，
 //! Tauri command 与 P1 的 axum handler 只是薄封装。单测主战场。
 
+pub mod analytics;
 pub mod backup;
 pub mod db;
 pub mod entities;
 pub mod error;
 pub mod llm;
-pub mod mail_rules;
 pub mod models;
 pub mod services;
 pub mod state_machine;

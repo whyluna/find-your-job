@@ -14,6 +14,7 @@ import {
 import { Button, Select } from "@/components/ui";
 import { DatePicker } from "@/components/DatePicker";
 import { cn } from "@/lib/utils";
+import { showToast } from "@/lib/toast";
 
 export function eventLabel(type: string): string {
   return EVENT_TYPE_DEFS[type as EventType]?.label ?? type;
@@ -56,7 +57,27 @@ export function EventItem({ event, applicationId }: { event: AppEvent; applicati
 
   const del = useMutation({
     mutationFn: () => api.deleteEvent(event.id),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      invalidate();
+      showToast({
+        kind: "info",
+        message: `已删除「${eventLabel(event.type)}」事件`,
+        actionLabel: "撤销",
+        action: async () => {
+          await api.addEvent({
+            applicationId,
+            type: event.type,
+            occurredAt: event.occurredAt,
+            deadline: event.deadline ?? null,
+            result: event.result ?? null,
+            note: event.note ?? null,
+            source: event.source,
+          });
+          invalidate();
+          showToast({ kind: "success", message: "事件已恢复" });
+        },
+      });
+    },
   });
   const [markError, setMarkError] = useState("");
   const markWithError = (r: "PASS" | "FAIL") => {

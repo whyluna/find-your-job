@@ -73,6 +73,10 @@ export interface Application {
 export interface ApplicationListItem extends Application {
   nextDeadline?: string | null;
   interviewCount: number;
+  maxInterviewRound: number;
+  activeInterviewRound?: number | null;
+  hasScheduledInterview: boolean;
+  hasOverdueInterview: boolean;
   lastEventType?: string | null;
   lastEventAt?: string | null;
 }
@@ -139,6 +143,34 @@ export interface Attachment {
 export interface ImportSummary {
   total: number;
   counts: Record<string, number>;
+}
+
+export interface ApplicationImportRow extends CreateApplicationInput {
+  rowNumber: number;
+  validationError?: string | null;
+}
+
+export interface ApplicationImportPreviewItem {
+  rowNumber: number;
+  companyName: string;
+  positionTitle: string;
+  status: "READY" | "DUPLICATE" | "INVALID";
+  message?: string | null;
+  duplicateApplicationId?: string | null;
+  normalizedChannel?: string | null;
+  normalizedBatch?: string | null;
+}
+
+export interface ApplicationImportPreview {
+  items: ApplicationImportPreviewItem[];
+  ready: number;
+  duplicates: number;
+  invalid: number;
+}
+
+export interface ApplicationImportResult {
+  imported: number;
+  skippedDuplicates: number;
 }
 
 export interface ApplicationDetail extends Application {
@@ -212,6 +244,7 @@ export interface AddEventInput {
   deadline?: string | null;
   result?: EventResult | null;
   note?: string | null;
+  source?: "MANUAL" | "EXTENSION" | "EMAIL";
 }
 
 export interface UpdateEventInput {

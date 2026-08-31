@@ -278,6 +278,11 @@ pub struct ApplicationListItem {
     /// 最近一个未过期 deadline（紧急度红点）
     pub next_deadline: Option<DateTime<Utc>>,
     pub interview_count: i64,
+    /// 历史最大轮次，不等同于数量（删除较早轮次后仍保持正确）。
+    pub max_interview_round: i64,
+    pub active_interview_round: Option<i64>,
+    pub has_scheduled_interview: bool,
+    pub has_overdue_interview: bool,
     pub last_event_type: Option<String>,
     pub last_event_at: Option<DateTime<Utc>>,
 }
@@ -288,6 +293,16 @@ impl ApplicationListItem {
             application: Application::from_row(row),
             next_deadline: row.try_get("next_deadline").ok().flatten(),
             interview_count: row.try_get("interview_count").unwrap_or(0),
+            max_interview_round: row.try_get("max_interview_round").unwrap_or(0),
+            active_interview_round: row.try_get("active_interview_round").ok().flatten(),
+            has_scheduled_interview: row
+                .try_get::<i64, _>("has_scheduled_interview")
+                .map(|value| value != 0)
+                .unwrap_or(false),
+            has_overdue_interview: row
+                .try_get::<i64, _>("has_overdue_interview")
+                .map(|value| value != 0)
+                .unwrap_or(false),
             last_event_type: row.try_get("last_event_type").ok().flatten(),
             last_event_at: row.try_get("last_event_at").ok().flatten(),
         }

@@ -1247,3 +1247,253 @@ async fn calendar_query_uses_requested_range_and_includes_history() {
     assert!(items.iter().any(|i| i.kind == "deadline"));
     assert!(s.get_calendar_items(dt(4, 0), dt(1, 0)).await.is_err());
 }
+
+#[tokio::test]
+async fn csv_import_preview_maps_exported_labels_and_detects_duplicates() {
+    let (_dir, s) = setup().await;
+    let mut input = create_input("CSV 回环科技", "平台工程师");
+    input.channel = Some("官网网申".into());
+    input.batch = Some("正式批".into());
+    input.priority = Some("中".into());
+    input.job_url = Some("https://example.com/jobs/42#detail".into());
+    let rows = vec![ApplicationImportRow {
+        row_number: 2,
+        validation_error: None,
+        input,
+    }];
+
+    let preview = s.preview_application_import(&rows).await.unwrap();
+    assert_eq!(preview.ready, 1);
+    assert_eq!(preview.invalid, 0);
+    assert_eq!(
+        preview.items[0].normalized_channel.as_deref(),
+        Some("COMPANY_SITE")
+    );
+    assert_eq!(preview.items[0].normalized_batch.as_deref(), Some("FORMAL"));
+
+    let summary = s.import_application_rows(rows.clone(), true).await.unwrap();
+    assert_eq!(summary.imported, 1);
+    assert_eq!(summary.skipped_duplicates, 0);
+    let duplicate = s.preview_application_import(&rows).await.unwrap();
+    assert_eq!(duplicate.duplicates, 1);
+    assert!(duplicate.items[0].duplicate_application_id.is_some());
+}
+
+#[tokio::test]
+async fn csv_import_is_atomic_when_any_row_is_invalid() {
+    let (_dir, s) = setup().await;
+    let valid = ApplicationImportRow {
+        row_number: 2,
+        validation_error: None,
+        input: create_input("不得部分写入", "后端"),
+    };
+    let invalid = ApplicationImportRow {
+        row_number: 3,
+        validation_error: Some("日期格式错误".into()),
+        input: create_input("错误行", "前端"),
+    };
+    let result = s.import_application_rows(vec![valid, invalid], true).await;
+    assert!(result.is_err());
+    assert!(s
+        .list_applications(&Default::default())
+        .await
+        .unwrap()
+        .is_empty());
+}
+
+#[tokio::test]
+async fn interview_round_summary_uses_max_round_after_deleting_earlier_round() {
+    let (_dir, s) = setup().await;
+    let app = s
+        .create_application(create_input("轮次科技", "后端"))
+        .await
+        .unwrap();
+    let first = s
+        .add_interview(AddInterviewInput {
+            application_id: app.id.clone(),
+            round: Some(1),
+            round_label: Some("一面".into()),
+            format: Some("VIDEO".into()),
+            scheduled_at: Some(dt(2, 10)),
+            duration_min: None,
+            location_or_link: None,
+            interviewer_note: None,
+            status: Some(InterviewStatus::Completed),
+            outcome: Some(InterviewOutcome::Pass),
+        })
+        .await
+        .unwrap();
+    s.add_interview(AddInterviewInput {
+        application_id: app.id.clone(),
+        round: Some(2),
+        round_label: Some("二面".into()),
+        format: Some("VIDEO".into()),
+        scheduled_at: Some(dt(3, 10)),
+        duration_min: None,
+        location_or_link: None,
+        interviewer_note: None,
+        status: Some(InterviewStatus::Completed),
+        outcome: Some(InterviewOutcome::Pass),
+    })
+    .await
+    .unwrap();
+    s.delete_interview(&first.id).await.unwrap();
+
+    let item = s
+        .list_applications(&Default::default())
+        .await
+        .unwrap()
+        .remove(0);
+    assert_eq!(item.interview_count, 1);
+    assert_eq!(item.max_interview_round, 2);
+    assert_eq!(item.active_interview_round, None);
+
+    let third = s
+        .add_interview(AddInterviewInput {
+            application_id: app.id,
+            round: Some(3),
+            round_label: Some("三面".into()),
+            format: Some("VIDEO".into()),
+            scheduled_at: Some(dt(4, 10)),
+            duration_min: None,
+            location_or_link: None,
+            interviewer_note: None,
+            status: None,
+            outcome: None,
+        })
+        .await
+        .unwrap();
+    assert_eq!(third.round, 3);
+}
+
+#[tokio::test]
+async fn completed_interview_can_be_corrected_both_directions_and_reopened() {
+    let (_dir, s) = setup().await;
+    let app = s
+        .create_application(create_input("纠错科技", "客户端"))
+        .await
+        .unwrap();
+    let interview = s
+        .add_interview(AddInterviewInput {
+            application_id: app.id.clone(),
+            round: Some(1),
+            round_label: None,
+            format: Some("VIDEO".into()),
+            scheduled_at: Some(dt(2, 10)),
+            duration_min: None,
+            location_or_link: None,
+            interviewer_note: None,
+            status: Some(InterviewStatus::Completed),
+            outcome: Some(InterviewOutcome::Pass),
+        })
+        .await
+        .unwrap();
+    let corrected = s
+        .update_interview(
+            &interview.id,
+            UpdateInterviewInput {
+                outcome: Some(InterviewOutcome::Fail),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(corrected.outcome, InterviewOutcome::Fail);
+    assert_eq!(
+        s.get_application(&app.id).await.unwrap().status,
+        Status::Rejected
+    );
+
+    let reopened = s
+        .update_interview(
+            &interview.id,
+            UpdateInterviewInput {
+                status: Some(InterviewStatus::Scheduled),
+                outcome: Some(InterviewOutcome::Pending),
+                scheduled_at: Some(Some(dt(5, 10))),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(reopened.status, InterviewStatus::Scheduled);
+    assert_eq!(reopened.outcome, InterviewOutcome::Pending);
+    assert_eq!(
+        s.get_application(&app.id).await.unwrap().status,
+        Status::Interviewing
+    );
+}
+
+#[tokio::test]
+async fn overdue_scheduled_interview_is_an_action_item_until_resolved() {
+    let (_dir, s) = setup().await;
+    let app = s
+        .create_application(create_input("待补结果科技", "算法"))
+        .await
+        .unwrap();
+    let interview = s
+        .add_interview(AddInterviewInput {
+            application_id: app.id.clone(),
+            round: Some(1),
+            round_label: Some("一面".into()),
+            format: Some("VIDEO".into()),
+            scheduled_at: Some(Utc::now() - chrono::Duration::hours(3)),
+            duration_min: None,
+            location_or_link: None,
+            interviewer_note: None,
+            status: None,
+            outcome: None,
+        })
+        .await
+        .unwrap();
+
+    let list = s.list_applications(&Default::default()).await.unwrap();
+    assert!(list[0].has_scheduled_interview);
+    assert!(list[0].has_overdue_interview);
+    assert_eq!(list[0].active_interview_round, Some(1));
+    let upcoming = s.get_upcoming(3, 7).await.unwrap();
+    assert!(upcoming.iter().any(|item| item.kind == "overdue_interview"));
+
+    s.update_interview(
+        &interview.id,
+        UpdateInterviewInput {
+            status: Some(InterviewStatus::Completed),
+            outcome: Some(InterviewOutcome::Pass),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    assert!(!s
+        .get_upcoming(3, 7)
+        .await
+        .unwrap()
+        .iter()
+        .any(|item| item.kind == "overdue_interview"));
+}
+
+#[tokio::test]
+async fn stage_funnel_is_historical_and_silent_uses_process_activity() {
+    let (_dir, s) = setup().await;
+    let mut input = create_input("漏斗科技", "后端");
+    input.applied_date = Some(Utc::now() - chrono::Duration::days(20));
+    let app = s.create_application(input).await.unwrap();
+    s.update_application(
+        &app.id,
+        UpdateApplicationInput {
+            notes: Some(Some("今天只更新了备注，不应算流程推进".into())),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    let stats = s.get_stats().await.unwrap();
+    assert!(stats.silent.iter().any(|item| item.id == app.id));
+    let reached: std::collections::HashMap<_, _> = stats
+        .stage_reached_counts
+        .into_iter()
+        .map(|row| (row.key, row.count))
+        .collect();
+    assert_eq!(reached.get("APPLIED"), Some(&1));
+    assert_eq!(reached.get("INTERVIEWING"), Some(&0));
+}

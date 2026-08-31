@@ -31,6 +31,25 @@ pub const TABLES: &[&str] = &[
     "custom_event_type",
 ];
 
+/// 凭据只属于当前设备，不能进入可复制、可分享的明文 JSON 备份。
+const SENSITIVE_SETTING_KEYS: &[&str] = &["llm_api_key", "local_api_token"];
+
+fn strip_sensitive_settings(doc: &mut Value) {
+    let Some(rows) = doc
+        .get_mut("tables")
+        .and_then(|tables| tables.get_mut("setting"))
+        .and_then(Value::as_array_mut)
+    else {
+        return;
+    };
+    rows.retain(|row| {
+        row.get("key")
+            .and_then(Value::as_str)
+            .map(|key| !SENSITIVE_SETTING_KEYS.contains(&key))
+            .unwrap_or(true)
+    });
+}
+
 /// v1 导出中尚未包含邮件表和实体文件，仅用于兼容旧备份。
 const LEGACY_TABLES: &[&str] = &[
     "company",
@@ -145,7 +164,15 @@ pub async fn export_to_json(pool: &SqlitePool, path: &Path) -> Result<u64> {
         let rows = sqlx::query(&format!("SELECT * FROM {t}"))
             .fetch_all(pool)
             .await?;
-        let arr: Vec<Value> = rows.iter().map(row_to_json).collect();
+        let mut arr: Vec<Value> = rows.iter().map(row_to_json).collect();
+        if *t == "setting" {
+            arr.retain(|row| {
+                row.get("key")
+                    .and_then(Value::as_str)
+                    .map(|key| !SENSITIVE_SETTING_KEYS.contains(&key))
+                    .unwrap_or(true)
+            });
+        }
         total += arr.len() as u64;
         tables.insert(t.to_string(), Value::Array(arr));
     }
@@ -156,6 +183,7 @@ pub async fn export_to_json(pool: &SqlitePool, path: &Path) -> Result<u64> {
         "exported_at": now_ts(),
         "tables": Value::Object(tables),
         "files": files,
+        "omitted_secrets": ["llm_api_key", "local_api_token"],
     });
     let bytes = serde_json::to_vec_pretty(&doc)?;
     let parent = path.parent().unwrap_or_else(|| Path::new("."));
@@ -432,6 +460,8 @@ pub async fn import_from_json(
     if !matches!(version, 1 | 2) {
         return Err(Error::Invalid(format!("不支持的备份版本: {version}")));
     }
+    // 旧备份可能包含明文密钥；恢复时也绝不把它们重新写进 SQLite。
+    strip_sensitive_settings(&mut doc);
     validate_document(pool, &doc, version).await?;
 
     let old_paths = current_file_paths(pool).await?;
@@ -559,6 +589,12 @@ mod tests {
         .await
         .unwrap();
         s.set_setting("onboarded", "true").await.unwrap();
+        s.set_setting("llm_api_key", "\"secret-that-must-not-leave-device\"")
+            .await
+            .unwrap();
+        s.set_setting("local_api_token", "\"local-token\"")
+            .await
+            .unwrap();
 
         // v2 备份必须将实体文件一并嵌入，并在新数据目录重建路径。
         let source_data = dir.path().join("source-data");
@@ -599,6 +635,18 @@ mod tests {
         let out = dir.path().join("backup.json");
         let n = export_to_json(&pool, &out).await.unwrap();
         assert!(n >= 7, "至少包含公司/投递/2事件/设置/字典种子等，实际 {n}");
+        let exported: Value = serde_json::from_slice(&std::fs::read(&out).unwrap()).unwrap();
+        let setting_keys: Vec<&str> = exported["tables"]["setting"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|row| row["key"].as_str())
+            .collect();
+        assert!(!setting_keys.contains(&"llm_api_key"));
+        assert!(!setting_keys.contains(&"local_api_token"));
+        let raw_export = std::fs::read_to_string(&out).unwrap();
+        assert!(!raw_export.contains("secret-that-must-not-leave-device"));
+        assert!(!raw_export.contains("local-token"));
 
         // 新库导入
         let pool2 = init_pool(&dir.path().join("b.db")).await.unwrap();

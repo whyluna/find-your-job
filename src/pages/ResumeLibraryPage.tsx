@@ -7,6 +7,7 @@ import { useState } from "react";
 import { api } from "@/lib/ipc";
 import { Button, Field, Modal, PageHeader, Select, TextInput } from "@/components/ui";
 import { cn } from "@/lib/utils";
+import { showToast } from "@/lib/toast";
 
 const TARGET_ROLES = ["", "算法", "后端", "前端", "客户端", "测试", "数据", "产品", "其他"];
 
@@ -115,14 +116,14 @@ export default function ResumeLibraryPage() {
               <div className="flex gap-0.5">
                 <button
                   title="打开文件"
-                  onClick={() => openPath(r.filePath).catch((e) => alert(String(e)))}
+                  onClick={() => openPath(r.filePath).catch((e) => showToast({ kind: "error", message: String(e) }))}
                   className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
                 >
                   <ExternalLink className="size-3.5" />
                 </button>
                 <button
                   title="在 Finder 中显示"
-                  onClick={() => revealItemInDir(r.filePath).catch(() => undefined)}
+                  onClick={() => revealItemInDir(r.filePath).catch((reason) => showToast({ kind: "error", message: String(reason) }))}
                   className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
                 >
                   <FolderSearch className="size-3.5" />

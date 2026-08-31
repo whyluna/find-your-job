@@ -1,18 +1,30 @@
 /** 设置页：数据导出/导入、扩展接入、数据目录、关于 */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { getVersion } from "@tauri-apps/api/app";
 import { save, open } from "@tauri-apps/plugin-dialog";
-import { Database, Download, FolderOpen, Loader2, Puzzle, Upload } from "lucide-react";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { Database, Download, Eye, EyeOff, FolderOpen, Loader2, Puzzle, Upload } from "lucide-react";
 import { useState } from "react";
 import { api } from "@/lib/ipc";
 import { Button, PageHeader } from "@/components/ui";
 import { CsvImportWizard } from "@/components/CsvImportWizard";
 import { LlmSettingsCard } from "@/components/LlmSettingsCard";
+import { showToast } from "@/lib/toast";
+import { NotificationSettingsCard } from "@/components/NotificationSettingsCard";
+import { fmtDate } from "@/lib/format";
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [showCsvImport, setShowCsvImport] = useState(false);
+  const [showApiToken, setShowApiToken] = useState(false);
+
+  const { data: appVersion } = useQuery({
+    queryKey: ["app-version"],
+    queryFn: getVersion,
+    staleTime: Infinity,
+  });
 
   const { data: apiStatus, error: statusError } = useQuery({
     queryKey: ["local-api"],
@@ -27,7 +39,11 @@ export default function SettingsPage() {
 
   const resetToken = useMutation({
     mutationFn: () => api.localApiResetToken(),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["local-api"] }),
+    onSuccess: () => {
+      setShowApiToken(false);
+      showToast({ kind: "success", message: "扩展 Token 已重置，请在浏览器扩展中同步更新" });
+      queryClient.invalidateQueries({ queryKey: ["local-api"] });
+    },
     onError: (e) => setMsg({ kind: "err", text: String(e) }),
   });
 
@@ -35,7 +51,7 @@ export default function SettingsPage() {
     setMsg(null);
     const path = await save({
       title: "导出全部数据",
-      defaultPath: `findyourjob-backup-${new Date().toISOString().slice(0, 10)}.json`,
+      defaultPath: `findyourjob-backup-${fmtDate(new Date().toISOString())}.json`,
       filters: [{ name: "JSON", extensions: ["json"] }],
     });
     if (!path) return;
@@ -54,7 +70,7 @@ export default function SettingsPage() {
     setMsg(null);
     const path = await save({
       title: "导出 CSV（飞书表格兼容）",
-      defaultPath: `findyourjob-${new Date().toISOString().slice(0, 10)}.csv`,
+      defaultPath: `findyourjob-${fmtDate(new Date().toISOString())}.csv`,
       filters: [{ name: "CSV", extensions: ["csv"] }],
     });
     if (!path) return;
@@ -100,8 +116,8 @@ export default function SettingsPage() {
           <Database className="size-4" /> 数据
         </h2>
         <p className="mt-1.5 text-[13px] leading-relaxed text-slate-500">
-          所有数据仅存于本机（SQLite + 应用数据目录）。JSON 备份会一并打包简历、附件和邮件原文；
-          导入为覆盖式恢复，建议在重要节点手动导出。
+          所有数据仅存于本机（SQLite + 应用数据目录）。JSON 备份会一并打包简历和附件，但不会包含
+          LLM API Key 或浏览器扩展 Token；恢复后扩展 Token 会自动更新。导入为覆盖式恢复，建议在重要节点手动导出。
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
           <Button onClick={doExport} disabled={busy}>
@@ -118,7 +134,7 @@ export default function SettingsPage() {
           <Button onClick={() => setShowCsvImport(true)} disabled={busy}>
             <Upload className="size-4" /> 从 CSV 导入
           </Button>
-          <Button variant="ghost" onClick={() => api.revealDataDir()}>
+          <Button variant="ghost" onClick={() => api.revealDataDir().catch((reason) => showToast({ kind: "error", message: String(reason) }))}>
             <FolderOpen className="size-4" /> 在 Finder 中打开数据目录
           </Button>
         </div>
@@ -166,12 +182,37 @@ export default function SettingsPage() {
             </label>
             <div className="flex items-center gap-2">
               <code className="flex-1 truncate rounded-lg bg-slate-100 px-3 py-2 font-mono text-[13px] text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                {apiStatus.token}
+                {showApiToken ? apiStatus.token : "••••••••-••••-••••-••••-••••••••••••"}
               </code>
-              <Button size="sm" onClick={() => navigator.clipboard?.writeText(apiStatus.token)}>
+              <Button
+                size="sm"
+                variant="ghost"
+                aria-label={showApiToken ? "隐藏 Token" : "显示 Token"}
+                onClick={() => setShowApiToken((v) => !v)}
+              >
+                {showApiToken ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+              </Button>
+              <Button
+                size="sm"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(apiStatus.token);
+                    showToast({ kind: "success", message: "扩展 Token 已复制" });
+                  } catch (reason) {
+                    showToast({ kind: "error", message: String(reason) });
+                  }
+                }}
+              >
                 复制
               </Button>
-              <Button size="sm" variant="ghost" disabled={resetToken.isPending} onClick={() => resetToken.mutate()}>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={resetToken.isPending}
+                onClick={() => {
+                  if (confirm("重置后，浏览器扩展中的旧 Token 会立即失效。继续？")) resetToken.mutate();
+                }}
+              >
                 重置
               </Button>
             </div>
@@ -180,15 +221,23 @@ export default function SettingsPage() {
       </section>
 
       <LlmSettingsCard />
+      <NotificationSettingsCard />
 
       {/* 关于 */}
       <section className="mt-4 max-w-2xl rounded-xl border border-slate-200/80 p-5 dark:border-slate-800/80">
         <h2 className="text-sm font-semibold">关于</h2>
         <p className="mt-1.5 text-[13px] leading-relaxed text-slate-500">
-          FindYourJob v0.1.0 · 状态由事件时间线推导的本地求职记录工具。
+          FindYourJob{appVersion ? ` v${appVersion}` : ""} · 状态由事件时间线推导的本地求职记录工具。
           <br />
-          提醒增强等将在后续版本提供。
+          系统提醒、浏览器扩展和本地数据备份均可在本页配置。
         </p>
+        <Button
+          size="sm"
+          className="mt-3"
+          onClick={() => openUrl("https://github.com/whyluna/find-your-job/releases/latest").catch((reason) => showToast({ kind: "error", message: String(reason) }))}
+        >
+          查看最新版本
+        </Button>
       </section>
       <CsvImportWizard open={showCsvImport} onClose={() => setShowCsvImport(false)} />
     </div>

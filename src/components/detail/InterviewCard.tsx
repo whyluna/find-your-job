@@ -9,6 +9,7 @@ import {
   Loader2,
   MapPin,
   Plus,
+  Pencil,
   Trash2,
   User,
 } from "lucide-react";
@@ -25,8 +26,10 @@ import {
 } from "@shared";
 import { Button } from "@/components/ui";
 import { QuestionModal } from "@/components/QuestionModal";
+import { EditInterviewDialog } from "@/components/detail/EditInterviewDialog";
 import { LatexText } from "@/components/LatexText";
 import { cn } from "@/lib/utils";
+import { showToast } from "@/lib/toast";
 
 export function InterviewCard({
   interview,
@@ -41,6 +44,8 @@ export function InterviewCard({
   const [rating, setRating] = useState(interview.selfRating ?? 0);
   const [addOpen, setAddOpen] = useState(false);
   const [editQuestion, setEditQuestion] = useState<InterviewQuestion | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [actionError, setActionError] = useState("");
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["applications"] });
@@ -50,7 +55,11 @@ export function InterviewCard({
   const setOutcome = useMutation({
     mutationFn: (args: { status?: "SCHEDULED" | "COMPLETED" | "CANCELLED"; outcome?: "PENDING" | "PASS" | "FAIL" | "UNKNOWN" }) =>
       api.updateInterview(interview.id, args),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      setActionError("");
+      invalidate();
+    },
+    onError: (reason) => setActionError(String(reason)),
   });
 
   const saveReflection = useMutation({
@@ -80,8 +89,30 @@ export function InterviewCard({
   });
 
   const delQuestion = useMutation({
-    mutationFn: (id: string) => api.deleteQuestion(id),
-    onSuccess: invalidate,
+    mutationFn: (question: InterviewQuestion) => api.deleteQuestion(question.id).then(() => question),
+    onSuccess: (question) => {
+      invalidate();
+      showToast({
+        message: "已删除一道面经题",
+        actionLabel: "撤销",
+        action: async () => {
+          const restored = await api.addQuestion({
+            interviewId: question.interviewId,
+            question: question.question,
+            myAnswer: question.myAnswer ?? null,
+            quality: question.quality,
+            reflection: question.reflection ?? null,
+            tags: question.tags,
+          });
+          const orderedIds = interview.questions.map((item) =>
+            item.id === question.id ? restored.id : item.id,
+          );
+          await api.reorderQuestions(orderedIds);
+          invalidate();
+          showToast({ kind: "success", message: "面经题已恢复" });
+        },
+      });
+    },
   });
 
   const outcomeColor =
@@ -92,6 +123,10 @@ export function InterviewCard({
         : "text-slate-400";
 
   const roundLabelFull = `第 ${interview.round} 轮${interview.roundLabel ? `（${interview.roundLabel}）` : ""}`;
+  const isOverdue =
+    interview.status === "SCHEDULED" &&
+    !!interview.scheduledAt &&
+    new Date(interview.scheduledAt).getTime() < Date.now();
 
   return (
     <div className="rounded-xl border border-slate-200/80 dark:border-slate-800/80">
@@ -100,10 +135,14 @@ export function InterviewCard({
         <div
           role="button"
           tabIndex={0}
+          aria-expanded={open}
           className="flex min-w-0 flex-1 cursor-pointer items-center gap-x-3 outline-none focus-visible:bg-slate-50 dark:focus-visible:bg-slate-800/50"
           onClick={() => setOpen((v) => !v)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") setOpen((v) => !v);
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setOpen((v) => !v);
+            }
           }}
         >
           <ChevronDown
@@ -119,7 +158,7 @@ export function InterviewCard({
           )}
           <span className="text-xs text-slate-400">{fmtDateTime(interview.scheduledAt)}</span>
           <span className={cn("text-xs", outcomeColor)}>
-            {INTERVIEW_STATUS_LABELS[interview.status]}
+            {isOverdue ? "待补结果" : INTERVIEW_STATUS_LABELS[interview.status]}
             {interview.status === "COMPLETED" && ` · ${INTERVIEW_OUTCOME_LABELS[interview.outcome]}`}
           </span>
           {interview.questionCount > 0 && (
@@ -169,6 +208,29 @@ export function InterviewCard({
               改为通过
             </Button>
           )}
+          {interview.status === "COMPLETED" && interview.outcome === "PASS" && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-red-500"
+              onClick={() => setOutcome.mutate({ outcome: "FAIL" })}
+            >
+              改为未通过
+            </Button>
+          )}
+          {interview.status === "CANCELLED" && (
+            <Button size="sm" variant="ghost" onClick={() => setEditOpen(true)}>
+              重新安排
+            </Button>
+          )}
+          <button
+            onClick={() => setEditOpen(true)}
+            className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
+            title="编辑面试"
+            aria-label={`编辑${roundLabelFull}`}
+          >
+            <Pencil className="size-3.5" />
+          </button>
           <button
             onClick={() => {
               if (confirm(`删除${roundLabelFull}及其全部题目？投递状态会自动重算。`)) delInterview.mutate();
@@ -180,6 +242,12 @@ export function InterviewCard({
           </button>
         </div>
       </div>
+
+      {actionError && (
+        <div className="border-t border-red-100 bg-red-50/70 px-4 py-2 text-[12px] text-red-600 dark:border-red-900/40 dark:bg-red-900/15 dark:text-red-300">
+          {actionError}
+        </div>
+      )}
 
       {open && (
         <div className="border-t border-slate-100 px-4 py-3 dark:border-slate-800/80">
@@ -203,7 +271,7 @@ export function InterviewCard({
                 key={q.id}
                 question={q}
                 onEdit={() => setEditQuestion(q)}
-                onDelete={() => delQuestion.mutate(q.id)}
+                onDelete={() => delQuestion.mutate(q)}
                 onMove={(dir) => move.mutate({ q, dir })}
                 isFirst={idx === 0}
                 isLast={idx === interview.questions.length - 1}
@@ -258,6 +326,12 @@ export function InterviewCard({
         onClose={() => setAddOpen(false)}
         fixedInterviewId={interview.id}
         fixedInterviewLabel={`${roundLabelFull} · ${fmtDateTime(interview.scheduledAt)}`}
+      />
+      <EditInterviewDialog
+        open={editOpen}
+        interview={interview}
+        applicationId={applicationId}
+        onClose={() => setEditOpen(false)}
       />
       <QuestionModal
         open={!!editQuestion}

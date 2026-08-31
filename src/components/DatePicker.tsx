@@ -49,6 +49,18 @@ export function DatePicker({ value, onChange, withTime = false, minIso, placehol
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
+    if (!open) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      setOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape, true);
+    return () => window.removeEventListener("keydown", closeOnEscape, true);
+  }, [open]);
+
+  useEffect(() => {
     if (cur) {
       setViewY(cur.getFullYear());
       setViewM(cur.getMonth());
@@ -98,6 +110,9 @@ export function DatePicker({ value, onChange, withTime = false, minIso, placehol
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-label={label ? `已选择 ${label}，打开日期选择器` : placeholder}
         className={cn(
           "flex h-8 w-full items-center justify-between rounded-lg border border-slate-200/90 bg-white px-2.5 text-left text-sm dark:border-slate-700 dark:bg-slate-800",
           !cur && "text-slate-400",
@@ -110,11 +125,16 @@ export function DatePicker({ value, onChange, withTime = false, minIso, placehol
       {open && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 top-9 z-40 w-[264px] rounded-xl border border-slate-200 bg-white p-3 shadow-xl dark:border-slate-700 dark:bg-slate-800">
+          <div
+            role="dialog"
+            aria-label={withTime ? "选择日期和时间" : "选择日期"}
+            className="absolute left-0 top-9 z-40 w-[264px] rounded-xl border border-slate-200 bg-white p-3 shadow-xl dark:border-slate-700 dark:bg-slate-800"
+          >
             {/* 年月导航 */}
             <div className="mb-2 flex items-center gap-1">
               <button
                 type="button"
+                aria-label="上个月"
                 onClick={() => {
                   const d = new Date(viewY, viewM - 1, 1);
                   setViewY(d.getFullYear());
@@ -138,6 +158,7 @@ export function DatePicker({ value, onChange, withTime = false, minIso, placehol
               <span className="text-sm font-medium">{viewM + 1} 月</span>
               <button
                 type="button"
+                aria-label="下个月"
                 onClick={() => {
                   const d = new Date(viewY, viewM + 1, 1);
                   setViewY(d.getFullYear());
@@ -154,6 +175,7 @@ export function DatePicker({ value, onChange, withTime = false, minIso, placehol
                     const t = new Date();
                     setViewY(t.getFullYear());
                     setViewM(t.getMonth());
+                    pickDay(new Date(t.getFullYear(), t.getMonth(), t.getDate()));
                   }}
                   className="rounded-md px-1.5 py-0.5 text-[11px] text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30"
                 >
@@ -172,18 +194,32 @@ export function DatePicker({ value, onChange, withTime = false, minIso, placehol
               </div>
             </div>
             {/* 星期头 */}
-            <div className="grid grid-cols-7 text-center text-[11px] text-slate-400">
+            <div className="grid grid-cols-7 text-center text-[11px] text-slate-400" aria-hidden="true">
               {WEEKDAYS.map((w) => (
                 <div key={w} className="py-1">{w}</div>
               ))}
             </div>
             {/* 日期网格 */}
-            <div className="grid grid-cols-7 gap-y-0.5">
+            <div role="group" aria-label={`${viewY} 年 ${viewM + 1} 月日期`} className="grid grid-cols-7 gap-y-0.5">
               {grid.map((d, i) =>
                 d ? (
                   <button
                     key={i}
                     type="button"
+                    aria-label={`${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`}
+                    aria-pressed={
+                      !!cur &&
+                      d.getFullYear() === cur.getFullYear() &&
+                      d.getMonth() === cur.getMonth() &&
+                      d.getDate() === cur.getDate()
+                    }
+                    aria-current={
+                      d.getFullYear() === today.getFullYear() &&
+                      d.getMonth() === today.getMonth() &&
+                      d.getDate() === today.getDate()
+                        ? "date"
+                        : undefined
+                    }
                     onClick={() => pickDay(d)}
                     disabled={!!min && new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59) < min}
                     className={cn(

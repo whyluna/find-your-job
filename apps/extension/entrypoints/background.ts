@@ -20,6 +20,9 @@ async function clipToApp(tabId: number) {
   });
   const clip = res?.result;
   if (!clip) return flashBadge(tabId, "!");
+  if (!clip.companyName?.trim() || !clip.positionTitle?.trim()) {
+    return flashBadge(tabId, "!");
+  }
 
   const { token = "" } = await browser.storage.local.get("token");
   if (!token) return flashBadge(tabId, "T"); // 未配置 token
@@ -32,8 +35,8 @@ async function clipToApp(tabId: number) {
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
-        companyName: clip.companyName || "未知公司",
-        positionTitle: clip.positionTitle || "未知岗位",
+        companyName: clip.companyName,
+        positionTitle: clip.positionTitle,
         department: clip.department || null,
         workLocation: clip.workLocation || null,
         channel: clip.channel,
@@ -41,7 +44,12 @@ async function clipToApp(tabId: number) {
         jdText: clip.jdText || null,
       }),
     });
-    await flashBadge(tabId, r.ok ? "✓" : "×");
+    if (!r.ok) {
+      await flashBadge(tabId, "×");
+      return;
+    }
+    const body = (await r.json()) as { created: boolean };
+    await flashBadge(tabId, body.created ? "✓" : "=");
   } catch {
     await flashBadge(tabId, "×"); // 应用未开/服务未启动
   }
@@ -51,7 +59,7 @@ async function flashBadge(tabId: number, text: string) {
   await browser.action.setBadgeText({ text, tabId });
   await browser.action.setBadgeBackgroundColor({
     tabId,
-    color: text === "✓" ? "#10b981" : "#ef4444",
+    color: text === "✓" ? "#10b981" : text === "=" ? "#64748b" : "#ef4444",
   });
   setTimeout(() => browser.action.setBadgeText({ text: "", tabId }), 2500);
 }

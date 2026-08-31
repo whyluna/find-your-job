@@ -113,6 +113,7 @@ export default function ApplicationsPage() {
         <div className="relative w-64">
           <Search className="absolute left-2.5 top-2 size-3.5 text-slate-400" />
           <TextInput
+            data-global-search
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="搜索公司 / 岗位 / 备注 / JD…"
@@ -302,9 +303,13 @@ function Row({
       <td className="whitespace-nowrap px-3 py-2.5">
         <div className="flex flex-nowrap items-center gap-1.5 whitespace-nowrap">
           <StatusBadge status={item.status} />
-          {item.status === "INTERVIEWING" && item.interviewCount > 0 && (
+          {item.hasOverdueInterview ? (
+            <span className="rounded bg-red-100 px-1.5 py-0.5 text-[11px] font-medium text-red-600 dark:bg-red-900/40 dark:text-red-300">
+              待补结果 · 第 {item.activeInterviewRound ?? item.maxInterviewRound} 轮
+            </span>
+          ) : item.status === "INTERVIEWING" && item.maxInterviewRound > 0 && (
             <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-[11px] font-medium text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
-              第 {item.interviewCount} 轮
+              第 {item.activeInterviewRound ?? item.maxInterviewRound} 轮
             </span>
           )}
         </div>

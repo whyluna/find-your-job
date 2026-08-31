@@ -1,6 +1,6 @@
 [package]
 name = "fyj-http"
-version = "0.1.0"
+version = "0.1.1"
 description = "FindYourJob 本地 HTTP API：仅监听 127.0.0.1，供浏览器扩展剪藏（P1）"
 edition = "2021"
 

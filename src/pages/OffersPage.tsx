@@ -8,6 +8,7 @@ import { fmtDate } from "@/lib/format";
 import { type Status } from "@shared";
 import { Button, PageHeader, StatusBadge, TextInput } from "@/components/ui";
 import { cn } from "@/lib/utils";
+import { showToast } from "@/lib/toast";
 
 const DIMENSIONS = [
   { key: "pay", label: "薪资", defaultWeight: 1.3 },
@@ -169,9 +170,13 @@ function OfferRow({
   const [salarySaved, setSalarySaved] = useState(false);
 
   const saveSalary = async () => {
-    await api.updateApplication(app.id, { salaryRange: salary.trim() || null });
-    setSalarySaved(true);
-    setTimeout(() => setSalarySaved(false), 1500);
+    try {
+      await api.updateApplication(app.id, { salaryRange: salary.trim() || null });
+      setSalarySaved(true);
+      setTimeout(() => setSalarySaved(false), 1500);
+    } catch (reason) {
+      showToast({ kind: "error", message: String(reason) });
+    }
   };
 
   return (

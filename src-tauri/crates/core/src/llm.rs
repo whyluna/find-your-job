@@ -1,10 +1,14 @@
 //! LLM 智能抽取（可选增强）：调用 OpenAI 兼容接口（chat/completions），
-//! 从招聘网页原文中抽取结构化信息并清洗 JD。API Key 只存本机应用数据库。
+//! 从招聘网页原文中抽取结构化信息并清洗 JD。API Key 存在系统凭据库，
+//! 不进入 SQLite，也不会进入数据备份。
 
 use serde::{Deserialize, Serialize};
 
 use crate::error::{Error, Result};
 use crate::services::Services;
+
+const KEYRING_SERVICE: &str = "com.findyourjob.llm";
+const KEYRING_ACCOUNT: &str = "api-key";
 
 #[derive(Debug, Clone)]
 pub struct LlmConfig {
@@ -19,8 +23,59 @@ impl LlmConfig {
     }
 }
 
-/// 从应用设置读取 LLM 配置；未配置 API Key 时返回 None
-pub async fn config_from_settings(svc: &Services) -> Option<LlmConfig> {
+fn keyring_entry() -> Result<keyring::Entry> {
+    keyring::Entry::new(KEYRING_SERVICE, KEYRING_ACCOUNT)
+        .map_err(|e| Error::Msg(format!("无法访问系统凭据库: {e}")))
+}
+
+/// 从系统凭据库读取 API Key。凭据库不可用或未配置时返回 None。
+pub fn read_api_key() -> Option<String> {
+    keyring_entry()
+        .ok()?
+        .get_password()
+        .ok()
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
+}
+
+/// 保存或删除系统凭据库中的 API Key。
+pub fn save_api_key(value: &str) -> Result<()> {
+    let entry = keyring_entry()?;
+    let value = value.trim();
+    if value.is_empty() {
+        match entry.delete_credential() {
+            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+            Err(e) => Err(Error::Msg(format!("删除系统凭据失败: {e}"))),
+        }
+    } else {
+        entry
+            .set_password(value)
+            .map_err(|e| Error::Msg(format!("保存到系统凭据库失败: {e}")))
+    }
+}
+
+/// 将旧版本存在 SQLite 中的明文 Key 一次性迁移到系统凭据库。
+/// 只有写入凭据库成功后才删除旧值，避免升级过程中丢失配置。
+pub async fn migrate_legacy_api_key(svc: &Services) -> Result<bool> {
+    let Some(value) = svc.get_setting("llm_api_key").await? else {
+        return Ok(false);
+    };
+    let value = value.trim_matches('"').trim();
+    if value.is_empty() {
+        svc.delete_setting("llm_api_key").await?;
+        return Ok(false);
+    }
+    save_api_key(value)?;
+    svc.delete_setting("llm_api_key").await?;
+    Ok(true)
+}
+
+/// 从应用设置与调用方显式提供的凭据读取 LLM 配置。
+/// 不在这里主动访问系统凭据库，避免测试或临时数据库继承真实用户密钥。
+pub async fn config_from_settings(
+    svc: &Services,
+    injected_api_key: Option<String>,
+) -> Option<LlmConfig> {
     async fn read_setting(svc: &Services, key: &str) -> Option<String> {
         svc.get_setting(key)
             .await
@@ -29,7 +84,11 @@ pub async fn config_from_settings(svc: &Services) -> Option<LlmConfig> {
             .map(|v| v.trim_matches('"').to_string())
             .filter(|v| !v.is_empty())
     }
-    let api_key = read_setting(svc, "llm_api_key").await?;
+    // 兼容还没来得及迁移的旧数据库；正式 App 会显式注入 Keychain 值。
+    let api_key = match injected_api_key.filter(|value| !value.trim().is_empty()) {
+        Some(value) => value,
+        None => read_setting(svc, "llm_api_key").await?,
+    };
     let base_url = read_setting(svc, "llm_base_url")
         .await
         .unwrap_or_else(|| "https://api.openai.com/v1".into());

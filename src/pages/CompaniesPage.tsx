@@ -2,10 +2,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Building2, ExternalLink, Loader2, Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { openPath } from "@tauri-apps/plugin-opener";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { api } from "@/lib/ipc";
 import type { Company } from "@shared";
 import { Button, Field, Modal, PageHeader, Select, TextInput } from "@/components/ui";
+import { showToast } from "@/lib/toast";
 
 const NATURES = ["", "互联网", "国企/央企", "外企", "民企", "银行/金融", "事业单位", "研究所", "其他"];
 const INDUSTRIES = ["", "互联网/软件", "硬件/半导体", "金融", "制造", "通信", "新能源", "消费", "教育", "其他"];
@@ -93,7 +94,7 @@ export default function CompaniesPage() {
                   {c.careersUrl ? (
                     <button
                       className="inline-flex items-center gap-1 text-[13px] text-indigo-500 hover:underline"
-                      onClick={() => openPath(c.careersUrl!).catch(() => undefined)}
+                      onClick={() => openUrl(c.careersUrl!).catch((reason) => showToast({ kind: "error", message: String(reason) }))}
                     >
                       打开 <ExternalLink className="size-3" />
                     </button>

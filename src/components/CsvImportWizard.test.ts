@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseCsv } from "./CsvImportWizard";
+import { guessField, parseCsv } from "./CsvImportWizard";
 
 describe("parseCsv", () => {
   it("保留字段正文中的中文逗号", () => {
@@ -14,5 +14,13 @@ describe("parseCsv", () => {
       ["a", "b"],
       ["1", 'x,y\n"z"'],
     ]);
+  });
+});
+
+describe("guessField", () => {
+  it("应用自身导出的岗位链接不会误识别为岗位名称", () => {
+    expect(guessField("岗位")).toBe("positionTitle");
+    expect(guessField("岗位链接")).toBe("jobUrl");
+    expect(guessField("Job URL")).toBe("jobUrl");
   });
 });

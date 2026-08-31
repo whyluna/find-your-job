@@ -32,24 +32,29 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [duplicate, setDuplicate] = useState<{ id: string; companyName: string; positionTitle: string } | null>(null);
 
   useEffect(() => {
     (async () => {
-      const { token = "" } = await browser.storage.local.get("token");
-      setToken(token);
-      setShowSettings(!token);
-      const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-      if (!tab?.id) return;
-      // 打开时只跑本地启发式（毫秒级），LLM 由按钮手动触发
-      const [heu] = await browser.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: extractJobInPage,
-      });
-      const current = heu?.result as ExtractResult | undefined;
-      if (current) {
+      try {
+        const { token = "" } = await browser.storage.local.get("token");
+        setToken(token);
+        setShowSettings(!token);
+        const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+        if (!tab?.id) throw new Error("找不到当前标签页");
+        // 打开时只跑本地启发式（毫秒级），LLM 由按钮手动触发
+        const [heu] = await browser.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: extractJobInPage,
+        });
+        const current = heu?.result as ExtractResult | undefined;
+        if (!current) throw new Error("当前页面无法读取，请在普通招聘网页中重试");
         current.channel =
           current.channel === "OTHER" ? channelFromUrl(current.jobUrl ?? "") : current.channel;
         setClip(current);
+      } catch (error) {
+        setMsg({ kind: "err", text: String((error as Error).message ?? error) });
       }
     })();
   }, []);
@@ -57,6 +62,7 @@ export default function App() {
   async function runAi() {
     setAi({ tag: "loading" });
     setMsg(null);
+    let timer: ReturnType<typeof setTimeout> | null = null;
     try {
       const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
       if (!tab?.id) throw new Error("找不到当前标签页");
@@ -67,14 +73,13 @@ export default function App() {
       const page = ctx?.result as { title: string; url: string; text: string } | undefined;
       if (!page) throw new Error("无法读取页面内容");
       const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 90000);
+      timer = setTimeout(() => ctrl.abort(), 90000);
       const r = await fetch(`${API}/api/ext/extract`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token.trim()}` },
         body: JSON.stringify(page),
         signal: ctrl.signal,
       });
-      clearTimeout(timer);
       if (!r.ok) {
         const body = await r.json().catch(() => ({ error: String(r.status) }));
         throw new Error(body.error ?? `HTTP ${r.status}`);
@@ -95,9 +100,13 @@ export default function App() {
         channel: c?.channel ?? channelFromUrl(page.url),
         source: "llm",
       }));
+      setSaved(false);
+      setDuplicate(null);
       setAi({ tag: "ok" });
     } catch (e) {
       setAi({ tag: "fail", hint: String((e as Error).message ?? e) });
+    } finally {
+      if (timer) clearTimeout(timer);
     }
   }
 
@@ -106,7 +115,7 @@ export default function App() {
     setShowSettings(false);
   }
 
-  async function submit() {
+  async function submit(allowDuplicate = false) {
     if (!clip) return;
     setSaving(true);
     setMsg(null);
@@ -122,10 +131,22 @@ export default function App() {
           channel: clip.channel,
           jobUrl: clip.jobUrl || null,
           jdText: clip.jdText || null,
+          allowDuplicate,
         }),
       });
       if (r.ok) {
-        setMsg({ kind: "ok", text: "已收录到 FindYourJob（已保存状态）" });
+        const body = (await r.json()) as {
+          created: boolean;
+          application: { id: string; companyName: string; positionTitle: string };
+        };
+        if (body.created) {
+          setSaved(true);
+          setDuplicate(null);
+          setMsg({ kind: "ok", text: "已收录到 FindYourJob（已保存状态）" });
+        } else {
+          setDuplicate(body.application);
+          setMsg({ kind: "ok", text: "这个岗位已经收录过，没有重复创建" });
+        }
       } else if (r.status === 401) {
         setMsg({ kind: "err", text: "Token 无效：请在应用设置页重置后更新" });
         setShowSettings(true);
@@ -142,7 +163,12 @@ export default function App() {
     }
   }
 
-  const set = (patch: Partial<ExtractResult>) => setClip((c) => (c ? { ...c, ...patch } : c));
+  const set = (patch: Partial<ExtractResult>) => {
+    setSaved(false);
+    setDuplicate(null);
+    setMsg(null);
+    setClip((c) => (c ? { ...c, ...patch } : c));
+  };
 
   const sourceLabel =
     ai.tag === "loading"
@@ -166,6 +192,7 @@ export default function App() {
           <>
             <label>应用设置页中的 API Token</label>
             <input
+              type="password"
               value={token}
               onChange={(e) => setToken(e.target.value)}
               placeholder="在 FindYourJob 设置 → 浏览器扩展接入 复制"
@@ -225,11 +252,17 @@ export default function App() {
             <div className="hint" style={{ marginTop: 4 }}>{sourceLabel}</div>
             <button
               className="primary"
-              onClick={submit}
-              disabled={saving || !clip.companyName.trim() || !clip.positionTitle.trim()}
+              onClick={() => submit(false)}
+              disabled={saved || saving || !clip.companyName.trim() || !clip.positionTitle.trim()}
             >
-              {saving ? "保存中…" : "确认收录"}
+              {saving ? "保存中…" : saved ? "已收录" : "确认收录"}
             </button>
+            {duplicate && (
+              <div className="duplicate-box">
+                <div>现有记录：{duplicate.companyName} · {duplicate.positionTitle}</div>
+                <button onClick={() => submit(true)} disabled={saving}>仍然新建一条</button>
+              </div>
+            )}
           </>
         ) : (
           <div className="hint">正在读取当前页面…</div>
@@ -237,9 +270,9 @@ export default function App() {
 
         {msg && <div className={`msg ${msg.kind}`}>{msg.text}</div>}
         {!showSettings && (
-          <div className="settings-toggle" onClick={() => setShowSettings(true)}>
+          <button type="button" className="settings-toggle" onClick={() => setShowSettings(true)}>
             修改 Token
-          </div>
+          </button>
         )}
       </section>
     </>

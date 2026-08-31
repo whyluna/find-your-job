@@ -3,12 +3,21 @@ import { invoke } from "@tauri-apps/api/core";
 
 /** 底层技术错误 → 友好中文 */
 function friendly(e: unknown): Error {
-  const msg = String(e);
+  const msg = String(e).replace(/^Error:\s*/, "");
   if (msg.includes("premature end of input") || msg.includes("invalid args")) {
     return new Error("参数格式有误，请检查日期等输入后重试");
   }
   if (msg.includes("Failed to connect") || msg.includes("Connection refused")) {
     return new Error("无法连接本地服务，请重试");
+  }
+  if (msg.includes("database is locked")) {
+    return new Error("数据库正在被占用，请稍后重试；如果持续出现，请重新打开应用");
+  }
+  if (msg.includes("Permission denied") || msg.includes("permission denied")) {
+    return new Error("没有访问该文件或目录的权限，请重新选择位置");
+  }
+  if (msg.includes("No such file") || msg.includes("文件不存在")) {
+    return new Error("文件已被移动或删除，请重新选择");
   }
   return new Error(msg);
 }
@@ -30,6 +39,9 @@ import type {
   ApplicationListItem,
   Company,
   CreateApplicationInput,
+  ApplicationImportPreview,
+  ApplicationImportResult,
+  ApplicationImportRow,
   CustomEventType,
   DictionaryItem,
   Interview,
@@ -50,6 +62,8 @@ export const api = {
       companies: number;
       applications: number;
       events: number;
+      recoveryMode: boolean;
+      startupError?: string | null;
     }>("db_ready"),
 
   searchCompanies: (query: string, limit = 8) =>
@@ -77,6 +91,12 @@ export const api = {
 
   createApplication: (input: CreateApplicationInput) =>
     call<Application>("create_application", { input }),
+
+  previewApplicationImport: (rows: ApplicationImportRow[]) =>
+    call<ApplicationImportPreview>("preview_application_import", { rows }),
+
+  importApplicationRows: (rows: ApplicationImportRow[], skipDuplicates: boolean) =>
+    call<ApplicationImportResult>("import_application_rows", { rows, skipDuplicates }),
 
   updateApplication: (id: string, input: UpdateApplicationInput) =>
     call<Application>("update_application", { id, input }),
@@ -127,6 +147,7 @@ export const api = {
     call<
       {
         questionId: string;
+        interviewId: string;
         question: string;
         myAnswer?: string | null;
         quality: import("@shared").QuestionQuality;
@@ -152,7 +173,7 @@ export const api = {
   deleteAttachment: (id: string) => call<void>("delete_attachment", { id }),
 
   llmGetSettings: () =>
-    call<{ baseUrl: string; apiKey: string; model: string }>("llm_get_settings"),
+    call<{ baseUrl: string; apiKeyConfigured: boolean; model: string }>("llm_get_settings"),
   llmSaveSettings: (input: { baseUrl: string | null; apiKey: string | null; model: string | null }) =>
     call<void>("llm_save_settings", input),
   llmTest: () => call<string>("llm_test"),
@@ -167,6 +188,7 @@ export const api = {
     call<
       {
         statusCounts: { key: string; count: number }[];
+        stageReachedCounts: { key: string; count: number }[];
         channelCounts: { key: string; count: number }[];
         batchCounts: { key: string; count: number }[];
         dailyApplied: { key: string; count: number }[];
@@ -175,7 +197,7 @@ export const api = {
           companyName: string;
           positionTitle: string;
           status: import("@shared").Status;
-          updatedAt: string;
+          lastActivityAt: string;
         }[];
         resumeFunnel: { resumeName: string; total: number; interviewed: number; offered: number }[];
       }

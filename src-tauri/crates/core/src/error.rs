@@ -3,9 +3,6 @@ pub enum Error {
     #[error("数据库错误: {0}")]
     Sqlx(#[from] sqlx::Error),
 
-    #[error("迁移错误: {0}")]
-    Migrate(#[from] sqlx::migrate::MigrateError),
-
     #[error("JSON 错误: {0}")]
     Json(#[from] serde_json::Error),
 

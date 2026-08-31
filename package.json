@@ -1,14 +1,16 @@
 {
   "name": "find-your-job",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
+  "packageManager": "pnpm@11.24.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
-    "tauri": "bash scripts/tauri.sh",
+    "tauri": "tauri",
+    "app:install": "bash scripts/tauri.sh build",
     "test": "vitest run",
     "test:watch": "vitest"
   },

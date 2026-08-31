@@ -10,12 +10,20 @@ use fyj_core::entities::{
 };
 use fyj_core::entities::{ApplicationDetail, ApplicationEvent};
 use fyj_core::services::{
-    AddEventInput, AddInterviewInput, AddQuestionInput, CreateApplicationInput, ListFilter,
-    Services, UpdateApplicationInput, UpdateEventInput, UpdateInterviewInput, UpdateQuestionInput,
+    AddEventInput, AddInterviewInput, AddQuestionInput, ApplicationImportPreview,
+    ApplicationImportRow, ApplicationImportSummary, CreateApplicationInput, ListFilter, Services,
+    UpdateApplicationInput, UpdateEventInput, UpdateInterviewInput, UpdateQuestionInput,
 };
 use fyj_http::{self, HttpState};
 
-pub struct AppState(pub Services);
+/// 服务状态 + 可选启动恢复信息 + 当前实际数据库路径。
+/// 保留 tuple.0 作为 Services，避免命令层重复样板。
+pub struct AppState(
+    pub Services,
+    pub Option<String>,
+    pub String,
+    pub std::sync::Arc<std::sync::RwLock<Option<String>>>,
+);
 
 /// 本地 HTTP API 的运行句柄（P1：浏览器扩展剪藏入口）
 pub struct LocalApiHandle {
@@ -63,6 +71,7 @@ async fn spawn_local_api(app: &tauri::AppHandle) -> Result<(), String> {
     let http_state = std::sync::Arc::new(HttpState {
         services: svc,
         token,
+        llm_api_key: app.state::<AppState>().3.clone(),
     });
     let running = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
     let running_in_task = running.clone();
@@ -178,15 +187,13 @@ pub struct DbReadyInfo {
     pub companies: i64,
     pub applications: i64,
     pub events: i64,
+    pub recovery_mode: bool,
+    pub startup_error: Option<String>,
 }
 
 #[tauri::command]
-async fn db_ready(
-    app: tauri::AppHandle,
-    state: tauri::State<'_, AppState>,
-) -> CmdResult<DbReadyInfo> {
-    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let db_path = dir.join("findyourjob.db").display().to_string();
+async fn db_ready(state: tauri::State<'_, AppState>) -> CmdResult<DbReadyInfo> {
+    let db_path = state.2.clone();
     let pool = &state.0.pool;
     let companies: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM company")
         .fetch_one(pool)
@@ -206,6 +213,8 @@ async fn db_ready(
         companies,
         applications,
         events,
+        recovery_mode: state.1.is_some(),
+        startup_error: state.1.clone(),
     })
 }
 
@@ -317,6 +326,27 @@ async fn create_application(
     input: CreateApplicationInput,
 ) -> CmdResult<Application> {
     state.0.create_application(input).await.map_err(e2s)
+}
+
+#[tauri::command]
+async fn preview_application_import(
+    state: tauri::State<'_, AppState>,
+    rows: Vec<ApplicationImportRow>,
+) -> CmdResult<ApplicationImportPreview> {
+    state.0.preview_application_import(&rows).await.map_err(e2s)
+}
+
+#[tauri::command]
+async fn import_application_rows(
+    state: tauri::State<'_, AppState>,
+    rows: Vec<ApplicationImportRow>,
+    skip_duplicates: bool,
+) -> CmdResult<ApplicationImportSummary> {
+    state
+        .0
+        .import_application_rows(rows, skip_duplicates)
+        .await
+        .map_err(e2s)
 }
 
 #[tauri::command]
@@ -682,7 +712,7 @@ async fn delete_attachment(
 #[serde(rename_all = "camelCase")]
 pub struct LlmSettings {
     pub base_url: String,
-    pub api_key: String,
+    pub api_key_configured: bool,
     pub model: String,
 }
 
@@ -700,11 +730,24 @@ async fn read_setting_str(state: &tauri::State<'_, AppState>, key: &str) -> Stri
 #[tauri::command]
 async fn llm_get_settings(state: tauri::State<'_, AppState>) -> CmdResult<LlmSettings> {
     let base_url = read_setting_str(&state, "llm_base_url").await;
-    let api_key = read_setting_str(&state, "llm_api_key").await;
     let model = read_setting_str(&state, "llm_model").await;
+    let legacy_key_present = !read_setting_str(&state, "llm_api_key").await.is_empty();
+    let mut configured =
+        state.3.read().map(|value| value.is_some()).unwrap_or(false) || legacy_key_present;
+    if !configured && !legacy_key_present {
+        let loaded = tauri::async_runtime::spawn_blocking(fyj_core::llm::read_api_key)
+            .await
+            .map_err(|error| error.to_string())?;
+        if let Some(value) = loaded {
+            if let Ok(mut cache) = state.3.write() {
+                *cache = Some(value);
+            }
+            configured = true;
+        }
+    }
     Ok(LlmSettings {
         base_url,
-        api_key,
+        api_key_configured: configured,
         model,
     })
 }
@@ -733,14 +776,26 @@ async fn llm_save_settings(
     model: Option<String>,
 ) -> CmdResult<()> {
     save_setting_str(&state, "llm_base_url", &base_url).await?;
-    save_setting_str(&state, "llm_api_key", &api_key).await?;
     save_setting_str(&state, "llm_model", &model).await?;
+    if let Some(value) = api_key {
+        let value_for_store = value.clone();
+        tauri::async_runtime::spawn_blocking(move || fyj_core::llm::save_api_key(&value_for_store))
+            .await
+            .map_err(|error| error.to_string())?
+            .map_err(e2s)?;
+        // 防止旧版本或手工恢复再次留下明文副本。
+        state.0.delete_setting("llm_api_key").await.map_err(e2s)?;
+        if let Ok(mut cache) = state.3.write() {
+            *cache = (!value.trim().is_empty()).then_some(value.trim().to_string());
+        }
+    }
     Ok(())
 }
 
 #[tauri::command]
 async fn llm_test(state: tauri::State<'_, AppState>) -> CmdResult<String> {
-    let Some(cfg) = fyj_core::llm::config_from_settings(&state.0).await else {
+    let injected_key = state.3.read().ok().and_then(|value| value.clone());
+    let Some(cfg) = fyj_core::llm::config_from_settings(&state.0, injected_key).await else {
         return Err("请先填写并保存 API Key".into());
     };
     let reply = fyj_core::llm::ping(&cfg).await.map_err(e2s)?;
@@ -817,13 +872,72 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
-            let dir = app.path().app_data_dir().expect("无法获取应用数据目录");
-            std::fs::create_dir_all(&dir).expect("无法创建应用数据目录");
-            let db_path = dir.join("findyourjob.db");
-            let pool = tauri::async_runtime::block_on(fyj_core::db::init_pool(&db_path))
-                .expect("数据库初始化失败");
-            app.manage(AppState(Services::new(pool)));
+            let mut startup_error: Option<String> = None;
+            let preferred_dir = app.path().app_data_dir().unwrap_or_else(|error| {
+                startup_error = Some(format!("无法定位应用数据目录：{error}"));
+                std::env::temp_dir().join("findyourjob-recovery")
+            });
+            let active_dir = match std::fs::create_dir_all(&preferred_dir) {
+                Ok(()) => preferred_dir.clone(),
+                Err(error) => {
+                    startup_error = Some(format!("无法打开应用数据目录：{error}"));
+                    let fallback = std::env::temp_dir().join("findyourjob-recovery");
+                    std::fs::create_dir_all(&fallback)?;
+                    fallback
+                }
+            };
+            let preferred_db = active_dir.join("findyourjob.db");
+            let (pool, active_db) =
+                match tauri::async_runtime::block_on(fyj_core::db::init_pool(&preferred_db)) {
+                    Ok(pool) => (pool, preferred_db),
+                    Err(error) => {
+                        startup_error =
+                            Some(format!("原数据库暂时无法打开，已进入安全恢复模式：{error}"));
+                        let recovery_db = std::env::temp_dir()
+                            .join(format!("findyourjob-recovery-{}.db", uuid::Uuid::new_v4()));
+                        let pool =
+                            tauri::async_runtime::block_on(fyj_core::db::init_pool(&recovery_db))?;
+                        (pool, recovery_db)
+                    }
+                };
+            let llm_key_cache = std::sync::Arc::new(std::sync::RwLock::new(None));
+            app.manage(AppState(
+                Services::new(pool),
+                startup_error,
+                active_db.display().to_string(),
+                llm_key_cache.clone(),
+            ));
             app.manage(std::sync::Mutex::<Option<LocalApiHandle>>::new(None));
+            // Keychain 可能因本地 ad-hoc 签名变化触发系统确认，绝不能阻塞主线程和窗口出现。
+            let secret_services = app.state::<AppState>().0.clone();
+            tauri::async_runtime::spawn(async move {
+                let legacy = secret_services
+                    .get_setting("llm_api_key")
+                    .await
+                    .ok()
+                    .flatten()
+                    .map(|value| value.trim_matches('"').trim().to_string())
+                    .filter(|value| !value.is_empty());
+                if let Some(value) = legacy {
+                    if let Ok(mut cache) = llm_key_cache.write() {
+                        *cache = Some(value.clone());
+                    }
+                    let value_for_store = value.clone();
+                    let migrated = tauri::async_runtime::spawn_blocking(move || {
+                        fyj_core::llm::save_api_key(&value_for_store)
+                    })
+                    .await;
+                    if matches!(migrated, Ok(Ok(()))) {
+                        let _ = secret_services.delete_setting("llm_api_key").await;
+                    }
+                } else if let Ok(Some(value)) =
+                    tauri::async_runtime::spawn_blocking(fyj_core::llm::read_api_key).await
+                {
+                    if let Ok(mut cache) = llm_key_cache.write() {
+                        *cache = Some(value);
+                    }
+                }
+            });
             // 若设置中已开启扩展接入，自动启动本地 API
             {
                 let svc = &app.state::<AppState>().0;
@@ -852,6 +966,8 @@ pub fn run() {
             reorder_applications,
             get_application_detail,
             create_application,
+            preview_application_import,
+            import_application_rows,
             update_application,
             delete_application,
             set_application_archived,

@@ -1,0 +1,18 @@
+[advisories]
+# sqlx 0.8 的 facade lockfile 会记录未启用的 sqlx-mysql 可选依赖；它带入 rsa 0.9.10，
+# 但 `cargo tree -i rsa --target aarch64-apple-darwin` 与 x86_64 目标均为空，发布二进制不包含它。
+# 在 SQLx 修复其 feature/lockfile 边界或 rsa 发布修复版后应删除此豁免。
+ignore = ["RUSTSEC-2023-0071"]
+informational_warnings = ["unmaintained", "unsound"]
+severity_threshold = "low"
+
+[target]
+arch = ["aarch64", "x86_64"]
+os = ["macos"]
+
+[output]
+quiet = false
+show_tree = true
+
+[yanked]
+enabled = true

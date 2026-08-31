@@ -1,6 +1,6 @@
 /** 智能识别（LLM）配置：供浏览器扩展调用，从网页原文抽取公司/岗位/城市并清洗 JD */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Sparkles } from "lucide-react";
+import { KeyRound, Loader2, Sparkles, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/ipc";
 import { Button, TextInput } from "@/components/ui";
@@ -13,6 +13,7 @@ export function LlmSettingsCard() {
   const [apiKey, setApiKey] = useState("");
   const [model, setModel] = useState("");
   const [loaded, setLoaded] = useState(false);
+  const [keyDirty, setKeyDirty] = useState(false);
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [testing, setTesting] = useState(false);
 
@@ -20,7 +21,7 @@ export function LlmSettingsCard() {
     if (data && !loaded) {
       setLoaded(true);
       setBaseUrl(data.baseUrl);
-      setApiKey(data.apiKey);
+      setApiKey("");
       setModel(data.model);
     }
   }, [data, loaded]);
@@ -29,11 +30,13 @@ export function LlmSettingsCard() {
     mutationFn: () =>
       api.llmSaveSettings({
         baseUrl: baseUrl.trim() || null,
-        apiKey: apiKey.trim() || null,
+        apiKey: keyDirty ? apiKey.trim() : null,
         model: model.trim() || null,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["llm-settings"] });
+      setApiKey("");
+      setKeyDirty(false);
       setMsg({ kind: "ok", text: "已保存" });
     },
     onError: (e) => setMsg({ kind: "err", text: String(e) }),
@@ -43,7 +46,16 @@ export function LlmSettingsCard() {
     setMsg(null);
     setTesting(true);
     try {
+      // 测试使用当前表单值；新 Key 先安全写入系统凭据库。
+      await api.llmSaveSettings({
+        baseUrl: baseUrl.trim() || null,
+        apiKey: keyDirty ? apiKey.trim() : null,
+        model: model.trim() || null,
+      });
       const r = await api.llmTest();
+      setApiKey("");
+      setKeyDirty(false);
+      await queryClient.invalidateQueries({ queryKey: ["llm-settings"] });
       setMsg({ kind: "ok", text: r });
     } catch (e) {
       setMsg({ kind: "err", text: String(e) });
@@ -52,7 +64,20 @@ export function LlmSettingsCard() {
     }
   };
 
-  const configured = !!apiKey.trim();
+  const configured = !!apiKey.trim() || !!data?.apiKeyConfigured;
+
+  const clearKey = async () => {
+    setMsg(null);
+    try {
+      await api.llmSaveSettings({ baseUrl: null, apiKey: "", model: null });
+      setApiKey("");
+      setKeyDirty(false);
+      await queryClient.invalidateQueries({ queryKey: ["llm-settings"] });
+      setMsg({ kind: "ok", text: "API Key 已从系统凭据库删除" });
+    } catch (e) {
+      setMsg({ kind: "err", text: String(e) });
+    }
+  };
 
   return (
     <section className="mt-4 max-w-2xl rounded-xl border border-slate-200/80 p-5 dark:border-slate-800/80">
@@ -62,7 +87,7 @@ export function LlmSettingsCard() {
       <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
         配置后，浏览器扩展收录岗位时会把页面原文交给大模型，自动识别公司/岗位/城市，
         并把 JD 清洗成只含「职位描述 + 要求」的干净版本（不配置则用启发式提取，官网类页面效果差）。
-        API Key 只保存在本机。
+        API Key 只保存在本机系统凭据库，不写入 SQLite，也不会进入 JSON 备份。
       </p>
       <div className="mt-3 grid grid-cols-1 gap-3">
         <label className="block">
@@ -82,8 +107,11 @@ export function LlmSettingsCard() {
             <TextInput
               type="password"
               value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="sk-…"
+              onChange={(e) => {
+                setApiKey(e.target.value);
+                setKeyDirty(true);
+              }}
+              placeholder={data?.apiKeyConfigured ? "已安全保存；留空表示不修改" : "sk-…"}
               className="font-mono text-xs"
             />
           </label>
@@ -113,6 +141,11 @@ export function LlmSettingsCard() {
         <Button size="sm" disabled={!configured || testing} onClick={test}>
           {testing && <Loader2 className="size-3.5 animate-spin" />}测试连接
         </Button>
+        {data?.apiKeyConfigured && (
+          <Button size="sm" variant="ghost" onClick={clearKey}>
+            <Trash2 className="size-3.5" /> 删除密钥
+          </Button>
+        )}
         <span
           className={
             configured
@@ -120,7 +153,8 @@ export function LlmSettingsCard() {
               : "rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500 dark:bg-slate-800"
           }
         >
-          {configured ? "已配置" : "未配置"}
+          <KeyRound className="mr-1 inline size-3" />
+          {configured ? "系统凭据库已配置" : "未配置"}
         </span>
         {msg && (
           <span className={msg.kind === "ok" ? "text-xs text-emerald-600 dark:text-emerald-400" : "text-xs text-red-500"}>

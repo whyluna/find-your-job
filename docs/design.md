@@ -1,5 +1,7 @@
 # FindYourJob — 求职投递记录与面试复盘系统 · 设计文档
 
+> 文档状态：本文保留早期架构取舍与里程碑，便于理解演进过程；它不是当前功能承诺。已实现能力以 README、当前源码和自动化测试为准，取消的方向会在对应章节明确标注。
+
 > 版本 v1.2（macOS 原生应用形态，待用户评审）· 2026-08-29
 > 定位：**macOS 桌面应用**，面向广泛求职群体（校招/社招/实习、各行业），以校招流程为最完整的预置模板、其他场景可精简定制。覆盖「投递记录 → 测评/笔试/面试过程 → 面经复盘 → offer 比较」全流程。数据本地优先。
 
@@ -15,7 +17,7 @@
 2. **状态机驱动**：状态不由手填，由事件时间线推导，解决飞书模板的"列爆炸"。
 3. **结构化面试复盘**：每轮面试、每道题（题目/回答/表现/复盘/知识点标签）均可检索，沉淀个人错题本。
 4. **多简历版本管理**：同一人多份简历（按岗位方向定制），每条投递必须标注所用的简历版本，后期可统计各版本过筛率。
-5. **录入低摩擦**：浏览器扩展一键剪藏岗位（P1）、邮件解析自动生成事件草稿（P2，纯规则无 LLM）。
+5. **录入低摩擦**：浏览器扩展一键收录岗位，并通过预检和幂等规则避免重复写入。
 6. **数据主权**：全部数据本地 SQLite + 上传文件本地目录，可随时全量导出。
 
 ### 1.2 非目标（明确不做）
@@ -80,12 +82,11 @@
 | DB | sqlx + SQLite（WAL），SQL 迁移文件管理 schema |
 | 本地 HTTP (P1) | axum，仅 127.0.0.1，Bearer token，设置页开关 |
 | 图表 (P1) | recharts |
-| macOS 集成 | tauri-plugin-notification / dialog / opener；keyring crate (P2 邮件凭证入 Keychain)；菜单/快捷键 |
+| macOS 集成 | tauri-plugin-notification / dialog / opener；keyring crate（LLM Key 入系统凭据库）；菜单/快捷键 |
 | 单测 | Rust cargo test（core）+ Vitest（前端组件/工具） |
 | 应用级 E2E (P1) | tauri-driver + WebdriverIO（官方路径，需启用 safaridriver） |
 | GUI 验收 | computer-use 驱动真实 .app 窗口（每里程碑一轮，截图存 `docs/acceptance/`） |
 | 扩展 (P1) | WXT + React + TS（Manifest V3） |
-| 邮件 (P2) | async-imap + mailparse（纯规则引擎） |
 | 构建/签名 | `pnpm tauri build` → .app/.dmg，ad-hoc codesign（个人使用，右键打开过 Gatekeeper） |
 
 ### 2.3 仓库结构
@@ -127,7 +128,7 @@ Company 1───N Application N───1 ResumeVersion(可空但强烈建议)
                  ├──N Reminder（P1，仅自定义提醒）
                  └──1 Contact(内推人，可空)
 Contact N───1 Company（可空）
-EmailAccount 1───N EmailParseLog ──?──1 Application（P2）
+EmailAccount 1───N EmailParseLog ──?──1 Application（仅旧备份兼容）
 Setting（KV）
 ```
 
@@ -160,9 +161,9 @@ Setting（KV）
 
 **reminder**（P1）：`id, application_id? CASCADE, title, due_at, type DEFAULT 'CUSTOM', is_done DEFAULT 0, created_at`；索引 `(due_at, is_done)`
 
-**email_account**（P2）：`id, host, port DEFAULT 993, secure DEFAULT 1, username, credential_ref?（Keychain 条目名，绝不存明文）, folder DEFAULT 'INBOX', enabled DEFAULT 1, last_sync_at?, created_at`
+**email_account**（仅旧备份兼容）：表结构保留用于无损读取 v1/v2 备份，当前产品不提供邮件接入功能。
 
-**email_parse_log**（P2）：`id, email_account_id FK, message_id UNIQUE, received_at, from_address, from_name?, subject, snippet?, raw_path?（.eml 落盘）, status DEFAULT 'PENDING'（PENDING/IMPORTED/IGNORED/UNMATCHED）, suggested_event_type?, suggested_deadline?, suggested_occurred_at?, matched_application_id?, match_reason?, note?, created_at`；索引 `status`
+**email_parse_log**（仅旧备份兼容）：旧版本数据和附件仍可随 JSON 备份迁移，但不会在 UI 中创建新记录。
 
 **setting**：`key TEXT PK, value_json, updated_at`
 
@@ -265,7 +266,7 @@ Setting（KV）
 | 数据 | `export_json` `import_json` `reveal_data_dir`（Finder 显示） |
 | 设置 | `get_settings` `update_settings` |
 | P1 | `list_reminders` `create_reminder` `complete_reminder`；`get_stats`；`export_csv` `import_csv`；`start_local_api/stop` |
-| P2 | 邮件账户/同步/审核；`set_pin` `verify_pin` |
+| P2 | 系统提醒设置、LLM 系统凭据库与安全备份语义 |
 
 ### 4.2 本地 HTTP API（P1，crate http，axum）
 
@@ -280,7 +281,7 @@ Setting（KV）
 ### 5.1 窗口与导航（原生观感要点）
 
 - 原生窗口 + 侧边栏导航（仪表盘/投递/简历库/公司/联系人 P1/日历 P1/面经 P2/offer P2/设置），toolbar 内联于标题栏（macOS 风格交通灯）。
-- 标准 macOS 快捷键：⌘N 新建投递、⌘F 搜索、⌘W 关窗、⌘, 设置；P1 ⌘K 命令面板。
+- 当前提供 ⌘K 命令面板；其余快捷键在接入原生菜单前不作为已完成功能声明。
 - 深色模式跟随系统；全中文界面。
 - 附件拖拽：窗口级 onDragDrop 直接上传到当前上下文（投递/面试）。
 - 日期选择：WKWebView 原生 datetime 输入体验差，**自研 DatePicker 组件**（统一交互）。
@@ -294,10 +295,10 @@ Setting（KV）
 | `/applications/:id` | P0 | 详情页（下详） |
 | `/resumes` | P0 | 简历版本库：卡片（名称/方向/大小/默认/被引用数）、上传/替换/设默认 |
 | `/companies` | P0 简版 | 列表 + 编辑（主要在投递表单内自动补全新建） |
-| `/contacts`、`/calendar` | P1 | 联系人；月历（面试/截止/提醒三色） |
+| `/calendar` | P1 | 月历（面试/截止/投递三色） |
 | `/review` | P2 | 面经知识库：标签聚合、错题本（BAD+高频）、全文检索 |
 | `/offers` | P2 | offer 对比打分器（维度自定义加权） |
-| `/settings` | P0→P2 | 导出导入（P0）、提醒与 webhook、API token、扩展接入开关（P1）、邮件账户与解析审核、PIN（P2） |
+| `/settings` | P0→P2 | 安全备份/事务 CSV、系统提醒、扩展 Token、系统凭据库中的 LLM Key 与版本检查 |
 
 ### 5.3 投递详情页（产品灵魂）
 
@@ -338,7 +339,7 @@ Setting（KV）
 
 ### 5.6 录入效率与新手引导（贯穿三期）
 
-- **首次启动模板向导**（§3.6）：选校招/社招/实习/空白模板 → 直接得到贴合自己流程的看板与事件菜单，非技术用户零配置可用。
+- 当前首次启动静默采用校招完整流程；模板切换在真正实现设置入口前不作为产品能力展示。
 - 新建投递单弹窗：公司自动补全（无则就地新建）、粘贴 JD 入快照、**简历版本必选**（无版本时"先去上传"或跳过+黄条提醒）、下拉默认值。
 - ⌘K 命令面板（P1）。
 - 深色模式（P0）。
@@ -352,12 +353,9 @@ Setting（KV）
 - 弹出确认表单（预填可改）→ `POST http://127.0.0.1:37321/api/ext/clip`（Bearer token）→ 落为 `SAVED` 投递，成功提示"去完善"。
 - 数据不落扩展本地，应用是唯一事实源。
 
-## 7. 邮件解析（P2，模块 K 唯一保留项；纯规则，无 LLM）
+## 7. 邮件解析（已移除）
 
-- async-imap（IDLE + 定时拉取）+ mailparse；凭证存 **macOS Keychain**（keyring crate），DB 只存 credentialRef。
-- 流水线：拉取未读 → messageId 去重 → 规则引擎：① 发件域名 ↔ `company.website`/`aliases` 匹配 → 候选公司；② 关键词分类（测评/笔试/面试/意向书/offer/感谢信…）；③ 正则提取截止与面试时间；④ 候选公司 × 岗位 token 关联现有投递（多候选并列供选）。
-- 产出全部进 `email_parse_log(PENDING)`，审核收件箱 UI 逐条确认/忽略/改绑后转正式事件（source=EMAIL）；原文 .eml 落盘可重解析。**无任何静默写入。**
-- 测试：`crates/core/tests/fixtures/emails/*.eml` 仿真语料 ≥30 封（各类型/乱序/陷阱）驱动规则单测；支持手动导入 .eml 调试。
+当前版本不读取邮箱、不保存邮箱凭据，也不提供 `.eml` 导入入口。数据库中的旧邮件表只用于兼容历史备份，避免升级或恢复时丢失旧数据；相关解析代码和依赖已经移除。
 
 ---
 
@@ -365,7 +363,7 @@ Setting（KV）
 
 1. **Rust 单测（cargo test，core crate 为主）**
    - 状态机 `derive_status`：投影规则表驱动全覆盖 + 乱序补录 + 删除重算 + 边界（CANCELLED 面试、NOTE 不改状态等）；
-   - 时间线合并排序、deadline 紧急度、CSV 映射（P1）、邮件规则 vs fixtures（P2）；
+   - 时间线合并排序、deadline 紧急度、CSV 回环/预检/事务与扩展幂等；
    - 仓储/服务层用临时 SQLite（tempfile）跑集成测试。
 2. **前端单测（Vitest + Testing Library）**：表单校验、看板拖拽映射（列→事件预填）、关键组件渲染。
 3. **应用级 E2E（P1 起）**：tauri-driver + WebdriverIO（macOS 需启用 safaridriver），覆盖 8 条主流程。
@@ -404,13 +402,13 @@ Setting（KV）
 | 8 | ⌘K 命令面板；表格保存视图；WebdriverIO E2E 接入 |
 | 9 | **computer-use 验收第二轮**（含扩展在真实 Boss/牛客页面剪藏） |
 
-### P2 — 复盘沉淀与邮件
+### P2 — 复盘沉淀与可靠性
 
 | 步骤 | 内容 |
 |---|---|
 | 1 | 面经知识库 `/review`：标签聚合、错题本（BAD+高频）、全文检索 |
 | 2 | offer 对比器：维度（base×月/签字费/股票/补贴、城市、部门、加班、稳定）自定义加权 |
-| 3 | 邮件解析全链路（§7）：Keychain 凭证、同步、审核 UI、.eml 调试 |
+| 3 | 邮件解析方向已取消；不再读取用户邮箱 |
 | 4 | PIN 锁（应用级门禁） |
 | 5 | 可选：局域网移动页（同 token，面试后手机快速记题）、菜单栏速览（今日截止） |
 | 6 | **computer-use 验收第三轮** |
@@ -425,7 +423,6 @@ Setting（KV）
 | Rust 学习/异步复杂度 | 领域逻辑集中在 core crate 纯函数化，Tauri 层保持薄 |
 | tauri-driver E2E 环境依赖 safaridriver | P0 不依赖 E2E（单测+computer-use 达标），P1 再接入 |
 | 招聘站点 DOM 变化致扩展失效 | 适配器隔离 + JSON-LD 通用层兜底 + 确认表单人工修正 |
-| 邮件规则误判 | 一律 PENDING 人工确认，无静默写入；原文 .eml 保留可重解析 |
 | sqlx 异步样板代码多 | 仓储层统一封装查询助手，服务层不直接碰 sqlx |
 | 数据安全 | 本地 SQLite + WAL；备份脚本；PIN（P2）门禁；无任何外发（webhook 为显式配置） |
 | 自己秋招时间冲突 | P0 严格砍到自用最小集；P1/P2 秋招后迭代 |
@@ -438,4 +435,4 @@ Setting（KV）
 2. **受众**：已从"计算机专业研究生"扩展为广泛求职群体——预置模板（校招/社招/实习/空白）+ 字典全面可定制（§3.6），核心状态机保持固定集合。
 3. **P0 范围**：§9 P0 表（含简历版本管理）—— 待确认。
 4. UI 全中文、深色模式跟随系统 —— 已确认。
-5. （2026-08-29 交付后用户决策）「剪藏」措辞全部改为「收录」；浏览器扩展输出目录改为可见的 build/；**邮件解析功能整体移除**（.eml 导入 UI 与 IPC 已删，core 内规则引擎代码与表结构保留为休眠，未来如需 IMAP 可复用）。
+5. （2026-08-29 交付后用户决策）「剪藏」措辞全部改为「收录」；浏览器扩展输出目录改为可见的 build/；**邮件解析功能整体移除**（UI、IPC、规则引擎和依赖均删除，仅保留旧表与备份兼容）。

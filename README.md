@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/whyluna/find-your-job/releases/download/v0.1.0/FindYourJob_0.1.0_aarch64.dmg">下载 v0.1.0（Apple Silicon）</a>
+  <a href="https://github.com/whyluna/find-your-job/releases/tag/v0.1.1">下载 v0.1.1</a>
   ·
   <a href="docs/design.md">设计文档</a>
   ·
@@ -51,8 +51,10 @@
 
 - 月历统一展示面试、流程截止日期和投递记录。
 - 仪表盘聚合近期截止与面试安排。
-- 统计页提供阶段漏斗、近 8 周投递趋势、渠道/批次分布和沉默投递。
+- 过期但尚未填写结果的面试会进入“待补结果”，不会从待办中消失。
+- 统计页提供历史到达漏斗、近 8 周投递趋势、渠道/批次分布和按最后流程事件计算的沉默投递。
 - offer 对比支持五维加权评分，权重和评分均保存在本机。
+- 可选 macOS 系统提醒只在设置页主动开启，并可调整截止日期与面试的提前量。
 
 ### 资料与收录
 
@@ -66,19 +68,20 @@
 
 - 数据库存放于：
   `~/Library/Application Support/com.findyourjob/findyourjob.db`
-- JSON 全量导出与覆盖式恢复会包含数据库记录和受管文件。
-- 支持 CSV 导入导出，便于与表格工具互通。
+- JSON 全量导出与覆盖式恢复会包含数据库记录和受管文件，但不会导出 LLM API Key 或浏览器扩展 Token；恢复后扩展 Token 会更新。
+- 支持带预检、中文值映射、重复识别和事务保护的 CSV 导入导出。
 - 浏览器扩展仅通过带 Token 的本机 `127.0.0.1` 接口与 App 通信。
+- LLM API Key 保存在 macOS 系统凭据库，不写入 SQLite。
 
 ## 安装
 
 ### 下载 DMG
 
-1. 下载 [FindYourJob_0.1.0_aarch64.dmg](https://github.com/whyluna/find-your-job/releases/download/v0.1.0/FindYourJob_0.1.0_aarch64.dmg)。
+1. 从 [v0.1.1 Release](https://github.com/whyluna/find-your-job/releases/tag/v0.1.1) 下载 `FindYourJob_0.1.1_aarch64.dmg`。
 2. 打开 DMG，将 FindYourJob 拖入“应用程序”。
 3. 当前版本为本地签名、尚未经过 Apple 公证；首次启动如被 Gatekeeper 阻止，请在 Finder 中右键 App 并选择“打开”。
 
-当前发布包面向 Apple Silicon Mac。
+当前发布包面向 Apple Silicon、macOS 12 或更高版本。
 
 ### 从源码构建
 
@@ -89,7 +92,15 @@ pnpm install
 pnpm tauri build
 ```
 
-项目中的构建脚本会自动：
+标准 `pnpm tauri build` 只构建，不会关闭正在运行的应用，也不会修改 `/Applications`。
+
+项目维护者希望构建后立即替换本机安装版时使用：
+
+```bash
+pnpm app:install
+```
+
+该命令会：
 
 1. 构建 App 与 DMG；
 2. 替换 `/Applications/FindYourJob.app`；
@@ -100,7 +111,7 @@ pnpm tauri build
 
 ### 下载与安装
 
-1. 从 [v0.1.0 Release](https://github.com/whyluna/find-your-job/releases/tag/v0.1.0) 下载 `FindYourJob-browser-extension-v0.1.0.zip`。
+1. 从 [v0.1.1 Release](https://github.com/whyluna/find-your-job/releases/tag/v0.1.1) 下载 `FindYourJob-browser-extension-v0.1.1.zip`。
 2. 将 ZIP 解压到一个固定目录。浏览器会持续读取这个目录，加载后不要移动或删除。
 3. 打开扩展管理页：
    - Chrome：`chrome://extensions`
@@ -119,7 +130,7 @@ pnpm tauri build
    - 所有字段都可以在收录前手动修改；
    - 如已在 App 中配置智能识别，可按需点击“AI 识别”进行公司/岗位识别和 JD 清洗；
    - 点击“确认收录”。
-6. 出现“已收录到 FindYourJob（已保存状态）”后，岗位会进入 App 的投递看板；之后可补充批次、简历版本并通过时间线记录正式投递。
+6. 出现“已收录到 FindYourJob（已保存状态）”后，岗位会进入 App 的投递看板；重复收录同一岗位时会返回已有记录，不会静默创建副本。之后可补充批次、简历版本并通过时间线记录正式投递。
 
 也可以在岗位页面使用右键菜单“收录到 FindYourJob”快速保存。工具栏角标显示 `✓` 表示成功，`T` 表示尚未配置 Token，`×` 表示连接或保存失败。
 
@@ -148,6 +159,7 @@ pnpm dev              # Vite 前端
 pnpm tauri dev        # Tauri 开发模式
 pnpm typecheck        # TypeScript 类型检查
 pnpm test             # Vitest
+pnpm --filter fyj-extension build
 cd src-tauri
 cargo test --workspace
 ```
@@ -162,6 +174,14 @@ cargo test --workspace
 - WXT 浏览器扩展
 
 领域逻辑集中在 `src-tauri/crates/core`，Tauri 命令层保持轻量。
+
+## 安全与贡献
+
+- 安全问题请按 [SECURITY.md](SECURITY.md) 私密报告，不要在公开 Issue 中粘贴 Token、数据库或真实简历。
+- 开发与提交要求见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+- 项目采用 [MIT License](LICENSE)。
+- GitHub Actions 会持续运行类型检查、前端测试、扩展构建、Rust 格式检查、Clippy 和全量测试；正式 macOS 发布工作流要求 Developer ID 与 Apple 公证凭据，并只创建待人工复核的 Draft Release。
+- 维护者发布步骤见 [docs/releasing.md](docs/releasing.md)。
 
 ## 项目结构
 

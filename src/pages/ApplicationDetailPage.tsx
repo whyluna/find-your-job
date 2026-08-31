@@ -31,6 +31,7 @@ import { EventItem } from "@/components/detail/EventItem";
 import { InterviewCard } from "@/components/detail/InterviewCard";
 import { EditApplicationDialog } from "@/components/detail/EditApplicationDialog";
 import { cn } from "@/lib/utils";
+import { showToast } from "@/lib/toast";
 
 type Tab = "timeline" | "jd" | "materials";
 
@@ -85,7 +86,11 @@ export default function ApplicationDetailPage() {
     );
 
   const app = data!;
-  const nextRound = app.interviews.reduce((max, iv) => Math.max(max, iv.round), 0) + 1;
+  const maxRound = app.interviews.reduce((max, iv) => Math.max(max, iv.round), 0);
+  const nextRound = maxRound + 1;
+  const overdueInterview = app.interviews.find(
+    (iv) => iv.status === "SCHEDULED" && !!iv.scheduledAt && new Date(iv.scheduledAt).getTime() < Date.now(),
+  );
   // 上一轮已约未进行时，禁止添加下一轮（服务端同样强制）
   const hasScheduled = app.interviews.some((iv) => iv.status === "SCHEDULED");
   // 时间线 = 事件 + 面试合并倒序（面试也是时间线的一等公民）
@@ -116,9 +121,13 @@ export default function ApplicationDetailPage() {
               {app.department && <span> · {app.department}</span>} · {app.positionTitle}
             </h1>
             <StatusBadge status={app.status} />
-            {app.status === "INTERVIEWING" && app.interviews.length > 0 && (
+            {overdueInterview ? (
+              <span className="rounded bg-red-100 px-2 py-0.5 text-[13px] font-medium text-red-600 dark:bg-red-900/40 dark:text-red-300">
+                第 {overdueInterview.round} 轮待补结果
+              </span>
+            ) : app.status === "INTERVIEWING" && maxRound > 0 && (
               <span className="rounded bg-indigo-100 px-2 py-0.5 text-[13px] font-medium text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
-                第 {app.interviews[0].round} 轮
+                第 {maxRound} 轮
               </span>
             )}
             <span className="rounded bg-slate-100 px-2 py-0.5 text-[13px] text-slate-600 dark:bg-slate-800 dark:text-slate-300">
@@ -176,7 +185,7 @@ export default function ApplicationDetailPage() {
       </div>
 
       {/* Tabs */}
-      <div className="mt-5 flex gap-1 border-b border-slate-200 dark:border-slate-800/80">
+      <div role="tablist" aria-label="投递详情" className="mt-5 flex gap-1 border-b border-slate-200 dark:border-slate-800/80">
         {(
           [
             ["timeline", "时间线", app.events.length + app.interviews.length],
@@ -187,6 +196,8 @@ export default function ApplicationDetailPage() {
           <button
             key={key}
             onClick={() => setTab(key)}
+            role="tab"
+            aria-selected={tab === key}
             className={cn(
               "-mb-px flex items-center gap-1.5 border-b-2 px-3.5 py-2 text-sm transition-colors",
               tab === key
@@ -318,7 +329,7 @@ export default function ApplicationDetailPage() {
                   await api.uploadAttachment("APPLICATION", app.id, picked);
                   queryClient.invalidateQueries({ queryKey: ["application-detail", id] });
                 } catch (e) {
-                  alert(String(e));
+                  showToast({ kind: "error", message: String(e) });
                 }
               }}
             >
@@ -344,14 +355,14 @@ export default function ApplicationDetailPage() {
                     </span>
                   )}
                   <button
-                    onClick={() => openPath(a.filePath).catch((e) => alert(String(e)))}
+                    onClick={() => openPath(a.filePath).catch((e) => showToast({ kind: "error", message: String(e) }))}
                     className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
                     title="打开"
                   >
                     <FileText className="size-3.5" />
                   </button>
                   <button
-                    onClick={() => revealItemInDir(a.filePath).catch(() => undefined)}
+                    onClick={() => revealItemInDir(a.filePath).catch((reason) => showToast({ kind: "error", message: String(reason) }))}
                     className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
                     title="在 Finder 中显示"
                   >
@@ -360,7 +371,7 @@ export default function ApplicationDetailPage() {
                   <button
                     onClick={async () => {
                       if (!confirm(`删除附件「${a.fileName}」？`)) return;
-                      await api.deleteAttachment(a.id).catch((e) => alert(String(e)));
+                      await api.deleteAttachment(a.id).catch((e) => showToast({ kind: "error", message: String(e) }));
                       queryClient.invalidateQueries({ queryKey: ["application-detail", id] });
                     }}
                     className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/30"

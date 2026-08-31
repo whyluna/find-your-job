@@ -1,5 +1,6 @@
 import { NavLink } from "react-router";
 import {
+  AlertTriangle,
   BarChart3,
   BookOpen,
   BriefcaseBusiness,
@@ -10,7 +11,9 @@ import {
   Scale,
   Settings,
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
+import { api } from "@/lib/ipc";
 import type { ReactNode } from "react";
 
 const NAV_GROUPS: {
@@ -87,7 +90,28 @@ export function SidebarLayout({ children }: { children: ReactNode }) {
           ))}
         </nav>
       </aside>
-      <main className="app-main min-w-0 flex-1 overflow-y-auto">{children}</main>
+      <main className="app-main min-w-0 flex-1 overflow-y-auto">
+        <RecoveryBanner />
+        {children}
+      </main>
+    </div>
+  );
+}
+
+function RecoveryBanner() {
+  const { data } = useQuery({ queryKey: ["db-ready"], queryFn: api.dbReady });
+  if (!data?.recoveryMode) return null;
+  return (
+    <div role="alert" className="m-3 flex items-start gap-3 rounded-[10px] border border-red-300 bg-red-50 px-4 py-3 text-[13px] text-red-700 dark:border-red-800 dark:bg-red-900/25 dark:text-red-200">
+      <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+      <div className="min-w-0 flex-1">
+        <div className="font-semibold">数据库恢复模式</div>
+        <div className="mt-0.5 break-words opacity-85">{data.startupError}</div>
+        <div className="mt-1 text-[12px] opacity-75">当前临时数据库不会覆盖原文件，请先检查数据目录或从备份恢复。</div>
+      </div>
+      <button className="shrink-0 rounded-[7px] border border-red-300 px-2.5 py-1 font-medium hover:bg-red-100 dark:border-red-700 dark:hover:bg-red-900/40" onClick={() => api.revealDataDir()}>
+        打开数据目录
+      </button>
     </div>
   );
 }

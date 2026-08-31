@@ -9,9 +9,11 @@ import { Button, PageHeader, TextInput } from "@/components/ui";
 import { QuestionModal } from "@/components/QuestionModal";
 import { LatexText } from "@/components/LatexText";
 import { cn } from "@/lib/utils";
+import { showToast } from "@/lib/toast";
 
 interface BankItem {
   questionId: string;
+  interviewId: string;
   question: string;
   myAnswer?: string | null;
   quality: "GOOD" | "OK" | "BAD" | "UNKNOWN";
@@ -85,11 +87,28 @@ export default function ReviewPage() {
   }, [data]);
 
   const delQuestion = useMutation({
-    mutationFn: (id: string) => api.deleteQuestion(id),
-    onSuccess: () => {
+    mutationFn: (question: BankItem) => api.deleteQuestion(question.questionId).then(() => question),
+    onSuccess: (question) => {
       queryClient.invalidateQueries({ queryKey: ["question-bank"] });
       queryClient.invalidateQueries({ queryKey: ["application-detail"] });
       queryClient.invalidateQueries({ queryKey: ["applications"] });
+      showToast({
+        message: "已删除一道面经题",
+        actionLabel: "撤销",
+        action: async () => {
+          await api.addQuestion({
+            interviewId: question.interviewId,
+            question: question.question,
+            myAnswer: question.myAnswer ?? null,
+            quality: question.quality,
+            reflection: question.reflection ?? null,
+            tags: question.tags,
+          });
+          await queryClient.invalidateQueries({ queryKey: ["question-bank"] });
+          await queryClient.invalidateQueries({ queryKey: ["application-detail"] });
+          showToast({ kind: "success", message: "面经题已恢复" });
+        },
+      });
     },
   });
 
@@ -108,6 +127,7 @@ export default function ReviewPage() {
         <div className="relative w-64">
           <Search className="absolute left-2.5 top-2 size-3.5 text-slate-400" />
           <TextInput
+            data-global-search
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="搜索题目 / 回答 / 公司…"
@@ -149,6 +169,7 @@ export default function ReviewPage() {
             <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 dark:border-slate-800/80">
               <button
                 onClick={() => setCollapsed((c) => ({ ...c, [g.applicationId]: !c[g.applicationId] }))}
+                aria-expanded={!collapsed[g.applicationId]}
                 className="flex min-w-0 items-center gap-2 text-left"
               >
                 <ChevronDown
@@ -231,7 +252,7 @@ export default function ReviewPage() {
                             </button>
                             <button
                               onClick={() => {
-                                if (confirm("删除这道面经？")) delQuestion.mutate(q.questionId);
+                                if (confirm("删除这道面经？")) delQuestion.mutate(q);
                               }}
                               className="rounded-md p-1 text-slate-300 opacity-0 transition-all hover:bg-red-50 hover:text-red-500 group-hover:opacity-100 dark:hover:bg-red-900/30"
                               title="删除"

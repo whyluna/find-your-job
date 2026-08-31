@@ -1,5 +1,5 @@
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
-use sqlx::SqlitePool;
+use sqlx::{Row, SqlitePool};
 use std::path::Path;
 use std::str::FromStr;
 
@@ -21,6 +21,25 @@ pub async fn init_pool(db_path: &Path) -> Result<SqlitePool> {
         .max_connections(5)
         .connect_with(opts)
         .await?;
-    sqlx::migrate!("./migrations").run(&pool).await?;
+    // 两个迁移均随二进制嵌入，运行时不依赖源码目录。
+    // 0001 使用 IF NOT EXISTS / INSERT OR IGNORE，可安全重复执行。
+    sqlx::raw_sql(include_str!("../migrations/0001_init.sql"))
+        .execute(&pool)
+        .await?;
+    let columns = sqlx::query("PRAGMA table_info(application)")
+        .fetch_all(&pool)
+        .await?;
+    let has_sort_order = columns.iter().any(|row| {
+        row.try_get::<String, _>("name")
+            .map(|name| name == "sort_order")
+            .unwrap_or(false)
+    });
+    if !has_sort_order {
+        sqlx::raw_sql(include_str!(
+            "../migrations/0002_application_sort_order.sql"
+        ))
+        .execute(&pool)
+        .await?;
+    }
     Ok(pool)
 }

@@ -17,6 +17,8 @@ pub const DEFAULT_PORT: u16 = 37321;
 pub struct HttpState {
     pub services: Services,
     pub token: String,
+    /// 由正式 App 显式注入；测试默认 None，绝不读取真实系统凭据。
+    pub llm_api_key: Arc<std::sync::RwLock<Option<String>>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -31,6 +33,15 @@ pub struct ClipInput {
     pub batch: Option<String>,
     pub job_url: Option<String>,
     pub jd_text: Option<String>,
+    #[serde(default)]
+    pub allow_duplicate: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClipResponse {
+    pub application: Application,
+    pub created: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -81,7 +92,12 @@ pub struct ExtractInput {
 
 /// 智能识别：页面原文 → 应用内 LLM → 结构化字段（未配置 LLM 时返回 400 提示）
 async fn extract(State(state): State<Arc<HttpState>>, Json(input): Json<ExtractInput>) -> Response {
-    let Some(cfg) = fyj_core::llm::config_from_settings(&state.services).await else {
+    let injected_key = state
+        .llm_api_key
+        .read()
+        .ok()
+        .and_then(|value| value.clone());
+    let Some(cfg) = fyj_core::llm::config_from_settings(&state.services, injected_key).await else {
         return err(
             StatusCode::BAD_REQUEST,
             "应用未配置智能识别 LLM：请打开 FindYourJob → 设置 → 智能识别（LLM），填写 API Key",
@@ -94,30 +110,55 @@ async fn extract(State(state): State<Arc<HttpState>>, Json(input): Json<ExtractI
 }
 
 async fn clip(State(state): State<Arc<HttpState>>, Json(input): Json<ClipInput>) -> Response {
-    let app: Result<Application, _> = state
-        .services
-        .create_application(CreateApplicationInput {
-            company_name: input.company_name,
-            company_website: None,
-            company_careers_url: None,
-            position_title: input.position_title,
-            department: input.department,
-            work_location: input.work_location,
-            channel: input.channel,
-            batch: input.batch,
-            priority: None,
-            applied: Some(false), // 剪藏落为"已保存"，确认投递后补 APPLIED 事件
-            applied_date: None,
-            job_url: input.job_url,
-            jd_text: input.jd_text,
-            salary_range: None,
-            tags: vec!["收录".into()],
-            resume_version_id: None,
-            notes: None,
-        })
-        .await;
+    let create_input = CreateApplicationInput {
+        company_name: input.company_name,
+        company_website: None,
+        company_careers_url: None,
+        position_title: input.position_title,
+        department: input.department,
+        work_location: input.work_location,
+        channel: input.channel,
+        batch: input.batch,
+        priority: None,
+        applied: Some(false), // 剪藏落为"已保存"，确认投递后补 APPLIED 事件
+        applied_date: None,
+        job_url: input.job_url,
+        jd_text: input.jd_text,
+        salary_range: None,
+        tags: vec!["收录".into()],
+        resume_version_id: None,
+        notes: None,
+    };
+    if !input.allow_duplicate {
+        match state
+            .services
+            .find_duplicate_application(&create_input)
+            .await
+        {
+            Ok(Some(application)) => {
+                return (
+                    StatusCode::OK,
+                    Json(ClipResponse {
+                        application,
+                        created: false,
+                    }),
+                )
+                    .into_response();
+            }
+            Ok(None) => {}
+            Err(e) => return err(StatusCode::BAD_REQUEST, &e.to_string()),
+        }
+    }
+    let app: Result<Application, _> = state.services.create_application(create_input).await;
     match app {
-        Ok(a) => (StatusCode::CREATED, Json(a)).into_response(),
+        Ok(application) => (
+            StatusCode::CREATED,
+            Json(ClipResponse {
+                application,
+                created: true,
+            }),
+        )
+            .into_response(),
         Err(e) => err(StatusCode::BAD_REQUEST, &e.to_string()),
     }
 }
@@ -164,6 +205,7 @@ mod tests {
             Arc::new(HttpState {
                 services: Services::new(pool),
                 token: "test-token".into(),
+                llm_api_key: Arc::new(std::sync::RwLock::new(None)),
             }),
             dir,
         )
@@ -216,10 +258,11 @@ mod tests {
             .unwrap();
         assert_eq!(res.status(), StatusCode::CREATED);
         let bytes = res.into_body().collect().await.unwrap().to_bytes();
-        let created: Application = serde_json::from_slice(&bytes).unwrap();
-        assert_eq!(created.company_name, "剪藏科技");
-        assert_eq!(created.status, fyj_core::models::Status::Saved);
-        assert_eq!(created.tags, vec!["收录".to_string()]);
+        let created: ClipResponse = serde_json::from_slice(&bytes).unwrap();
+        assert!(created.created);
+        assert_eq!(created.application.company_name, "剪藏科技");
+        assert_eq!(created.application.status, fyj_core::models::Status::Saved);
+        assert_eq!(created.application.tags, vec!["收录".to_string()]);
 
         let list = state
             .services
@@ -227,6 +270,70 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(list.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn repeated_clip_returns_existing_unless_explicitly_forced() {
+        let (state, _d) = setup().await;
+        let app = router(state.clone());
+        let request = || {
+            Request::builder()
+                .method("POST")
+                .uri("/api/ext/clip")
+                .header("authorization", "Bearer test-token")
+                .header("content-type", "application/json")
+                .body(Body::from(clip_body()))
+                .unwrap()
+        };
+        assert_eq!(
+            app.clone().oneshot(request()).await.unwrap().status(),
+            StatusCode::CREATED
+        );
+        let duplicate = app.clone().oneshot(request()).await.unwrap();
+        assert_eq!(duplicate.status(), StatusCode::OK);
+        let bytes = duplicate.into_body().collect().await.unwrap().to_bytes();
+        let body: ClipResponse = serde_json::from_slice(&bytes).unwrap();
+        assert!(!body.created);
+        assert_eq!(
+            state
+                .services
+                .list_applications(&Default::default())
+                .await
+                .unwrap()
+                .len(),
+            1
+        );
+
+        let forced = serde_json::json!({
+            "companyName": "剪藏科技",
+            "positionTitle": "前端工程师",
+            "channel": "BOSS",
+            "jobUrl": "https://example.com/job/1",
+            "allowDuplicate": true
+        })
+        .to_string();
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/ext/clip")
+                    .header("authorization", "Bearer test-token")
+                    .header("content-type", "application/json")
+                    .body(Body::from(forced))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::CREATED);
+        assert_eq!(
+            state
+                .services
+                .list_applications(&Default::default())
+                .await
+                .unwrap()
+                .len(),
+            2
+        );
     }
 
     #[tokio::test]
