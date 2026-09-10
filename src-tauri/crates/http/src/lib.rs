@@ -120,8 +120,10 @@ async fn clip(State(state): State<Arc<HttpState>>, Json(input): Json<ClipInput>)
         channel: input.channel,
         batch: input.batch,
         priority: None,
-        applied: Some(false), // 剪藏落为"已保存"，确认投递后补 APPLIED 事件
+        applied: Some(false), // 收录到意向岗位，正式投递后再确认 APPLIED 事件
         applied_date: None,
+        planned_apply_at: None,
+        application_deadline: None,
         job_url: input.job_url,
         jd_text: input.jd_text,
         salary_range: None,

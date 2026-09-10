@@ -5,6 +5,7 @@
 
 pub mod analytics;
 pub mod backup;
+pub mod csv_progress;
 pub mod db;
 pub mod entities;
 pub mod error;

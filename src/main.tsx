@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter } from "react-router";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import App from "./App";
 import { startNotifier } from "./lib/notifier";
 import "./styles/globals.css";
@@ -20,6 +21,10 @@ void startNotifier();
 const queryClient = new QueryClient({
   mutationCache: new MutationCache({
     onError: (error) => showToast({ kind: "error", message: String(error) }),
+    onSuccess: () => {
+      // 事件/岗位增删改会影响多个已缓存页面，返回仪表盘时需看到最新进度。
+      refreshJobData();
+    },
   }),
   queryCache: new QueryCache({
     onError: (error, query) => {
@@ -28,6 +33,21 @@ const queryClient = new QueryClient({
   }),
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
 });
+
+function refreshJobData() {
+  void queryClient.invalidateQueries({ predicate: (query) => [
+    "applications", "application-detail", "db-ready", "stats", "upcoming",
+    "calendar-items", "resumes", "companies", "offer-apps", "question-bank", "palette-search",
+  ].includes(String(query.queryKey[0])) });
+}
+
+// 浏览器扩展通过 HTTP 写入，不经过 React mutation；回到 App 时重新读取。
+if ("__TAURI_INTERNALS__" in window) {
+  void getCurrentWindow().onFocusChanged(({ payload: focused }) => {
+    // 正在编辑时保留表单草稿，避免刷新详情后把刚输入的内容重置。
+    if (focused && !document.querySelector('[aria-modal="true"]')) refreshJobData();
+  }).catch(() => undefined);
+}
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

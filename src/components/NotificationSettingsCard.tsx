@@ -48,7 +48,7 @@ export function NotificationSettingsCard() {
         <Bell className="size-4" /> 系统提醒
       </h2>
       <p className="mt-1.5 text-[13px] leading-relaxed text-slate-500">
-        在截止日期和面试临近时发送 macOS 通知。只有你在这里主动开启时才会申请系统权限；当前版本需保持
+        在计划投递、网申截止、流程截止和面试临近时发送 macOS 通知。只有你在这里主动开启时才会申请系统权限；当前版本需保持
         FindYourJob 运行，完全退出应用后不会发送提醒。
       </p>
       <div className="mt-4 flex items-center gap-3">
@@ -66,7 +66,7 @@ export function NotificationSettingsCard() {
       </div>
       <div className="mt-3 grid grid-cols-2 gap-3">
         <label className="text-[12px] text-[var(--fyj-secondary)]">
-          截止日期提前
+          投递计划 / 截止提前
           <Select
             className="mt-1"
             value={data?.deadlineHours ?? "24"}

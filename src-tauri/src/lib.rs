@@ -11,8 +11,9 @@ use fyj_core::entities::{
 use fyj_core::entities::{ApplicationDetail, ApplicationEvent};
 use fyj_core::services::{
     AddEventInput, AddInterviewInput, AddQuestionInput, ApplicationImportPreview,
-    ApplicationImportRow, ApplicationImportSummary, CreateApplicationInput, ListFilter, Services,
-    UpdateApplicationInput, UpdateEventInput, UpdateInterviewInput, UpdateQuestionInput,
+    ApplicationImportRow, ApplicationImportSummary, ConfirmApplicationInput,
+    CreateApplicationInput, ListFilter, Services, UpdateApplicationInput, UpdateEventInput,
+    UpdateInterviewInput, UpdateQuestionInput,
 };
 use fyj_http::{self, HttpState};
 
@@ -326,6 +327,15 @@ async fn create_application(
     input: CreateApplicationInput,
 ) -> CmdResult<Application> {
     state.0.create_application(input).await.map_err(e2s)
+}
+
+#[tauri::command]
+async fn confirm_application(
+    state: tauri::State<'_, AppState>,
+    id: String,
+    input: ConfirmApplicationInput,
+) -> CmdResult<Application> {
+    state.0.confirm_application(&id, input).await.map_err(e2s)
 }
 
 #[tauri::command]
@@ -966,6 +976,7 @@ pub fn run() {
             reorder_applications,
             get_application_detail,
             create_application,
+            confirm_application,
             preview_application_import,
             import_application_rows,
             update_application,

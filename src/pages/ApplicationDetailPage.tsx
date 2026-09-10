@@ -1,7 +1,7 @@
 /** 投递详情页：时间线（行内加事件）/ 面试（逐题）/ JD / 材料占位 / 编辑与删除 */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
-import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
+import { openPath, openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
 import {
   Archive,
   ArchiveRestore,
@@ -14,6 +14,9 @@ import {
   Save,
   Trash2,
   Upload,
+  Bookmark,
+  ExternalLink,
+  Send,
 } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
@@ -32,6 +35,8 @@ import { InterviewCard } from "@/components/detail/InterviewCard";
 import { EditApplicationDialog } from "@/components/detail/EditApplicationDialog";
 import { cn } from "@/lib/utils";
 import { showToast } from "@/lib/toast";
+import { ConfirmApplicationDialog } from "@/components/ConfirmApplicationDialog";
+import { EditPlanDialog } from "@/components/ApplicationPlan";
 
 type Tab = "timeline" | "jd" | "materials";
 
@@ -41,6 +46,8 @@ export default function ApplicationDetailPage() {
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>("timeline");
   const [showEdit, setShowEdit] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [showPlan, setShowPlan] = useState(false);
   const [jdEditing, setJdEditing] = useState(false);
   const [jdDraft, setJdDraft] = useState("");
 
@@ -143,12 +150,12 @@ export default function ApplicationDetailPage() {
             )}
           </div>
           <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-slate-500">
-            <span>投递日 {fmtDate(app.appliedDate)}</span>
+            <span>{app.status === "SAVED" ? `收藏于 ${fmtDate(app.createdAt)}` : `投递日 ${fmtDate(app.appliedDate)}`}</span>
             {app.workLocation && <span>Base {app.workLocation}</span>}
             <span>优先级 {PRIORITY_LABELS[app.priority]}</span>
             <span>
               简历版本：
-              {app.resumeVersionName ?? <span className="text-amber-500">未标注</span>}
+              {app.resumeVersionName ?? (app.status === "SAVED" ? "投递时选择" : <span className="text-amber-500">未标注</span>)}
             </span>
             {app.salaryRange && <span>薪资 {app.salaryRange}</span>}
             {app.tags.map((t) => (
@@ -183,6 +190,28 @@ export default function ApplicationDetailPage() {
           </Button>
         </div>
       </div>
+
+      {app.status === "SAVED" && (
+        <section className="mt-4 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-[var(--fyj-border)] bg-[var(--fyj-accent-soft)] p-4">
+          <div className="min-w-0 flex-1">
+            <h2 className="flex items-center gap-2 text-sm font-semibold"><Bookmark className="size-4" /> 意向岗位</h2>
+            <p className="mt-1 text-[13px] text-[var(--fyj-secondary)]">{app.isArchived ? "岗位已归档，取消归档后可继续准备投递。" : "查看职位要求、准备简历；在招聘网站完成投递后，点击「确认已投递」。"}</p>
+            {(app.plannedApplyAt || app.applicationDeadline) && <p className="mt-2 text-[13px] text-[var(--fyj-secondary)]">
+              {app.plannedApplyAt && <span className="mr-4">计划投递 {fmtDateTime(app.plannedApplyAt)}</span>}
+              {app.applicationDeadline && <span>网申截止 {fmtDateTime(app.applicationDeadline)}</span>}
+            </p>}
+          </div>
+          {!app.isArchived && <div className="flex flex-wrap gap-2">
+            <Button onClick={() => setShowPlan(true)}>投递计划</Button>
+            <Button onClick={() => app.jobUrl ? void openUrl(app.jobUrl).catch((reason) => showToast({ kind: "error", message: String(reason) })) : setShowEdit(true)}>
+              <ExternalLink className="size-4" /> {app.jobUrl ? "打开岗位页面" : "补充岗位链接"}
+            </Button>
+            <Button variant="primary" onClick={() => setShowConfirm(true)}><Send className="size-4" /> 确认已投递</Button>
+          </div>}
+        </section>
+      )}
+      {showConfirm && <ConfirmApplicationDialog key={app.id} application={app} onClose={() => setShowConfirm(false)} />}
+      {showPlan && <EditPlanDialog key={app.id} application={app} onClose={() => setShowPlan(false)} />}
 
       {/* Tabs */}
       <div role="tablist" aria-label="投递详情" className="mt-5 flex gap-1 border-b border-slate-200 dark:border-slate-800/80">
@@ -224,12 +253,12 @@ export default function ApplicationDetailPage() {
             <div className="flex gap-3">
               <div className="relative z-10 mt-[11px] size-[9px] shrink-0 rounded-full border-2 border-[var(--fyj-accent)] bg-[var(--fyj-canvas)]" />
               <div className="min-w-0 flex-1">
-                <AddEventForm applicationId={app.id} nextRound={nextRound} hasScheduled={hasScheduled} />
+                <AddEventForm key={app.id} applicationId={app.id} nextRound={nextRound} hasScheduled={hasScheduled} isWishlist={app.status === "SAVED"} onConfirmApplication={() => setShowConfirm(true)} />
               </div>
             </div>
             {timeline.length === 0 && (
               <div className="rounded-xl border border-dashed border-slate-300 py-8 text-center text-sm text-slate-400 dark:border-slate-700">
-                还没有记录，用上方表单记录第一笔
+                {app.status === "SAVED" ? "可以先记录准备事项。正式投递后，继续在这里跟进招聘进度。" : "还没有记录，用上方表单记录第一笔"}
               </div>
             )}
             {timeline.map((t) =>

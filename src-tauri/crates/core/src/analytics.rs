@@ -9,6 +9,18 @@ use crate::entities::ts;
 use crate::error::Result;
 use crate::services::Services;
 
+// 收藏、准备备注、投递前沟通/放弃均不算投递；兼容旧备份中只记录后续阶段的岗位。
+pub(crate) const SUBMITTED_CTE: &str = "WITH submitted AS (
+    SELECT a.* FROM application a WHERE a.is_archived = 0 AND (
+        a.applied_date IS NOT NULL OR
+        EXISTS(SELECT 1 FROM application_event e WHERE e.application_id = a.id AND e.type IN (
+            'APPLIED','ASSESSMENT_INVITED','ASSESSMENT_DONE','ASSESSMENT_FAILED',
+            'WRITTEN_INVITED','WRITTEN_DONE','WRITTEN_FAILED','RESUME_PASS','RESUME_FAIL',
+            'OC','INTENT_LETTER','OFFER','DUAL_AGREEMENT','TRIPLICATE','SIGNED')) OR
+        EXISTS(SELECT 1 FROM interview iv WHERE iv.application_id = a.id AND iv.status != 'CANCELLED')
+    )
+)";
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CountRow {
@@ -38,6 +50,7 @@ pub struct SilentApplication {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StatsDto {
+    pub wishlist_count: i64,
     pub status_counts: Vec<CountRow>,
     pub stage_reached_counts: Vec<CountRow>,
     pub channel_counts: Vec<CountRow>,
@@ -49,9 +62,14 @@ pub struct StatsDto {
 
 impl Services {
     pub async fn get_stats(&self) -> Result<StatsDto> {
+        let wishlist_count = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM application WHERE status = 'SAVED' AND is_archived = 0",
+        )
+        .fetch_one(&self.pool)
+        .await?;
         let group = |col: &str| {
             format!(
-                "SELECT {col} AS key, COUNT(*) AS count FROM application \
+                "{SUBMITTED_CTE} SELECT {col} AS key, COUNT(*) AS count FROM submitted \
                  WHERE is_archived = 0 GROUP BY {col} ORDER BY count DESC"
             )
         };
@@ -69,47 +87,45 @@ impl Services {
 
         // 到达后续阶段时也视为已到达前序阶段，保证漏斗单调且支持跳过测评/笔试。
         let stage_reached_counts = to_rows(
-            sqlx::query(
-                "SELECT 'APPLIED' AS key, COUNT(*) AS count FROM application a WHERE a.is_archived = 0 AND (\
-                    EXISTS(SELECT 1 FROM application_event e WHERE e.application_id = a.id AND e.type != 'NOTE') OR \
-                    EXISTS(SELECT 1 FROM interview iv WHERE iv.application_id = a.id)) \
-                 UNION ALL SELECT 'ASSESSMENT', COUNT(*) FROM application a WHERE a.is_archived = 0 AND (\
+            sqlx::query(&format!(
+                "{SUBMITTED_CTE} SELECT 'APPLIED' AS key, COUNT(*) AS count FROM submitted \
+                 UNION ALL SELECT 'ASSESSMENT', COUNT(*) FROM submitted a WHERE a.is_archived = 0 AND (\
                     EXISTS(SELECT 1 FROM application_event e WHERE e.application_id = a.id AND e.type IN \
                       ('ASSESSMENT_INVITED','ASSESSMENT_DONE','ASSESSMENT_FAILED','WRITTEN_INVITED','WRITTEN_DONE','WRITTEN_FAILED',\
                        'OC','INTENT_LETTER','OFFER','DUAL_AGREEMENT','TRIPLICATE','SIGNED')) OR \
                     EXISTS(SELECT 1 FROM interview iv WHERE iv.application_id = a.id)) \
-                 UNION ALL SELECT 'WRITTEN', COUNT(*) FROM application a WHERE a.is_archived = 0 AND (\
+                 UNION ALL SELECT 'WRITTEN', COUNT(*) FROM submitted a WHERE a.is_archived = 0 AND (\
                     EXISTS(SELECT 1 FROM application_event e WHERE e.application_id = a.id AND e.type IN \
                       ('WRITTEN_INVITED','WRITTEN_DONE','WRITTEN_FAILED','OC','INTENT_LETTER','OFFER','DUAL_AGREEMENT','TRIPLICATE','SIGNED')) OR \
                     EXISTS(SELECT 1 FROM interview iv WHERE iv.application_id = a.id)) \
-                 UNION ALL SELECT 'INTERVIEWING', COUNT(*) FROM application a WHERE a.is_archived = 0 AND (\
+                 UNION ALL SELECT 'INTERVIEWING', COUNT(*) FROM submitted a WHERE a.is_archived = 0 AND (\
                     EXISTS(SELECT 1 FROM interview iv WHERE iv.application_id = a.id) OR \
                     EXISTS(SELECT 1 FROM application_event e WHERE e.application_id = a.id AND e.type IN \
                       ('OC','INTENT_LETTER','OFFER','DUAL_AGREEMENT','TRIPLICATE','SIGNED'))) \
-                 UNION ALL SELECT 'OC', COUNT(*) FROM application a WHERE a.is_archived = 0 AND \
+                 UNION ALL SELECT 'OC', COUNT(*) FROM submitted a WHERE a.is_archived = 0 AND \
                     EXISTS(SELECT 1 FROM application_event e WHERE e.application_id = a.id AND e.type IN \
                       ('OC','INTENT_LETTER','OFFER','DUAL_AGREEMENT','TRIPLICATE','SIGNED')) \
-                 UNION ALL SELECT 'OFFER', COUNT(*) FROM application a WHERE a.is_archived = 0 AND \
+                 UNION ALL SELECT 'OFFER', COUNT(*) FROM submitted a WHERE a.is_archived = 0 AND \
                     EXISTS(SELECT 1 FROM application_event e WHERE e.application_id = a.id AND e.type IN \
                       ('OFFER','DUAL_AGREEMENT','TRIPLICATE','SIGNED')) \
-                 UNION ALL SELECT 'SIGNED', COUNT(*) FROM application a WHERE a.is_archived = 0 AND \
+                 UNION ALL SELECT 'SIGNED', COUNT(*) FROM submitted a WHERE a.is_archived = 0 AND \
                     EXISTS(SELECT 1 FROM application_event e WHERE e.application_id = a.id AND e.type = 'SIGNED')",
-            )
+            ))
             .fetch_all(&self.pool)
             .await?,
         );
 
-        let daily_rows = sqlx::query(
-            "SELECT strftime('%Y-%m-%d', applied_date, 'localtime') AS key, COUNT(*) AS count \
-             FROM application WHERE applied_date IS NOT NULL AND is_archived = 0 \
+        let daily_rows = sqlx::query(&format!(
+            "{SUBMITTED_CTE} SELECT strftime('%Y-%m-%d', applied_date, 'localtime') AS key, COUNT(*) AS count \
+             FROM submitted WHERE applied_date IS NOT NULL AND is_archived = 0 \
              GROUP BY key ORDER BY key",
-        )
+        ))
         .fetch_all(&self.pool)
         .await?;
         let daily_applied = to_rows(daily_rows);
 
-        let silent_rows = sqlx::query(
-            "SELECT a.id, c.name AS company_name, a.position_title, a.status, \
+        let silent_rows = sqlx::query(&format!(
+            "{SUBMITTED_CTE} SELECT a.id, c.name AS company_name, a.position_title, a.status, \
              COALESCE(\
                (SELECT MAX(activity_at) FROM (\
                   SELECT e.occurred_at AS activity_at FROM application_event e WHERE e.application_id = a.id \
@@ -117,7 +133,7 @@ impl Services {
                   SELECT COALESCE(iv.scheduled_at, iv.created_at) FROM interview iv WHERE iv.application_id = a.id\
                )), a.applied_date, a.created_at\
              ) AS last_activity_at \
-             FROM application a JOIN company c ON c.id = a.company_id \
+             FROM submitted a JOIN company c ON c.id = a.company_id \
              WHERE a.is_archived = 0 AND a.status NOT IN ('REJECTED','WITHDRAWN','SIGNED') \
              AND COALESCE(\
                (SELECT MAX(activity_at) FROM (\
@@ -126,7 +142,7 @@ impl Services {
                   SELECT COALESCE(iv.scheduled_at, iv.created_at) FROM interview iv WHERE iv.application_id = a.id\
                )), a.applied_date, a.created_at\
              ) <= ? ORDER BY last_activity_at ASC LIMIT 50",
-        )
+        ))
         .bind(ts(&(Utc::now() - chrono::Duration::days(14))))
         .fetch_all(&self.pool)
         .await?;
@@ -141,8 +157,8 @@ impl Services {
             })
             .collect();
 
-        let funnel_rows = sqlx::query(
-            "SELECT rv.name AS key, COUNT(a.id) AS count, \
+        let funnel_rows = sqlx::query(&format!(
+            "{SUBMITTED_CTE} SELECT rv.name AS key, COUNT(a.id) AS count, \
              SUM(CASE WHEN a.id IS NOT NULL AND (\
                  EXISTS (SELECT 1 FROM interview iv WHERE iv.application_id = a.id) OR \
                  EXISTS (SELECT 1 FROM application_event e WHERE e.application_id = a.id \
@@ -152,10 +168,10 @@ impl Services {
                  EXISTS (SELECT 1 FROM application_event e WHERE e.application_id = a.id \
                          AND e.type IN ('OC','INTENT_LETTER','OFFER','DUAL_AGREEMENT','TRIPLICATE','SIGNED'))\
              THEN 1 ELSE 0 END) AS offered \
-             FROM resume_version rv LEFT JOIN application a \
+             FROM resume_version rv LEFT JOIN submitted a \
                ON a.resume_version_id = rv.id AND a.is_archived = 0 \
              GROUP BY rv.id ORDER BY rv.created_at",
-        )
+        ))
         .fetch_all(&self.pool)
         .await?;
         let resume_funnel = funnel_rows
@@ -169,6 +185,7 @@ impl Services {
             .collect();
 
         Ok(StatsDto {
+            wishlist_count,
             status_counts,
             stage_reached_counts,
             channel_counts,

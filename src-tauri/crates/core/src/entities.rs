@@ -211,6 +211,10 @@ pub struct Application {
     pub priority: Priority,
     pub status: Status,
     pub applied_date: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub planned_apply_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub application_deadline: Option<DateTime<Utc>>,
     pub job_url: Option<String>,
     pub jd_text: Option<String>,
     pub jd_snapshot_at: Option<DateTime<Utc>>,
@@ -247,6 +251,8 @@ impl Application {
                 .and_then(|s| Status::parse(&s))
                 .unwrap_or(Status::Saved),
             applied_date: row.try_get("applied_date").ok().flatten(),
+            planned_apply_at: row.try_get("planned_apply_at").ok().flatten(),
+            application_deadline: row.try_get("application_deadline").ok().flatten(),
             job_url: row.try_get("job_url").ok().flatten(),
             jd_text: row.try_get("jd_text").ok().flatten(),
             jd_snapshot_at: row.try_get("jd_snapshot_at").ok().flatten(),

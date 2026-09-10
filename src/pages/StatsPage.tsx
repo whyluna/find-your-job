@@ -25,6 +25,7 @@ interface CountRow {
   count: number;
 }
 interface StatsDto {
+  wishlistCount: number;
   statusCounts: CountRow[];
   stageReachedCounts: CountRow[];
   channelCounts: CountRow[];
@@ -68,8 +69,8 @@ export default function StatsPage() {
   const s = data as StatsDto;
 
   const statusMap = new Map(s.statusCounts.map((r) => [r.key, r.count]));
-  const totalAll = s.statusCounts.reduce((n, r) => n + r.count, 0);
   const reachedMap = new Map(s.stageReachedCounts.map((row) => [row.key, row.count]));
+  const totalAll = reachedMap.get("APPLIED") ?? 0;
   const progressMax = Math.max(1, reachedMap.get("APPLIED") ?? 0);
 
   // 近 8 周聚合
@@ -88,7 +89,7 @@ export default function StatsPage() {
     <div className="px-6 pb-10 pt-0">
       <PageHeader
         title="统计"
-        subtitle={`共 ${totalAll} 条在追踪（不含归档）· 流程进展按历史最高到达阶段计算`}
+        subtitle={`${totalAll} 条正式投递 · ${s.wishlistCount} 个意向岗位 · 以下统计不含意向岗位与归档`}
       />
 
       <div className="mx-auto mt-5 grid max-w-[1120px] grid-cols-2 gap-4">

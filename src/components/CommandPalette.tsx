@@ -42,7 +42,8 @@ export function CommandPalette({
 
   const items = useMemo<PaletteItem[]>(() => {
     const commands: PaletteItem[] = [
-      { id: "cmd-create", label: "新建投递", hint: "命令", run: onCreateApplication },
+      { id: "cmd-create", label: "添加意向岗位 / 记录投递", hint: "命令", run: onCreateApplication },
+      { id: "cmd-wishlist", label: "去意向岗位", hint: "导航", run: () => navigate("/applications?status=SAVED") },
       { id: "cmd-board", label: "去投递看板", hint: "导航", run: () => navigate("/applications") },
       { id: "cmd-stats", label: "去统计", hint: "导航", run: () => navigate("/stats") },
       { id: "cmd-cal", label: "去日历", hint: "导航", run: () => navigate("/calendar") },

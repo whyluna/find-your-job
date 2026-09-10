@@ -22,7 +22,7 @@ export const STATUS_LIST = [
 export type Status = (typeof STATUS_LIST)[number];
 
 export const STATUS_LABELS: Record<Status, string> = {
-  SAVED: "已保存",
+  SAVED: "意向岗位",
   APPLIED: "已投递",
   ASSESSMENT: "测评中",
   WRITTEN: "笔试中",

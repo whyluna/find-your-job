@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DatePicker } from "./DatePicker";
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe("DatePicker", () => {
   it("今天按钮会真正选择今天，日期按钮带完整可访问名称", () => {
@@ -26,5 +26,22 @@ describe("DatePicker", () => {
     fireEvent.click(screen.getByRole("button", { name: "选择日期" }));
     fireEvent.keyDown(window, { key: "Escape" });
     expect(screen.queryByRole("dialog", { name: "选择日期" })).toBeNull();
+  });
+
+  it("靠近窗口边缘时翻转并约束位置，滚动后重新跟随按钮", () => {
+    let anchorTop = window.innerHeight - 40;
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      return this.tagName === "BUTTON"
+        ? { top: anchorTop, bottom: anchorTop + 30, left: window.innerWidth - 80, right: window.innerWidth - 10, width: 70, height: 30 } as DOMRect
+        : { top: 0, left: 0, bottom: 320, right: 264, width: 264, height: 320 } as DOMRect;
+    });
+    render(<DatePicker value={null} onChange={() => undefined} />);
+    fireEvent.click(screen.getByRole("button", { name: "选择日期" }));
+    const panel = screen.getByRole("dialog", { name: "选择日期" });
+    expect(parseFloat(panel.style.top) + 320).toBeLessThan(anchorTop);
+    expect(parseFloat(panel.style.left) + 264).toBeLessThanOrEqual(window.innerWidth - 12);
+    anchorTop = 20;
+    fireEvent.scroll(window);
+    expect(parseFloat(panel.style.top)).toBe(56);
   });
 });

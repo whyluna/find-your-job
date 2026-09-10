@@ -56,6 +56,8 @@ export interface Application {
   priority: Priority;
   status: Status;
   appliedDate?: string | null;
+  plannedApplyAt?: string | null;
+  applicationDeadline?: string | null;
   jobUrl?: string | null;
   jdText?: string | null;
   jdSnapshotAt?: string | null;
@@ -146,6 +148,10 @@ export interface ImportSummary {
 }
 
 export interface ApplicationImportRow extends CreateApplicationInput {
+  progressData?: string | null;
+  importStatus?: string | null;
+  stageAt?: string | null;
+  interviewRounds?: number | null;
   rowNumber: number;
   validationError?: string | null;
 }
@@ -202,6 +208,8 @@ export interface CustomEventType {
 // ---------- 输入 ----------
 
 export interface CreateApplicationInput {
+  plannedApplyAt?: string | null;
+  applicationDeadline?: string | null;
   companyName: string;
   companyWebsite?: string | null;
   companyCareersUrl?: string | null;
@@ -222,6 +230,8 @@ export interface CreateApplicationInput {
 }
 
 export interface UpdateApplicationInput {
+  plannedApplyAt?: string | null;
+  applicationDeadline?: string | null;
   companyName?: string;
   positionTitle?: string;
   department?: string | null;
@@ -235,6 +245,14 @@ export interface UpdateApplicationInput {
   tags?: string[];
   resumeVersionId?: string | null;
   notes?: string | null;
+}
+
+export interface ConfirmApplicationInput {
+  appliedAt: string;
+  channel: string;
+  batch: string;
+  resumeVersionId: string | null;
+  note: string | null;
 }
 
 export interface AddEventInput {
@@ -300,6 +318,7 @@ export interface UpdateQuestionInput {
 }
 
 export interface ListFilter {
+  submittedOnly?: boolean;
   statuses?: string[];
   channels?: string[];
   batches?: string[];

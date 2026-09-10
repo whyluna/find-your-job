@@ -60,11 +60,15 @@ export function AddEventForm({
   nextRound,
   hasScheduled,
   onDone,
+  isWishlist = false,
+  onConfirmApplication,
 }: {
   applicationId: string;
   nextRound: number;
   hasScheduled?: boolean;
   onDone?: () => void;
+  isWishlist?: boolean;
+  onConfirmApplication?: () => void;
 }) {
   const queryClient = useQueryClient();
   const [type, setType] = useState<EventType | "INTERVIEW" | string>("");
@@ -185,6 +189,11 @@ export function AddEventForm({
     if (isInterview) {
       addInterview.mutate();
     } else {
+      if (type === "APPLIED" && isWishlist && onConfirmApplication) {
+        setOpen(false);
+        onConfirmApplication();
+        return;
+      }
       addEvent.mutate();
     }
   }
@@ -212,7 +221,7 @@ export function AddEventForm({
                   <option
                     key={it.type}
                     value={it.type}
-                    disabled={it.type === "INTERVIEW" && hasScheduled}
+                    disabled={(it.type === "INTERVIEW" && hasScheduled) || (isWishlist && !["APPLIED", "NOTE", "HR_CONTACT", "WITHDRAWN"].includes(it.type))}
                   >
                     {it.type === "INTERVIEW"
                       ? hasScheduled
@@ -228,13 +237,14 @@ export function AddEventForm({
                 {(customTypes ?? [])
                   .filter((c: CustomEventType) => c.isActive)
                   .map((c: CustomEventType) => (
-                    <option key={c.id} value={`custom:${c.id}`}>
+                    <option key={c.id} value={`custom:${c.id}`} disabled={isWishlist && !["NO_CHANGE", "WITHDRAWN"].includes(c.projection)}>
                       {c.label}
                     </option>
                   ))}
               </optgroup>
             )}
           </Select>
+          {isWishlist && <p className="mt-2 text-[13px] text-slate-500">尚未投递，可先记录备注或沟通；确认已投递后再添加招聘阶段。</p>}
           {isInterview && (
             <div className="mt-2 rounded-lg bg-white/80 px-3 py-2 text-[13px] text-slate-500 dark:bg-slate-800/80">
               将创建<b>第 {nextRound} 轮</b>面试（逐轮添加，需上一轮完成或取消）；记录后可在时间线该条目上标记结果

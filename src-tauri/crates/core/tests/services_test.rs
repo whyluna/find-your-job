@@ -29,6 +29,8 @@ fn create_input(company: &str, title: &str) -> CreateApplicationInput {
         priority: Some("HIGH".into()),
         applied: Some(true),
         applied_date: Some(dt(1, 9)),
+        planned_apply_at: None,
+        application_deadline: None,
         job_url: None,
         jd_text: Some("负责推荐算法".into()),
         salary_range: None,
@@ -1257,6 +1259,10 @@ async fn csv_import_preview_maps_exported_labels_and_detects_duplicates() {
     input.priority = Some("中".into());
     input.job_url = Some("https://example.com/jobs/42#detail".into());
     let rows = vec![ApplicationImportRow {
+        progress_data: None,
+        import_status: None,
+        stage_at: None,
+        interview_rounds: None,
         row_number: 2,
         validation_error: None,
         input,
@@ -1283,11 +1289,19 @@ async fn csv_import_preview_maps_exported_labels_and_detects_duplicates() {
 async fn csv_import_is_atomic_when_any_row_is_invalid() {
     let (_dir, s) = setup().await;
     let valid = ApplicationImportRow {
+        progress_data: None,
+        import_status: None,
+        stage_at: None,
+        interview_rounds: None,
         row_number: 2,
         validation_error: None,
         input: create_input("不得部分写入", "后端"),
     };
     let invalid = ApplicationImportRow {
+        progress_data: None,
+        import_status: None,
+        stage_at: None,
+        interview_rounds: None,
         row_number: 3,
         validation_error: Some("日期格式错误".into()),
         input: create_input("错误行", "前端"),

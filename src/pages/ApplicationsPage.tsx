@@ -16,7 +16,7 @@ import {
 } from "@dnd-kit/sortable";
 import { KanbanSquare, Table2, GripVertical, Plus, Search, TriangleAlert } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { api } from "@/lib/ipc";
 import { fmtDate, deadlineLabel, isUrgent } from "@/lib/format";
 import { BATCH_LABELS, CHANNEL_LABELS, STATUS_LABELS, STATUS_LIST, type Status } from "@shared";
@@ -29,12 +29,15 @@ import { cn } from "@/lib/utils";
 export default function ApplicationsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [params, setParams] = useSearchParams();
   const [view, setView] = useState<"board" | "table">(
     () => (localStorage.getItem("fyj-view") as "board" | "table") || "board",
   );
   const [search, setSearch] = useState("");
-  const [status, setStatus] = useState<"ALL" | Status>("ALL");
+  const filterValue = params.get("status") ?? "ALL";
+  const status = STATUS_LIST.includes(filterValue as Status) || ["SUBMITTED", "ARCHIVED"].includes(filterValue) ? filterValue : "ALL";
   const [showCreate, setShowCreate] = useState(false);
+  const [initialApplied, setInitialApplied] = useState(false);
   const [noResumeDismissed, setNoResumeDismissed] = useState(false);
 
   const { data, isLoading, isError, error } = useQuery({
@@ -42,7 +45,9 @@ export default function ApplicationsPage() {
     queryFn: () =>
       api.listApplications({
         search: search.trim() || null,
-        statuses: status === "ALL" ? [] : [status],
+        statuses: ["ALL", "ARCHIVED", "SUBMITTED"].includes(status) ? [] : [status],
+        submittedOnly: status === "SUBMITTED",
+        archivedOnly: status === "ARCHIVED",
       }),
   });
 
@@ -52,7 +57,7 @@ export default function ApplicationsPage() {
   }
 
   const items = useMemo(() => data ?? [], [data]);
-  const missingResume = items.filter((i) => !i.resumeVersionId);
+  const missingResume = items.filter((i) => !!i.appliedDate && !i.resumeVersionId);
   const showYellowBar = !noResumeDismissed && missingResume.length > 0;
 
   // 行拖动排序：仅在未筛选/未搜索（完整列表）时可用
@@ -93,15 +98,18 @@ export default function ApplicationsPage() {
     <div className="px-6 pb-10 pt-0">
       <PageHeader
         title="投递"
-        subtitle={`共 ${items.length} 条`}
+        subtitle={status === "SAVED" ? "收集感兴趣的岗位，准备好后再投递" : `共 ${items.length} 个岗位`}
         actions={
-          <Button variant="primary" onClick={() => setShowCreate(true)}>
-            <Plus className="size-4" /> 新建投递
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={() => { setInitialApplied(true); setShowCreate(true); }}>记录已投递</Button>
+            <Button variant="primary" onClick={() => { setInitialApplied(false); setShowCreate(true); }}>
+              <Plus className="size-4" /> 添加意向岗位
+            </Button>
+          </div>
         }
       />
 
-      <div className="mt-4 flex items-center gap-2">
+      <div className="mt-4 flex flex-wrap items-center gap-2">
         <Segmented
           value={view}
           onChange={(v) => switchView(v)}
@@ -122,15 +130,18 @@ export default function ApplicationsPage() {
         </div>
         <Select
           value={status}
-          onChange={(e) => setStatus(e.target.value as Status | "ALL")}
-          className="w-32"
+          aria-label="岗位范围"
+          onChange={(e) => setParams(e.target.value === "ALL" ? {} : { status: e.target.value })}
+          className="w-36"
         >
-          <option value="ALL">全部状态</option>
+          <option value="ALL">全部岗位</option>
+          <option value="SUBMITTED">投递记录</option>
           {STATUS_LIST.map((s) => (
             <option key={s} value={s}>
               {STATUS_LABELS[s]}
             </option>
           ))}
+          <option value="ARCHIVED">已归档</option>
         </Select>
       </div>
 
@@ -207,7 +218,7 @@ export default function ApplicationsPage() {
                 {!isLoading && items.length === 0 && (
                   <tr>
                     <td colSpan={10} className="px-4 py-12 text-center text-slate-400">
-                      还没有投递记录，点右上角「新建投递」开始
+                      {search || status !== "ALL" ? "没有符合条件的岗位，可调整搜索或筛选" : "还没有岗位，点右上角「添加意向岗位」开始"}
                     </td>
                   </tr>
                 )}
@@ -231,6 +242,7 @@ export default function ApplicationsPage() {
         open={showCreate}
         onClose={() => setShowCreate(false)}
         defaultBatch="FORMAL"
+        initialApplied={initialApplied}
       />
     </div>
   );
@@ -333,7 +345,7 @@ function Row({
             {item.resumeVersionName}
           </span>
         ) : (
-          <span className={cn("text-[13px] text-amber-500")}>未标注</span>
+          <span className={cn("text-[13px]", item.status === "SAVED" ? "text-slate-400" : "text-amber-500")}>{item.status === "SAVED" ? "投递时选择" : "未标注"}</span>
         )}
       </td>
     </tr>

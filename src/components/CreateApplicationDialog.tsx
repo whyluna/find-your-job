@@ -5,16 +5,20 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/ipc";
 import type { Company } from "@shared";
 import { BATCH_LABELS, CHANNEL_LABELS, PRIORITY_LABELS } from "@shared";
-import { Button, Field, Modal, Select, TextInput } from "@/components/ui";
+import { Button, Field, Modal, Select, Segmented, TextInput } from "@/components/ui";
+import { DatePicker } from "@/components/DatePicker";
+import { ApplicationPlanFields } from "./ApplicationPlan";
 
 export function CreateApplicationDialog({
   open,
   onClose,
   defaultBatch,
+  initialApplied = false,
 }: {
   open: boolean;
   onClose: () => void;
   defaultBatch: string;
+  initialApplied?: boolean;
 }) {
   const queryClient = useQueryClient();
   const [companyName, setCompanyName] = useState("");
@@ -27,11 +31,23 @@ export function CreateApplicationDialog({
   const [batch, setBatch] = useState(defaultBatch);
   const [priority, setPriority] = useState("MEDIUM");
   const [jdText, setJdText] = useState("");
+  const [jobUrl, setJobUrl] = useState("");
   const [tags, setTags] = useState("");
-  const [resumeVersionId, setResumeVersionId] = useState<string>("");
-  const [applied, setApplied] = useState(true);
+  const [resumeVersionId, setResumeVersionId] = useState<string | undefined>();
+  const [applied, setApplied] = useState(initialApplied);
+  const [appliedAt, setAppliedAt] = useState<string | null>(() => new Date().toISOString());
   const [error, setError] = useState("");
+  const [showMore, setShowMore] = useState(false);
+  const [plannedApplyAt, setPlannedApplyAt] = useState<string | null>(null);
+  const [applicationDeadline, setApplicationDeadline] = useState<string | null>(null);
   const boxRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (open) {
+      setApplied(initialApplied);
+      setAppliedAt(new Date().toISOString());
+    }
+  }, [open, initialApplied]);
 
   const { data: resumes } = useQuery({
     queryKey: ["resumes"],
@@ -57,13 +73,7 @@ export function CreateApplicationDialog({
     return () => clearTimeout(timer);
   }, [companyName]);
 
-  // 简历默认选中：isDefault 或第一个
-  useEffect(() => {
-    if (open && resumes && !resumeVersionId) {
-      const def = resumes.find((r) => r.isDefault) ?? resumes[0];
-      if (def) setResumeVersionId(def.id);
-    }
-  }, [open, resumes, resumeVersionId]);
+  const selectedResume = resumeVersionId ?? resumes?.find((r) => r.isDefault)?.id ?? "";
 
   const create = useMutation({
     mutationFn: () =>
@@ -76,16 +86,18 @@ export function CreateApplicationDialog({
         batch,
         priority: priority as "HIGH" | "MEDIUM" | "LOW",
         applied,
+        plannedApplyAt, applicationDeadline,
+        appliedDate: applied ? appliedAt : null,
+        jobUrl: jobUrl.trim() || null,
         jdText: jdText.trim() || null,
         tags: tags
           .split(/[,，\s]+/)
           .map((t) => t.trim())
           .filter(Boolean),
-        resumeVersionId: resumeVersionId || null,
+        resumeVersionId: applied ? selectedResume || null : null,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["applications"] });
-      queryClient.invalidateQueries({ queryKey: ["db-ready"] });
+      queryClient.invalidateQueries();
       reset();
       onClose();
     },
@@ -98,9 +110,14 @@ export function CreateApplicationDialog({
     setDepartment("");
     setWorkLocation("");
     setJdText("");
+    setJobUrl("");
     setTags("");
     setError("");
-    setApplied(true);
+    setApplied(initialApplied);
+    setResumeVersionId(undefined);
+    setShowMore(false);
+    setPlannedApplyAt(null);
+    setApplicationDeadline(null);
     setCompanySuggestions([]);
   }
 
@@ -108,11 +125,22 @@ export function CreateApplicationDialog({
     setError("");
     if (!companyName.trim()) return setError("请填写公司名");
     if (!positionTitle.trim()) return setError("请填写岗位名");
+    if (plannedApplyAt && applicationDeadline && new Date(plannedApplyAt) > new Date(applicationDeadline)) return setError("计划投递时间不能晚于网申截止时间");
+    if (jobUrl.trim() && !/^https?:\/\//i.test(jobUrl.trim())) return setError("岗位链接请以 https:// 或 http:// 开头");
+    if (applied && (!appliedAt || new Date(appliedAt).getTime() > Date.now())) return setError("请填写已完成投递的时间，不能晚于现在");
     create.mutate();
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="新建投递" wide>
+    <Modal open={open} onClose={onClose} title={applied ? "记录已投递" : "添加意向岗位"} wide>
+      <div className="mb-4 space-y-2">
+        <Segmented value={applied ? "applied" : "wishlist"} onChange={(v) => setApplied(v === "applied")}
+          options={[{ value: "wishlist", label: "意向岗位" }, { value: "applied", label: "已完成投递" }]} />
+        <p className="text-[13px] text-[var(--fyj-secondary)]">{applied ? "记录已完成的投递，开始跟进招聘流程。" : "先收集感兴趣的岗位，准备好后再正式投递。"}</p>
+        {!applied && <button type="button" aria-expanded={showMore} onClick={() => setShowMore((value) => !value)} className="text-[13px] text-[var(--fyj-accent)]">
+          {showMore ? "收起更多信息" : "补充部门、城市、渠道与优先级…"}
+        </button>}
+      </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="relative" ref={boxRef}>
           <Field label="公司 *">
@@ -147,7 +175,7 @@ export function CreateApplicationDialog({
             onChange={(e) => setPositionTitle(e.target.value)}
           />
         </Field>
-        <Field label="部门/事业部">
+        {(applied || showMore) && <><Field label="部门/事业部">
           <TextInput
             value={department}
             placeholder="如：到家事业群"
@@ -188,7 +216,8 @@ export function CreateApplicationDialog({
             ))}
           </Select>
         </Field>
-        <Field
+        </>}
+        {applied && <Field
           label="简历版本"
           hint={
             resumes && resumes.length === 0
@@ -196,7 +225,7 @@ export function CreateApplicationDialog({
               : undefined
           }
         >
-          <Select value={resumeVersionId} onChange={(e) => setResumeVersionId(e.target.value)}>
+          <Select value={selectedResume} onChange={(e) => setResumeVersionId(e.target.value)}>
             <option value="">（未指定）</option>
             {(resumes ?? []).map((r) => (
               <option key={r.id} value={r.id}>
@@ -206,7 +235,17 @@ export function CreateApplicationDialog({
               </option>
             ))}
           </Select>
-        </Field>
+        </Field>}
+        <div className={applied || showMore ? undefined : "col-span-2"}>
+          <Field label="岗位链接">
+            <TextInput value={jobUrl} onChange={(e) => setJobUrl(e.target.value)} placeholder="https://…（保存原链接，之后直接前往投递）" />
+          </Field>
+        </div>
+        {applied && <Field label="实际投递时间"><DatePicker value={appliedAt} onChange={setAppliedAt} withTime /></Field>}
+        {!applied && <details className="col-span-2 text-[13px]">
+          <summary className="mb-2 cursor-pointer text-[var(--fyj-accent)]">安排投递计划和网申截止（可选）</summary>
+          <ApplicationPlanFields planned={plannedApplyAt} deadline={applicationDeadline} onPlanned={setPlannedApplyAt} onDeadline={setApplicationDeadline} />
+        </details>}
         <div className="col-span-2">
           <Field label="JD 快照（粘贴岗位描述，保存原文防链接过期）">
             <textarea
@@ -225,17 +264,6 @@ export function CreateApplicationDialog({
             onChange={(e) => setTags(e.target.value)}
           />
         </Field>
-        <div className="flex items-end pb-1">
-          <label className="flex cursor-pointer items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={applied}
-              onChange={(e) => setApplied(e.target.checked)}
-              className="size-4 accent-[var(--fyj-accent)]"
-            />
-            已完成投递（记录投递事件）
-          </label>
-        </div>
       </div>
 
       {error && <div className="mt-3 text-sm text-red-500">{error}</div>}
@@ -246,7 +274,7 @@ export function CreateApplicationDialog({
         </Button>
         <Button variant="primary" onClick={submit} disabled={create.isPending}>
           {create.isPending && <Loader2 className="size-4 animate-spin" />}
-          保存
+          {applied ? "记录已投递" : "添加到意向岗位"}
         </Button>
       </div>
     </Modal>

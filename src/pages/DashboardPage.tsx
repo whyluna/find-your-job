@@ -6,6 +6,7 @@ import { fmtDateTime, deadlineLabel } from "@/lib/format";
 import { EVENT_TYPE_DEFS, STATUS_LABELS, type EventType, type Status } from "@shared";
 import { PageHeader } from "@/components/ui";
 import { cn } from "@/lib/utils";
+import { planningLabel } from "@/lib/schedule";
 
 export default function DashboardPage() {
   const navigate = useNavigate();
@@ -75,12 +76,12 @@ export default function DashboardPage() {
               <span
                 className={cn(
                   "flex size-6 shrink-0 items-center justify-center rounded-[6px]",
-                  item.kind === "deadline"
+                  item.kind === "deadline" || item.kind === "application_deadline"
                     ? "bg-red-50 text-red-500 dark:bg-red-900/30 dark:text-red-300"
                     : "bg-blue-50 text-blue-500 dark:bg-blue-900/30 dark:text-blue-300",
                 )}
               >
-                {item.kind === "deadline" ? (
+                {item.kind === "deadline" || item.kind === "application_deadline" ? (
                   <AlertCircle className="size-3.5" />
                 ) : (
                   <CalendarClock className="size-3.5" />
@@ -91,11 +92,11 @@ export default function DashboardPage() {
                   {item.companyName} · {item.positionTitle}
                 </span>
                 <span className="block text-[13px] text-slate-400">
-                  {item.kind === "deadline"
+                  {planningLabel(item.kind, item.at) ?? (item.kind === "deadline"
                     ? `${EVENT_TYPE_DEFS[item.detail as EventType]?.label ?? item.detail} ${deadlineLabel(item.at)}`
                     : item.detail
                       ? `第 ${item.detail} 面试 · ${fmtDateTime(item.at)}`
-                      : `面试 · ${fmtDateTime(item.at)}`}
+                      : `面试 · ${fmtDateTime(item.at)}`)}
                 </span>
               </span>
               <span className="shrink-0 text-[13px] tabular-nums text-slate-400">{fmtDateTime(item.at)}</span>
@@ -107,10 +108,10 @@ export default function DashboardPage() {
       {/* 概况 */}
       <section className="mt-4 flex max-w-5xl gap-3">
         <div className="flex-1 rounded-xl border border-slate-200/80 bg-white p-4 dark:border-slate-800/80 dark:bg-slate-900/60">
-          <div className="text-2xl font-semibold tabular-nums tracking-tight">{db?.applications ?? "—"}</div>
+          <div className="text-2xl font-semibold tabular-nums tracking-tight">{stats?.stageReachedCounts.find((r) => r.key === "APPLIED")?.count ?? "—"}</div>
           <div className="mt-0.5 text-[13px] text-slate-400">
-            投递总数 ·{" "}
-            <Link to="/applications" className="text-[var(--fyj-accent)] hover:underline">
+            正式投递（不含归档） ·{" "}
+            <Link to="/applications?status=SUBMITTED" className="text-[var(--fyj-accent)] hover:underline">
               去列表
             </Link>
           </div>
@@ -124,10 +125,11 @@ export default function DashboardPage() {
       <div className="mt-4 grid max-w-5xl grid-cols-2 gap-4">
         <section className="rounded-xl border border-slate-200/80 bg-white p-4 dark:border-slate-800/80 dark:bg-slate-900/60">
           <h2 className="flex items-center gap-2 text-sm font-semibold">
-            <Inbox className="size-4 text-[var(--fyj-accent)]" /> 已收录，待确认投递
+            <Inbox className="size-4 text-[var(--fyj-accent)]" /> 意向岗位
+            <Link to="/applications?status=SAVED" className="ml-auto text-[13px] font-normal text-[var(--fyj-accent)]">查看全部 →</Link>
           </h2>
           {(savedApplications ?? []).length === 0 ? (
-            <div className="mt-3 text-[13px] text-[var(--fyj-tertiary)]">没有待确认的收录岗位</div>
+            <div className="mt-3 text-[13px] text-[var(--fyj-tertiary)]">先收藏感兴趣的职位，准备好后再正式投递</div>
           ) : (
             <div className="mt-2 space-y-1">
               {(savedApplications ?? []).slice(0, 5).map((application) => (
@@ -139,7 +141,7 @@ export default function DashboardPage() {
                   <span className="min-w-0 truncate text-[13px] font-medium">
                     {application.companyName} · {application.positionTitle}
                   </span>
-                  <span className="ml-3 shrink-0 text-[12px] text-[var(--fyj-accent)]">去确认 →</span>
+                  <span className="ml-3 shrink-0 text-[12px] text-[var(--fyj-accent)]">准备投递 →</span>
                 </button>
               ))}
             </div>

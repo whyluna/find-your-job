@@ -3,7 +3,7 @@
  * 快捷今天/清空；minIso 可约束不得早于某时刻（如截止 ≥ 发生）。
  */
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -37,6 +37,26 @@ export function DatePicker({ value, onChange, withTime = false, minIso, placehol
   const [viewM, setViewM] = useState(() => (cur ?? new Date()).getMonth());
   const [yearInput, setYearInput] = useState<string>("");
   const [hint, setHint] = useState("");
+  const anchorRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState({ top: 0, left: 0 });
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const place = () => {
+      const rect = anchorRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const height = panelRef.current?.getBoundingClientRect().height ?? 320;
+      const width = Math.min(264, window.innerWidth - 24);
+      const below = rect.bottom + 6;
+      const top = below + height <= window.innerHeight - 12 ? below : Math.max(12, rect.top - height - 6);
+      setPosition({ top, left: Math.max(12, Math.min(rect.left, window.innerWidth - width - 12)) });
+    };
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => { window.removeEventListener("resize", place); window.removeEventListener("scroll", place, true); };
+  }, [open, viewY, viewM, withTime, value]);
 
   useEffect(() => {
     if (open) {
@@ -108,6 +128,7 @@ export function DatePicker({ value, onChange, withTime = false, minIso, placehol
   return (
     <div className="relative">
       <button
+        ref={anchorRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="dialog"
@@ -126,9 +147,11 @@ export function DatePicker({ value, onChange, withTime = false, minIso, placehol
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
           <div
+            ref={panelRef}
+            style={position}
             role="dialog"
             aria-label={withTime ? "选择日期和时间" : "选择日期"}
-            className="absolute left-0 top-9 z-40 w-[264px] rounded-xl border border-slate-200 bg-white p-3 shadow-xl dark:border-slate-700 dark:bg-slate-800"
+            className="fixed z-40 max-h-[calc(100vh-24px)] w-[264px] max-w-[calc(100vw-24px)] overflow-y-auto rounded-xl border border-slate-200 bg-white p-3 shadow-xl dark:border-slate-700 dark:bg-slate-800"
           >
             {/* 年月导航 */}
             <div className="mb-2 flex items-center gap-1">

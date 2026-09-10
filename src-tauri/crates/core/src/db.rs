@@ -41,5 +41,15 @@ pub async fn init_pool(db_path: &Path) -> Result<SqlitePool> {
         .execute(&pool)
         .await?;
     }
+    if !columns
+        .iter()
+        .any(|row| row.try_get::<String, _>("name").ok().as_deref() == Some("planned_apply_at"))
+    {
+        let mut tx = pool.begin().await?;
+        sqlx::raw_sql(include_str!("../migrations/0003_application_planning.sql"))
+            .execute(&mut *tx)
+            .await?;
+        tx.commit().await?;
+    }
     Ok(pool)
 }

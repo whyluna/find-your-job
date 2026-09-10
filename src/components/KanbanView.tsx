@@ -34,6 +34,8 @@ import type { ApplicationListItem } from "@shared";
 import { AddInterviewDialog } from "@/components/AddInterviewDialog";
 import { EventConfirmDialog, columnToEventType } from "@/components/EventConfirmDialog";
 import { cn } from "@/lib/utils";
+import { ConfirmApplicationDialog } from "@/components/ConfirmApplicationDialog";
+import { showToast } from "@/lib/toast";
 
 export function KanbanView({ items, canReorder }: { items: ApplicationListItem[]; canReorder: boolean }) {
   const navigate = useNavigate();
@@ -47,6 +49,7 @@ export function KanbanView({ items, canReorder }: { items: ApplicationListItem[]
     note?: string;
   } | null>(null);
   const [interviewTarget, setInterviewTarget] = useState<ApplicationListItem | null>(null);
+  const [applicationTarget, setApplicationTarget] = useState<ApplicationListItem | null>(null);
   const [showAllRows, setShowAllRows] = useState(
     () => localStorage.getItem("fyj-show-all-rows") === "1",
   );
@@ -206,6 +209,14 @@ export function KanbanView({ items, canReorder }: { items: ApplicationListItem[]
 
   function triggerStatusChange(app: ApplicationListItem, target: Status) {
     if (target === "SAVED" || target === app.status) return;
+    if (app.status === "SAVED" && target === "APPLIED") {
+      setApplicationTarget(app);
+      return;
+    }
+    if (app.status === "SAVED" && target !== "WITHDRAWN") {
+      showToast({ kind: "info", message: "请先确认已投递，再进入后续招聘阶段" });
+      return;
+    }
     if (target === "INTERVIEWING") {
       setInterviewTarget(app);
       return;
@@ -236,8 +247,11 @@ export function KanbanView({ items, canReorder }: { items: ApplicationListItem[]
       "",
       "ALL",
     ]) as ApplicationListItem[] | undefined;
-    if (cache) {
-      void api.reorderApplications(cache.map((i) => i.id));
+    if (canReorder && cache) {
+      void api.reorderApplications(cache.map((i) => i.id)).catch((reason) => {
+        showToast({ kind: "error", message: String(reason) });
+        void queryClient.invalidateQueries({ queryKey: ["applications"] });
+      });
     }
 
     // ② 跨行判定：优先用拖动过程中持续追踪的悬停行
@@ -287,7 +301,9 @@ export function KanbanView({ items, canReorder }: { items: ApplicationListItem[]
         <div className="space-y-2.5">
           {visible.map((row) => {
             const isCrossRowTarget = !!activeItem && overStatus === row && activeItem.status !== row;
-            const acceptsDrop = row === "INTERVIEWING" || columnToEventType(row) !== null;
+            const acceptsDrop = activeItem?.status === "SAVED"
+              ? row === "APPLIED" || row === "WITHDRAWN"
+              : row === "INTERVIEWING" || columnToEventType(row) !== null;
             return (
               <SwimLane
                 key={row}
@@ -314,6 +330,7 @@ export function KanbanView({ items, canReorder }: { items: ApplicationListItem[]
           onClose={() => setConfirmTarget(null)}
         />
       )}
+      {applicationTarget && <ConfirmApplicationDialog application={applicationTarget} onClose={() => setApplicationTarget(null)} />}
       <AddInterviewDialog
         open={!!interviewTarget}
         applicationId={interviewTarget?.id ?? null}

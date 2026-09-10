@@ -19,3 +19,4 @@ keyring = { version = "4.2", features = ["v1"] }
 
 [dev-dependencies]
 tempfile = "3"
+csv = "1"

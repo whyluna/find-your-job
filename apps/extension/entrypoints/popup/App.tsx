@@ -142,7 +142,7 @@ export default function App() {
         if (body.created) {
           setSaved(true);
           setDuplicate(null);
-          setMsg({ kind: "ok", text: "已收录到 FindYourJob（已保存状态）" });
+          setMsg({ kind: "ok", text: "已添加到意向岗位，准备好后在 App 中确认已投递" });
         } else {
           setDuplicate(body.application);
           setMsg({ kind: "ok", text: "这个岗位已经收录过，没有重复创建" });
@@ -255,7 +255,7 @@ export default function App() {
               onClick={() => submit(false)}
               disabled={saved || saving || !clip.companyName.trim() || !clip.positionTitle.trim()}
             >
-              {saving ? "保存中…" : saved ? "已收录" : "确认收录"}
+              {saving ? "添加中…" : saved ? "已添加" : "添加到意向岗位"}
             </button>
             {duplicate && (
               <div className="duplicate-box">

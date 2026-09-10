@@ -45,17 +45,24 @@ export function parseCsv(text: string): string[][] {
     row.push(cell.trim());
     rows.push(row);
   }
+  if (inQuotes) throw new Error("CSV 引号未闭合，请检查文件是否完整");
   return rows;
 }
 
 const FIELDS = [
+  { key: "progressData", label: "完整流程数据（App 导出）" },
+  { key: "importStatus", label: "当前状态" },
+  { key: "stageAt", label: "状态发生时间" },
+  { key: "interviewRounds", label: "面试轮数" },
+  { key: "plannedApplyAt", label: "计划投递时间" },
+  { key: "applicationDeadline", label: "网申截止时间" },
   { key: "companyName", label: "公司 *" },
   { key: "positionTitle", label: "岗位 *" },
   { key: "department", label: "部门" },
   { key: "workLocation", label: "Base 城市" },
   { key: "appliedDate", label: "投递日期" },
-  { key: "channel", label: "渠道（值需为内置英文键，否则记为其他）" },
-  { key: "batch", label: "批次（同上）" },
+  { key: "channel", label: "渠道（支持中文或英文键）" },
+  { key: "batch", label: "批次（支持中文或英文键）" },
   { key: "priority", label: "优先级" },
   { key: "jobUrl", label: "岗位链接" },
   { key: "jdText", label: "JD 文本" },
@@ -66,6 +73,12 @@ const FIELDS = [
 
 export function guessField(header: string): string {
   const h = header.toLowerCase();
+  if (h === "流程数据" || h === "progressdata") return "progressData";
+  if (h.includes("状态发生") || h === "stageat") return "stageAt";
+  if (h.includes("状态") || h === "status") return "importStatus";
+  if (h.includes("计划投递") || h === "plannedapplyat") return "plannedApplyAt";
+  if (h.includes("网申截止") || h === "applicationdeadline") return "applicationDeadline";
+  if (h.includes("面试轮") || h === "interviewrounds") return "interviewRounds";
   if (h.includes("公司") || h.includes("企业")) return "companyName";
   // “岗位链接”同时包含“岗位”，必须先识别更具体的链接语义。
   if (h.includes("链接") || h.includes("url")) return "jobUrl";
@@ -119,17 +132,7 @@ function normalizePriority(raw: string): { value?: "HIGH" | "MEDIUM" | "LOW"; er
   return value ? { value } : { error: `未知优先级「${raw}」` };
 }
 
-export function CsvImportWizard({ open: isOpen, onClose }: { open: boolean; onClose: () => void }) {
-  const queryClient = useQueryClient();
-  const [rows, setRows] = useState<string[][]>([]);
-  const [mapping, setMapping] = useState<Record<number, string>>({});
-  const [preview, setPreview] = useState<ApplicationImportPreview | null>(null);
-  const [result, setResult] = useState<ApplicationImportResult | null>(null);
-  const [fileName, setFileName] = useState("");
-  const [skipDuplicates, setSkipDuplicates] = useState(true);
-  const [fileError, setFileError] = useState("");
-
-  const buildRows = (): ApplicationImportRow[] => {
+export function buildImportRows(rows: string[][], mapping: Record<number, string>): ApplicationImportRow[] {
     const get = (row: string[], field: string) => {
       const idx = Object.entries(mapping).find(([, mapped]) => mapped === field)?.[0];
       return idx !== undefined ? (row[+idx] ?? "").trim() : "";
@@ -140,6 +143,15 @@ export function CsvImportWizard({ open: isOpen, onClose }: { open: boolean; onCl
       if (appliedDate.error) errors.push(appliedDate.error);
       const priority = normalizePriority(get(row, "priority"));
       if (priority.error) errors.push(priority.error);
+      const date = (field: string) => {
+        const parsed = parseDate(get(row, field));
+        if (parsed.error) errors.push(`${FIELDS.find((f) => f.key === field)?.label}：${parsed.error}`);
+        return parsed.value;
+      };
+      const roundsRaw = get(row, "interviewRounds");
+      const rounds = roundsRaw ? Number(roundsRaw) : null;
+      if (rounds !== null && (!Number.isInteger(rounds) || rounds < 0 || rounds > 100)) errors.push("面试轮数必须为 0 到 100 的整数");
+      const plannedApplyAt = date("plannedApplyAt"), applicationDeadline = date("applicationDeadline"), stageAt = date("stageAt");
       return {
         rowNumber: index + 2,
         validationError: errors.join("；") || null,
@@ -152,6 +164,10 @@ export function CsvImportWizard({ open: isOpen, onClose }: { open: boolean; onCl
         priority: priority.value,
         applied: !!appliedDate.value,
         appliedDate: appliedDate.value,
+        plannedApplyAt, applicationDeadline, stageAt,
+        importStatus: get(row, "importStatus") || null,
+        progressData: get(row, "progressData") || null,
+        interviewRounds: rounds !== null && Number.isInteger(rounds) ? rounds : null,
         jobUrl: get(row, "jobUrl") || null,
         jdText: get(row, "jdText") || null,
         salaryRange: get(row, "salaryRange") || null,
@@ -159,7 +175,18 @@ export function CsvImportWizard({ open: isOpen, onClose }: { open: boolean; onCl
         notes: get(row, "notes") || null,
       };
     });
-  };
+}
+
+export function CsvImportWizard({ open: isOpen, onClose }: { open: boolean; onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const [rows, setRows] = useState<string[][]>([]);
+  const [mapping, setMapping] = useState<Record<number, string>>({});
+  const [preview, setPreview] = useState<ApplicationImportPreview | null>(null);
+  const [result, setResult] = useState<ApplicationImportResult | null>(null);
+  const [fileName, setFileName] = useState("");
+  const [skipDuplicates, setSkipDuplicates] = useState(true);
+  const [fileError, setFileError] = useState("");
+  const buildRows = () => buildImportRows(rows, mapping);
 
   const pick = async () => {
     setResult(null);
@@ -177,7 +204,9 @@ export function CsvImportWizard({ open: isOpen, onClose }: { open: boolean; onCl
       setFileError(String(e));
       return;
     }
-    const parsed = parseCsv(text.replace(/^\uFEFF/, ""));
+    let parsed: string[][];
+    try { parsed = parseCsv(text.replace(/^\uFEFF/, "")); }
+    catch (reason) { setFileError(String(reason)); return; }
     if (parsed.length < 2) {
       setFileError("文件里没有数据行");
       return;
@@ -221,6 +250,7 @@ export function CsvImportWizard({ open: isOpen, onClose }: { open: boolean; onCl
   });
 
   const resetAndClose = () => {
+    if (run.isPending || previewRun.isPending) return;
     setRows([]);
     setMapping({});
     setPreview(null);
@@ -233,8 +263,9 @@ export function CsvImportWizard({ open: isOpen, onClose }: { open: boolean; onCl
   return (
     <Modal open={isOpen} onClose={resetAndClose} title="从 CSV 导入（飞书/Excel）" wide>
       <div className="space-y-4">
+        <p className="text-[13px] text-[var(--fyj-secondary)]">新版 App 导出的 CSV 包含完整流程数据，可恢复事件、面试和题目。普通表格仅迁移当前状态与已知轮次，缺失历史需补充。简历和附件文件请使用 JSON 全量备份。</p>
         <div className="flex items-center gap-3">
-          <Button onClick={pick} disabled={run.isPending}>
+          <Button onClick={pick} disabled={run.isPending || previewRun.isPending}>
             <Upload className="size-4" /> 选择 CSV 文件
           </Button>
           {fileName && <span className="truncate text-xs text-slate-500">{fileName}（{rows.length - 1} 行）</span>}
@@ -258,6 +289,7 @@ export function CsvImportWizard({ open: isOpen, onClose }: { open: boolean; onCl
                   <span className="text-xs text-slate-400">→</span>
                   <Select
                     value={mapping[i] ?? ""}
+                    disabled={run.isPending || previewRun.isPending}
                     onChange={(e) => {
                       setMapping((m) => ({ ...m, [i]: e.target.value }));
                       setPreview(null);
@@ -299,10 +331,9 @@ export function CsvImportWizard({ open: isOpen, onClose }: { open: boolean; onCl
                     无效 {preview.invalid}
                   </span>
                 </div>
-                {preview.items.some((item) => item.status !== "READY") && (
+                {preview.items.length > 0 && (
                   <div className="max-h-32 space-y-1 overflow-y-auto rounded-lg bg-[var(--fyj-surface-muted)] p-2">
                     {preview.items
-                      .filter((item) => item.status !== "READY")
                       .slice(0, 12)
                       .map((item) => (
                         <div key={item.rowNumber} className="flex items-start gap-2 text-[12px]">
@@ -311,7 +342,7 @@ export function CsvImportWizard({ open: isOpen, onClose }: { open: boolean; onCl
                           <span className="min-w-0 truncate text-[var(--fyj-secondary)]">
                             {item.companyName || "未填写公司"} · {item.positionTitle || "未填写岗位"}
                           </span>
-                          <span className="ml-auto shrink-0 text-[var(--fyj-tertiary)]">{item.message}</span>
+                          <span className="ml-auto max-w-[60%] text-[var(--fyj-tertiary)]">{item.message}</span>
                         </div>
                       ))}
                   </div>

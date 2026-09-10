@@ -8,10 +8,11 @@ import { fmtDate, fmtDateTime } from "@/lib/format";
 import { EVENT_TYPE_DEFS, type EventType } from "@shared";
 import { cn } from "@/lib/utils";
 import { Button, PageHeader } from "@/components/ui";
+import { planningLabel } from "@/lib/schedule";
 
 interface CalendarEntry {
   date: string; // YYYY-MM-DD
-  kind: "interview" | "deadline" | "applied";
+  kind: "interview" | "deadline" | "applied" | "planned_apply" | "application_deadline";
   applicationId: string;
   companyName: string;
   positionTitle: string;
@@ -101,7 +102,7 @@ export default function CalendarPage() {
     <div className="px-6 pb-10 pt-0">
       <PageHeader
         title="日历"
-        subtitle="面试、截止日期与投递记录"
+        subtitle="投递计划、网申截止、面试与投递记录"
         actions={
           <div className="flex items-center gap-1">
             <Button
@@ -149,6 +150,7 @@ export default function CalendarPage() {
               <Legend color="bg-blue-500" label="面试" />
               <Legend color="bg-red-500" label="截止" />
               <Legend color="bg-slate-400" label="投递" />
+              <Legend color="bg-amber-500" label="计划" />
             </div>
           </div>
           <div className="mb-1 grid grid-cols-7 text-center text-[11px] font-medium text-[var(--fyj-tertiary)]">
@@ -161,7 +163,8 @@ export default function CalendarPage() {
               if (!date) return <div key={i} />;
               const dayEntries = byDate.get(date) ?? [];
               const hasInterview = dayEntries.some((e) => e.kind === "interview");
-              const hasDeadline = dayEntries.some((e) => e.kind === "deadline");
+              const hasDeadline = dayEntries.some((e) => e.kind === "deadline" || e.kind === "application_deadline");
+              const hasPlan = dayEntries.some((e) => e.kind === "planned_apply");
               const hasApplied = dayEntries.some((e) => e.kind === "applied");
               const isToday = date === todayStr;
               return (
@@ -188,6 +191,7 @@ export default function CalendarPage() {
                     {hasInterview && <span className="size-1.5 rounded-full bg-blue-500" title="面试" />}
                     {hasDeadline && <span className="size-1.5 rounded-full bg-red-500" title="截止" />}
                     {hasApplied && <span className="size-1.5 rounded-full bg-slate-400" title="投递" />}
+                    {hasPlan && <span className="size-1.5 rounded-full bg-amber-500" title="计划投递" />}
                   </span>
                 </button>
               );
@@ -219,17 +223,17 @@ export default function CalendarPage() {
                 >
                   <span className={cn(
                     "absolute bottom-3 left-0 top-3 w-0.5 rounded-full",
-                    e.kind === "deadline" ? "bg-red-500" : e.kind === "interview" ? "bg-blue-500" : "bg-slate-400",
+                    e.kind === "deadline" || e.kind === "application_deadline" ? "bg-red-500" : e.kind === "planned_apply" ? "bg-amber-500" : e.kind === "interview" ? "bg-blue-500" : "bg-slate-400",
                   )} />
                   <div className="truncate text-[13px] font-medium">
                     {e.companyName} · {e.positionTitle}
                   </div>
                   <div className="mt-1 text-[11px] text-[var(--fyj-tertiary)]">
-                    {e.kind === "applied"
+                    {planningLabel(e.kind, e.at) ?? (e.kind === "applied"
                       ? "投递日"
                       : e.kind === "deadline"
                         ? `${EVENT_TYPE_DEFS[e.detail as EventType]?.label ?? e.detail} 截止`
-                        : `${e.detail ?? "面试"} · ${fmtDateTime(e.at)}`}
+                        : `${e.detail ?? "面试"} · ${fmtDateTime(e.at)}`)}
                   </div>
                 </button>
               ))}

@@ -1,5 +1,6 @@
 /** 应用运行期间的系统通知调度器。权限只在用户从设置页显式开启时申请。 */
 import { api } from "./ipc";
+import { reminderFor } from "./schedule";
 
 const INTERVAL_MS = 5 * 60 * 1000;
 const STORAGE_KEY = "fyj-notified";
@@ -47,25 +48,10 @@ async function tick() {
     const now = Date.now();
     const notified = loadNotified();
     for (const item of items as UpcomingItem[]) {
-      if (item.kind === "overdue_interview") continue;
-      const at = new Date(item.at).getTime();
-      if (Number.isNaN(at) || at < now) continue;
-      const hoursLeft = (at - now) / 3600000;
-      const threshold = item.kind === "deadline" ? deadlineHours : interviewHours;
-      if (hoursLeft > threshold) continue;
-      const key = `${item.kind}:${item.applicationId}:${item.at}:${threshold}`;
-      if (notified.has(key)) continue;
-      const label =
-        item.kind === "deadline"
-          ? `${Math.max(1, Math.ceil(hoursLeft))} 小时内截止`
-          : item.detail
-            ? `第 ${item.detail} 轮面试即将开始`
-            : "面试即将开始";
-      await sendNotification({
-        title: `${item.companyName} · ${label}`,
-        body: item.positionTitle,
-      });
-      notified.add(key);
+      const reminder = reminderFor(item, now, deadlineHours, interviewHours);
+      if (!reminder || notified.has(reminder.key)) continue;
+      await sendNotification({ title: reminder.title, body: reminder.body });
+      notified.add(reminder.key);
     }
     saveNotified(notified);
   } finally {

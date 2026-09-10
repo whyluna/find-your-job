@@ -39,6 +39,7 @@ import type {
   ApplicationListItem,
   Company,
   CreateApplicationInput,
+  ConfirmApplicationInput,
   ApplicationImportPreview,
   ApplicationImportResult,
   ApplicationImportRow,
@@ -91,6 +92,9 @@ export const api = {
 
   createApplication: (input: CreateApplicationInput) =>
     call<Application>("create_application", { input }),
+
+  confirmApplication: (id: string, input: ConfirmApplicationInput) =>
+    call<Application>("confirm_application", { id, input }),
 
   previewApplicationImport: (rows: ApplicationImportRow[]) =>
     call<ApplicationImportPreview>("preview_application_import", { rows }),
@@ -187,6 +191,7 @@ export const api = {
   getStats: () =>
     call<
       {
+        wishlistCount: number;
         statusCounts: { key: string; count: number }[];
         stageReachedCounts: { key: string; count: number }[];
         channelCounts: { key: string; count: number }[];
@@ -218,7 +223,7 @@ export const api = {
   getCalendarItems: (start: string, end: string) =>
     call<
       {
-        kind: "applied" | "deadline" | "interview";
+        kind: "applied" | "deadline" | "interview" | "planned_apply" | "application_deadline";
         applicationId: string;
         companyName: string;
         positionTitle: string;

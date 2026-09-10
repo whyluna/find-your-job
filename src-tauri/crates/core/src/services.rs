@@ -8,6 +8,7 @@ use sqlx::{QueryBuilder, Row, Sqlite, SqlitePool};
 use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
+use crate::csv_progress::{parse_status_label, restore_status, PreparedImport, ProgressSnapshot};
 use crate::entities::{
     is_open_enum_key, now_ts, ts, Application, ApplicationDetail, ApplicationEvent,
     ApplicationListItem, Attachment, Company, CustomEventType, DictionaryItem, Interview,
@@ -104,8 +105,9 @@ async fn ensure_stage_rules(
             | "INTENT_LETTER"
             | "OFFER"
             | "DUAL_AGREEMENT"
-            | "TRIPARTITE"
+            | "TRIPLICATE"
             | "SIGNED"
+            | "__INTERVIEW__"
     );
     if !gate_or_stage {
         // 已挂/主动放弃本身即终态事件；沟通/简历结果/备注不设门禁
@@ -115,7 +117,9 @@ async fn ensure_stage_rules(
 
     // 已投递是前提
     if status_now == "SAVED" {
-        return Err(Error::Invalid("请先记录投递，再添加后续阶段事件".into()));
+        return Err(Error::Invalid(
+            "该职位仍是意向岗位，请先确认已投递，再添加后续阶段事件".into(),
+        ));
     }
 
     // 阶段链上的位置：测评=0，笔试=1，面试=2，OC及以后=3
@@ -172,7 +176,7 @@ async fn ensure_stage_rules(
 
 fn status_label(s: crate::models::Status) -> String {
     match s {
-        crate::models::Status::Saved => "已保存".into(),
+        crate::models::Status::Saved => "意向岗位".into(),
         crate::models::Status::Applied => "已投递".into(),
         crate::models::Status::Assessment => "测评中".into(),
         crate::models::Status::Written => "笔试中".into(),
@@ -190,12 +194,22 @@ fn new_id() -> String {
     Uuid::new_v4().to_string()
 }
 
+pub(crate) fn validate_plan(
+    planned: Option<DateTime<Utc>>,
+    deadline: Option<DateTime<Utc>>,
+) -> Result<()> {
+    if matches!((planned, deadline), (Some(p), Some(d)) if p > d) {
+        return Err(Error::Invalid("计划投递时间不能晚于网申截止时间".into()));
+    }
+    Ok(())
+}
+
 fn not_found(what: &str) -> Error {
     Error::NotFound(what.to_string())
 }
 
 const APP_SELECT: &str = "SELECT a.id, a.company_id, c.name AS company_name, a.position_title, \
-a.department, a.work_location, a.channel, a.batch, a.priority, a.status, a.applied_date, \
+a.department, a.work_location, a.channel, a.batch, a.priority, a.status, a.applied_date, a.planned_apply_at, a.application_deadline, \
 a.job_url, a.jd_text, a.jd_snapshot_at, a.salary_range, a.tags, a.resume_version_id, \
 rv.name AS resume_version_name, a.referred_by_id, a.notes, a.is_archived, a.created_at, a.updated_at \
 FROM application a \
@@ -233,6 +247,8 @@ pub struct CreateApplicationInput {
     /// true 时自动补一条 APPLIED 事件（occurred_at = applied_date 或当前时间）
     pub applied: Option<bool>,
     pub applied_date: Option<DateTime<Utc>>,
+    pub planned_apply_at: Option<DateTime<Utc>>,
+    pub application_deadline: Option<DateTime<Utc>>,
     pub job_url: Option<String>,
     pub jd_text: Option<String>,
     pub salary_range: Option<String>,
@@ -245,6 +261,10 @@ pub struct CreateApplicationInput {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ApplicationImportRow {
+    pub progress_data: Option<String>,
+    pub import_status: Option<String>,
+    pub stage_at: Option<DateTime<Utc>>,
+    pub interview_rounds: Option<i64>,
     pub row_number: usize,
     /// 前端无法序列化的原始值（例如非法日期）通过这里进入统一预检结果。
     pub validation_error: Option<String>,
@@ -285,6 +305,10 @@ pub struct ApplicationImportSummary {
 #[serde(rename_all = "camelCase")]
 #[allow(clippy::too_many_arguments)]
 pub struct UpdateApplicationInput {
+    #[serde(default, deserialize_with = "deserialize_double_option")]
+    pub planned_apply_at: Option<Option<DateTime<Utc>>>,
+    #[serde(default, deserialize_with = "deserialize_double_option")]
+    pub application_deadline: Option<Option<DateTime<Utc>>>,
     pub company_name: Option<String>,
     pub position_title: Option<String>,
     #[serde(default, deserialize_with = "deserialize_double_option")]
@@ -305,6 +329,17 @@ pub struct UpdateApplicationInput {
     pub resume_version_id: Option<Option<String>>,
     #[serde(default, deserialize_with = "deserialize_double_option")]
     pub notes: Option<Option<String>>,
+}
+
+/// 意向岗位转为正式投递：实际投递信息与首个投递事件在同一事务内写入。
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConfirmApplicationInput {
+    pub applied_at: DateTime<Utc>,
+    pub channel: String,
+    pub batch: String,
+    pub resume_version_id: Option<String>,
+    pub note: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -433,6 +468,7 @@ pub struct QuestionBankItem {
 #[derive(Debug, Clone, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ListFilter {
+    pub submitted_only: Option<bool>,
     #[serde(default)]
     pub statuses: Vec<String>,
     #[serde(default)]
@@ -614,10 +650,63 @@ impl Services {
 
     pub async fn create_application(&self, input: CreateApplicationInput) -> Result<Application> {
         let input = self.normalize_create_input(input).await?;
+        validate_plan(input.planned_apply_at, input.application_deadline)?;
         let mut tx = self.pool.begin().await?;
         let id = insert_application_tx(&mut tx, input).await?;
         tx.commit().await?;
         self.get_application(&id).await
+    }
+
+    pub async fn confirm_application(
+        &self,
+        id: &str,
+        input: ConfirmApplicationInput,
+    ) -> Result<Application> {
+        if input.applied_at > Utc::now() {
+            return Err(Error::Invalid(
+                "投递时间不能晚于现在；计划投递的职位请保留在意向岗位".into(),
+            ));
+        }
+        let channel = self
+            .normalize_dictionary_value(
+                "CHANNEL",
+                Some(input.channel),
+                CHANNEL_KEYS,
+                "COMPANY_SITE",
+            )
+            .await?;
+        let batch = self
+            .normalize_dictionary_value("BATCH", Some(input.batch), BATCH_KEYS, "FORMAL")
+            .await?;
+        let mut tx = self.pool.begin().await?;
+        // 条件更新同时领取转换资格，避免并发确认生成重复事件。
+        let changed = sqlx::query(
+            "UPDATE application SET channel = ?, batch = ?, resume_version_id = ?, updated_at = ? \
+             WHERE id = ? AND status = 'SAVED' AND applied_date IS NULL AND is_archived = 0",
+        )
+        .bind(channel)
+        .bind(batch)
+        .bind(input.resume_version_id)
+        .bind(now_ts())
+        .bind(id)
+        .execute(&mut *tx)
+        .await?
+        .rows_affected();
+        if changed == 0 {
+            return Err(Error::Invalid(
+                "仅未归档的意向岗位可以确认投递，请刷新后查看当前状态".into(),
+            ));
+        }
+        sqlx::query(
+            "INSERT INTO application_event (id, application_id, type, occurred_at, note, source, created_at) \
+             VALUES (?, ?, 'APPLIED', ?, ?, 'MANUAL', ?)",
+        )
+        .bind(new_id()).bind(id).bind(ts(&input.applied_at))
+        .bind(input.note.filter(|note| !note.trim().is_empty())).bind(now_ts())
+        .execute(&mut *tx).await?;
+        recompute_status(&mut tx, id).await?;
+        tx.commit().await?;
+        self.get_application(id).await
     }
 
     /// 按岗位 URL 优先、公司/岗位/部门/批次/投递日次之查找重复记录。
@@ -711,7 +800,7 @@ impl Services {
                 items.push(item);
                 continue;
             }
-            let input = match self.normalize_create_input(row.input.clone()).await {
+            let prepared = match self.prepare_import(row).await {
                 Ok(value) => value,
                 Err(error) => {
                     item.status = "INVALID".into();
@@ -721,6 +810,8 @@ impl Services {
                     continue;
                 }
             };
+            item.message = prepared.message;
+            let input = prepared.input;
             item.normalized_channel = input.channel.clone();
             item.normalized_batch = input.batch.clone();
             let url_key = input.job_url.as_deref().and_then(canonical_job_url);
@@ -772,27 +863,107 @@ impl Services {
             .collect();
         let mut normalized = Vec::with_capacity(rows.len());
         for row in rows {
-            normalized.push((
-                row.row_number,
-                self.normalize_create_input(row.input).await?,
-            ));
+            normalized.push((row.row_number, self.prepare_import(&row).await?));
         }
 
         let mut tx = self.pool.begin().await?;
         let mut imported = 0;
         let mut skipped_duplicates = 0;
-        for (row_number, input) in normalized {
+        for (row_number, prepared) in normalized {
             if skip_duplicates && duplicate_rows.contains(&row_number) {
                 skipped_duplicates += 1;
                 continue;
             }
-            insert_application_tx(&mut tx, input).await?;
+            let mut input = prepared.input;
+            if prepared.snapshot.is_some() {
+                input.applied = Some(false);
+            }
+            let id = insert_application_tx(&mut tx, input).await?;
+            if let Some(snapshot) = prepared.snapshot {
+                snapshot.restore(&mut tx, &id).await?;
+            } else if let Some(status) = prepared.status {
+                restore_status(&mut tx, &id, status, prepared.at, prepared.rounds).await?;
+            }
             imported += 1;
         }
         tx.commit().await?;
         Ok(ApplicationImportSummary {
             imported,
             skipped_duplicates,
+        })
+    }
+
+    async fn prepare_import(&self, row: &ApplicationImportRow) -> Result<PreparedImport> {
+        let mut input = self.normalize_create_input(row.input.clone()).await?;
+        validate_plan(input.planned_apply_at, input.application_deadline)?;
+        let status = row
+            .import_status
+            .as_deref()
+            .filter(|s| !s.trim().is_empty())
+            .map(parse_status_label)
+            .transpose()?;
+        let snapshot = row
+            .progress_data
+            .as_deref()
+            .filter(|s| !s.trim().is_empty())
+            .map(ProgressSnapshot::parse)
+            .transpose()?;
+        let rounds = row.interview_rounds.unwrap_or(0);
+        if !(0..=100).contains(&rounds) {
+            return Err(Error::Invalid("面试轮数必须在 0 到 100 之间".into()));
+        }
+        if let Some(s) = &snapshot {
+            if status.is_some_and(|status| status != s.status)
+                || input
+                    .applied_date
+                    .is_some_and(|date| Some(date) != s.applied_date)
+            {
+                return Err(Error::Invalid(
+                    "表格中的状态/投递日期与流程数据不一致，请保留原始数据后重试".into(),
+                ));
+            }
+            input.applied_date = s.applied_date;
+            input.applied = Some(s.applied_date.is_some());
+        } else if let Some(status) = status {
+            use crate::models::Status;
+            if status == Status::Saved && (input.applied_date.is_some() || rounds > 0) {
+                return Err(Error::Invalid("意向岗位不能带投递日期或面试轮数".into()));
+            }
+            if status == Status::Applied && input.applied_date.is_none() {
+                return Err(Error::Invalid("已投递状态需要填写实际投递日期".into()));
+            }
+            if rounds > 0
+                && matches!(
+                    status,
+                    Status::Applied | Status::Assessment | Status::Written
+                )
+            {
+                return Err(Error::Invalid("当前阶段与面试轮数不一致".into()));
+            }
+            input.applied = Some(input.applied_date.is_some());
+        }
+        let at = row.stage_at.or(input.applied_date).unwrap_or_else(Utc::now);
+        if input.applied_date.is_some_and(|date| date > at) {
+            return Err(Error::Invalid("阶段发生时间不能早于投递日期".into()));
+        }
+        let message = Some(if snapshot.is_some() {
+            "完整恢复流程事件、面试和题目；简历与附件文件请用 JSON 备份恢复".into()
+        } else if status.is_some() {
+            "仅迁移当前状态和已知轮次，未提供的历史时间、结果及题目需补充".into()
+        } else {
+            "基础资料导入：按投递日期区分意向岗位与已投递；不恢复招聘历史".into()
+        });
+        Ok(PreparedImport {
+            input,
+            snapshot,
+            status,
+            at,
+            rounds: if status == Some(crate::models::Status::Interviewing) {
+                rounds.max(1)
+            } else {
+                rounds
+            },
+            message,
         })
     }
 
@@ -820,6 +991,19 @@ impl Services {
             .ok_or_else(|| not_found("application"))?;
 
         let now = now_ts();
+        let (planned, deadline): (Option<DateTime<Utc>>, Option<DateTime<Utc>>) = sqlx::query_as(
+            "SELECT planned_apply_at, application_deadline FROM application WHERE id = ?",
+        )
+        .bind(id)
+        .fetch_one(&mut *tx)
+        .await?;
+        let planned = input.planned_apply_at.unwrap_or(planned);
+        let deadline = input.application_deadline.unwrap_or(deadline);
+        validate_plan(planned, deadline)?;
+        if input.planned_apply_at.is_some() || input.application_deadline.is_some() {
+            sqlx::query("UPDATE application SET planned_apply_at = ?, application_deadline = ?, updated_at = ? WHERE id = ?")
+                .bind(planned.map(|d| ts(&d))).bind(deadline.map(|d| ts(&d))).bind(&now).bind(id).execute(&mut *tx).await?;
+        }
         if let Some(company_name) = input.company_name {
             if !company_name.trim().is_empty() {
                 let company_id =
@@ -954,9 +1138,11 @@ impl Services {
     }
 
     pub async fn list_applications(&self, f: &ListFilter) -> Result<Vec<ApplicationListItem>> {
-        let mut qb: QueryBuilder<Sqlite> = QueryBuilder::new(
+        let mut qb: QueryBuilder<Sqlite> = QueryBuilder::new(crate::analytics::SUBMITTED_CTE);
+        qb.push(" ");
+        qb.push(
             "SELECT a.id, a.company_id, c.name AS company_name, a.position_title, a.department, \
-             a.work_location, a.channel, a.batch, a.priority, a.status, a.applied_date, a.job_url, \
+             a.work_location, a.channel, a.batch, a.priority, a.status, a.applied_date, a.planned_apply_at, a.application_deadline, a.job_url, \
              a.jd_text, a.jd_snapshot_at, a.salary_range, a.tags, a.resume_version_id, \
              rv.name AS resume_version_name, a.referred_by_id, a.notes, a.is_archived, \
              a.created_at, a.updated_at, \
@@ -1059,6 +1245,9 @@ impl Services {
             qb.push(" OR c.name LIKE ");
             qb.push_bind(like);
             qb.push(")");
+        }
+        if f.submitted_only.unwrap_or(false) {
+            qb.push(" AND a.id IN (SELECT id FROM submitted)");
         }
         qb.push(" ORDER BY a.sort_order ASC, a.updated_at DESC LIMIT 500");
 
@@ -1167,6 +1356,12 @@ impl Services {
              JOIN company c ON c.id = a.company_id \
              WHERE iv.scheduled_at >= ? AND iv.scheduled_at <= ? \
                AND iv.status = 'SCHEDULED' AND a.is_archived = 0 \
+             UNION ALL SELECT CASE WHEN a.planned_apply_at < ? THEN 0 ELSE 1 END, 'planned_apply', a.id, c.name, \
+             a.position_title, NULL, a.planned_apply_at FROM application a JOIN company c ON c.id = a.company_id \
+             WHERE a.status = 'SAVED' AND a.is_archived = 0 AND a.planned_apply_at <= ? \
+             UNION ALL SELECT CASE WHEN a.application_deadline < ? THEN 0 ELSE 1 END, 'application_deadline', a.id, c.name, \
+             a.position_title, NULL, a.application_deadline FROM application a JOIN company c ON c.id = a.company_id \
+             WHERE a.status = 'SAVED' AND a.is_archived = 0 AND a.application_deadline <= ? \
              ORDER BY bucket ASC, at ASC",
         )
         .bind(&now)
@@ -1174,6 +1369,7 @@ impl Services {
         .bind(&dl_end)
         .bind(&now)
         .bind(&iv_end)
+        .bind(&now).bind(&dl_end).bind(&now).bind(&dl_end)
         .fetch_all(&self.pool)
         .await?;
         Ok(rows
@@ -1220,6 +1416,12 @@ impl Services {
              JOIN application a ON a.id = iv.application_id \
              JOIN company c ON c.id = a.company_id \
              WHERE iv.scheduled_at >= ? AND iv.scheduled_at < ? AND iv.status != 'CANCELLED' \
+             UNION ALL SELECT 'planned_apply', a.id, c.name, a.position_title, NULL, a.planned_apply_at \
+             FROM application a JOIN company c ON c.id = a.company_id \
+             WHERE a.status = 'SAVED' AND a.is_archived = 0 AND a.planned_apply_at >= ? AND a.planned_apply_at < ? \
+             UNION ALL SELECT 'application_deadline', a.id, c.name, a.position_title, NULL, a.application_deadline \
+             FROM application a JOIN company c ON c.id = a.company_id \
+             WHERE a.status = 'SAVED' AND a.is_archived = 0 AND a.application_deadline >= ? AND a.application_deadline < ? \
              ORDER BY at ASC",
         )
         .bind(&start)
@@ -1228,6 +1430,7 @@ impl Services {
         .bind(&end)
         .bind(&start)
         .bind(&end)
+        .bind(&start).bind(&end).bind(&start).bind(&end)
         .fetch_all(&self.pool)
         .await?;
         Ok(rows
@@ -1371,8 +1574,9 @@ impl Services {
     // ---------- CSV 导出（P1-e，飞书模板兼容列） ----------
 
     pub async fn export_csv(&self, path: &str) -> Result<u64> {
+        let mut tx = self.pool.begin().await?;
         let rows = sqlx::query(
-            "SELECT c.name AS company_name, a.position_title, a.department, a.work_location, \
+            "SELECT a.id, a.planned_apply_at, a.application_deadline, c.name AS company_name, a.position_title, a.department, a.work_location, \
              a.channel, a.batch, a.priority, a.status, a.applied_date, a.tags, \
              (SELECT GROUP_CONCAT(e.deadline) FROM application_event e \
                 WHERE e.application_id = a.id AND e.deadline IS NOT NULL) AS deadlines, \
@@ -1383,11 +1587,11 @@ impl Services {
              LEFT JOIN resume_version rv ON rv.id = a.resume_version_id \
              ORDER BY a.applied_date DESC",
         )
-        .fetch_all(&self.pool)
+        .fetch_all(&mut *tx)
         .await?;
 
         fn esc(v: &str) -> String {
-            if v.contains(',') || v.contains('"') || v.contains('\n') {
+            if v.contains(',') || v.contains('"') || v.contains('\n') || v.contains('\r') {
                 format!("\"{}\"", v.replace('"', "\"\""))
             } else {
                 v.to_string()
@@ -1399,7 +1603,7 @@ impl Services {
         let dicts = sqlx::query_as::<_, (String, String, String)>(
             "SELECT category, key, label FROM dictionary WHERE is_active = 1",
         )
-        .fetch_all(&self.pool)
+        .fetch_all(&mut *tx)
         .await?;
         let mut dict_map: std::collections::HashMap<String, String> =
             std::collections::HashMap::new();
@@ -1412,7 +1616,7 @@ impl Services {
                 .unwrap_or_else(|| s.to_string())
         };
 
-        let mut out = String::from("公司,岗位,部门,Base城市,渠道,批次,优先级,当前状态,投递日期,最近截止,面试轮数,简历版本,岗位链接,JD文本,薪资范围,标签,备注\n");
+        let mut out = String::from("公司,岗位,部门,Base城市,渠道,批次,优先级,当前状态,投递日期,最近截止,面试轮数,简历版本,岗位链接,JD文本,薪资范围,标签,备注,计划投递时间,网申截止时间,流程数据\n");
         for r in &rows {
             let get = |col: &str| {
                 r.try_get::<Option<String>, _>(col)
@@ -1446,10 +1650,15 @@ impl Services {
                 get("salary_range"),
                 get("tags"),
                 get("notes"),
+                get("planned_apply_at"),
+                get("application_deadline"),
+                serde_json::to_string(&ProgressSnapshot::capture(&mut tx, &get("id")).await?)
+                    .map_err(|e| Error::Invalid(e.to_string()))?,
             ];
             out.push_str(&row.iter().map(|c| esc(c)).collect::<Vec<_>>().join(","));
             out.push('\n');
         }
+        tx.commit().await?;
         std::fs::write(path, out)?;
         Ok(rows.len() as u64)
     }
@@ -1541,6 +1750,23 @@ impl Services {
             .bind(&input.application_id)
             .fetch_one(&mut *tx)
             .await?;
+        if status_now == "SAVED"
+            && !matches!(
+                event_type,
+                EventType::Applied
+                    | EventType::Note
+                    | EventType::HrContact
+                    | EventType::Withdrawn
+                    | EventType::Custom {
+                        projection: ProjectionEffect::NoChange | ProjectionEffect::Withdrawn,
+                        ..
+                    }
+            )
+        {
+            return Err(Error::Invalid(
+                "该职位仍是意向岗位，请先确认已投递，再添加后续阶段事件".into(),
+            ));
+        }
         ensure_stage_rules(
             &mut tx,
             &input.application_id,
@@ -2200,11 +2426,17 @@ fn canonical_job_url(raw: &str) -> Option<String> {
         return None;
     }
     if let Ok(mut url) = url::Url::parse(raw) {
-        url.set_fragment(None);
+        // 普通页内锚点不影响职位；SPA 的 hash 路由可能携带职位 ID，必须保留。
+        if !url
+            .fragment()
+            .is_some_and(|f| f.starts_with('/') || f.starts_with('!') || f.contains('?'))
+        {
+            url.set_fragment(None);
+        }
         let normalized = url.to_string();
-        return Some(normalized.trim_end_matches('/').to_lowercase());
+        return Some(normalized);
     }
-    Some(raw.trim_end_matches('/').to_lowercase())
+    Some(raw.to_string())
 }
 
 fn normalized_text(value: &str) -> String {
@@ -2284,6 +2516,15 @@ async fn insert_application_tx(
     .execute(&mut *tx)
     .await?;
 
+    validate_plan(input.planned_apply_at, input.application_deadline)?;
+    sqlx::query(
+        "UPDATE application SET planned_apply_at = ?, application_deadline = ? WHERE id = ?",
+    )
+    .bind(input.planned_apply_at.map(|d| ts(&d)))
+    .bind(input.application_deadline.map(|d| ts(&d)))
+    .bind(&id)
+    .execute(&mut *tx)
+    .await?;
     if input.applied.unwrap_or(false) {
         let occurred = input.applied_date.unwrap_or_else(Utc::now);
         sqlx::query(
