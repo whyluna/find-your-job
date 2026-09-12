@@ -19,12 +19,12 @@ import {
 import {
   SortableContext,
   arrayMove,
-  horizontalListSortingStrategy,
+  rectSortingStrategy,
   sortableKeyboardCoordinates,
   useSortable,
 } from "@dnd-kit/sortable";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, MapPin } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { api } from "@/lib/ipc";
@@ -298,7 +298,7 @@ export function KanbanView({ items, canReorder }: { items: ApplicationListItem[]
           queryClient.invalidateQueries({ queryKey: ["applications"] });
         }}
       >
-        <div className="space-y-2.5">
+        <div className="space-y-4">
           {visible.map((row) => {
             const isCrossRowTarget = !!activeItem && overStatus === row && activeItem.status !== row;
             const acceptsDrop = activeItem?.status === "SAVED"
@@ -356,46 +356,20 @@ function SwimLane({
   blocked: boolean;
   onOpen: (id: string) => void;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: status });
-  const isTerminal = status === "REJECTED" || status === "WITHDRAWN";
+  const { setNodeRef } = useDroppable({ id: status });
 
   return (
     <div
       ref={setNodeRef}
-      className={cn(
-        "rounded-xl border px-3 py-2.5 transition-[background,border-color,box-shadow] duration-150",
-        highlighted
-          ? "border-blue-400 bg-blue-50/90 shadow-[0_0_0_3px_rgba(10,118,232,0.13)] dark:border-blue-400/80 dark:bg-blue-900/25"
-          : blocked
-            ? "border-slate-400 bg-slate-100/90 shadow-[0_0_0_3px_rgba(100,100,105,0.1)] dark:border-slate-500 dark:bg-slate-800/80"
-            : isOver
-              ? "border-blue-300 bg-blue-50/45 dark:border-blue-500/60 dark:bg-blue-900/15"
-          : "border-slate-200/70 bg-slate-50/60 dark:border-slate-800/70 dark:bg-slate-900/40",
-        isTerminal && !highlighted && !blocked && !isOver && "bg-slate-50/40 dark:bg-slate-950/30",
-      )}
+      data-status={status}
+      data-drop={highlighted ? "allowed" : blocked ? "blocked" : undefined}
+      className="kanban-lane"
     >
-      <div className="mb-2 flex items-center gap-2">
-        <span
-          className={cn(
-            "text-sm font-semibold",
-            highlighted
-              ? "text-blue-700 dark:text-blue-300"
-              : blocked
-                ? "text-slate-600 dark:text-slate-300"
-                : isTerminal
-                  ? "text-slate-400 dark:text-slate-500"
-                  : "text-slate-500 dark:text-slate-400",
-          )}
-        >
-          {STATUS_LABELS[status]}
-        </span>
-        <span className="text-[13px] tabular-nums text-slate-400 dark:text-slate-500">
-          {colItems.length}
-        </span>
-        <div className={cn(
-          "h-px flex-1",
-          highlighted ? "bg-blue-300/80 dark:bg-blue-500/50" : "bg-slate-200/70 dark:bg-slate-800/70",
-        )} />
+      <div className="lane-heading">
+        <span className="status-dot size-2 rounded-full" aria-hidden="true" />
+        <span className="text-sm font-semibold">{STATUS_LABELS[status]}</span>
+        <span className="lane-count">{colItems.length}</span>
+        <div className="lane-rule" />
         {(highlighted || blocked) && (
           <span
             className={cn(
@@ -410,10 +384,10 @@ function SwimLane({
           </span>
         )}
       </div>
-      <SortableContext items={colItems.map((i) => i.id)} strategy={horizontalListSortingStrategy}>
-        <div className="flex flex-wrap gap-2">
+      <SortableContext items={colItems.map((i) => i.id)} strategy={rectSortingStrategy}>
+        <div className="job-grid">
           {colItems.length === 0 && (
-            <div className="min-h-[68px] w-full" aria-hidden="true" />
+            <div className="col-span-full min-h-[68px]" aria-hidden="true" />
           )}
           {colItems.map((item) => (
             <SortableCard key={item.id} item={item} canReorder={canReorder} onOpen={onOpen} />
@@ -445,7 +419,7 @@ function SortableCard({
       style={{ transition }}
       {...attributes}
       {...listeners}
-      className={cn("touch-none", isDragging && "opacity-30")}
+      className={cn("min-w-0 touch-none", isDragging && "opacity-30")}
     >
       <Card item={item} onOpen={onOpen} />
     </div>
@@ -465,22 +439,21 @@ function Card({
     <div
       role="button"
       tabIndex={0}
+      data-status={item.status}
+      data-dragging={dragging || undefined}
       onClick={() => onOpen?.(item.id)}
       onKeyDown={(e) => {
         if (e.key === "Enter") onOpen?.(item.id);
       }}
-      className={cn(
-        "w-52 cursor-grab rounded-lg border border-slate-200/80 bg-white p-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.04)] outline-none transition-colors hover:border-slate-300/80 focus-visible:ring-2 focus-visible:ring-indigo-300 dark:border-slate-700/80 dark:bg-slate-800/80 dark:hover:border-slate-600",
-        dragging && "rotate-1 shadow-lg",
-      )}
+      className="job-card cursor-grab outline-none focus-visible:ring-2 focus-visible:ring-[var(--fyj-accent)]"
     >
       <div className="flex items-start justify-between gap-1">
         <div className="min-w-0">
-          <div className="truncate text-sm font-semibold leading-snug">
+          <div className="job-company line-clamp-2 break-words" title={item.companyName}>
             {item.companyName}
-            {item.department && <span className="font-normal"> · {item.department}</span>}
           </div>
-          <div className="mt-0.5 truncate text-[13px] text-slate-500 dark:text-slate-400">
+          {item.department && <div className="mt-1 truncate text-xs text-slate-400" title={item.department}>{item.department}</div>}
+          <div className="job-position line-clamp-2 break-words" title={item.positionTitle}>
             {item.positionTitle}
           </div>
         </div>
@@ -491,7 +464,13 @@ function Card({
           />
         )}
       </div>
-      <div className="mt-1.5 flex flex-wrap items-center gap-1">
+      <div className="job-meta">
+        {item.workLocation && (
+          <span className="inline-flex min-w-0 items-center gap-1" title={item.workLocation}>
+            <MapPin className="size-3 shrink-0" aria-hidden="true" />
+            <span className="max-w-28 truncate">{item.workLocation}</span>
+          </span>
+        )}
         {item.hasOverdueInterview ? (
           <span className="rounded bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-600 dark:bg-red-900/40 dark:text-red-300">
             待补结果 · 第 {item.activeInterviewRound ?? item.maxInterviewRound} 轮
@@ -506,7 +485,7 @@ function Card({
           </span>
         ) : null}
         {item.batch && item.batch !== "OTHER" && (
-          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500 dark:bg-slate-700 dark:text-slate-300">
+          <span className="ml-auto whitespace-nowrap text-xs text-slate-400">
             {BATCH_LABELS[item.batch as keyof typeof BATCH_LABELS] ?? item.batch}
           </span>
         )}

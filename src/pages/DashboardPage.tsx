@@ -29,8 +29,8 @@ export default function DashboardPage() {
       <PageHeader title="仪表盘" subtitle="最近的截止与面试安排" />
 
       {/* 今日待办 */}
-      <section className="mt-5 max-w-5xl rounded-xl border border-slate-200/80 bg-white p-5 dark:border-slate-800/80 dark:bg-slate-900/60">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
+      <section className="content-panel mt-5 max-w-5xl p-5">
+        <h2 className="section-heading flex items-center gap-2 text-sm font-semibold">
           <CalendarClock className="size-4 text-[var(--fyj-accent)]" /> 最近待办
           <span className="text-[12px] font-normal text-[var(--fyj-tertiary)]">3 天内截止 · 7 天内面试</span>
         </h2>
@@ -66,7 +66,7 @@ export default function DashboardPage() {
             ))}
           </div>
         )}
-        <div className="mt-3 space-y-1.5">
+        <div className="striped-list mt-3 space-y-1.5">
           {future.map((item, i) => (
             <button
               key={i}
@@ -107,7 +107,7 @@ export default function DashboardPage() {
 
       {/* 概况 */}
       <section className="mt-4 flex max-w-5xl gap-3">
-        <div className="flex-1 rounded-xl border border-slate-200/80 bg-white p-4 dark:border-slate-800/80 dark:bg-slate-900/60">
+        <div className="summary-tile flex-1 p-4">
           <div className="text-2xl font-semibold tabular-nums tracking-tight">{stats?.stageReachedCounts.find((r) => r.key === "APPLIED")?.count ?? "—"}</div>
           <div className="mt-0.5 text-[13px] text-slate-400">
             正式投递（不含归档） ·{" "}
@@ -116,22 +116,22 @@ export default function DashboardPage() {
             </Link>
           </div>
         </div>
-        <div className="flex-1 rounded-xl border border-slate-200/80 bg-white p-4 dark:border-slate-800/80 dark:bg-slate-900/60">
+        <div className="summary-tile flex-1 p-4">
           <div className="text-2xl font-semibold tabular-nums tracking-tight">{db?.events ?? "—"}</div>
           <div className="mt-0.5 text-[13px] text-slate-400">时间线事件</div>
         </div>
       </section>
 
       <div className="mt-4 grid max-w-5xl grid-cols-2 gap-4">
-        <section className="rounded-xl border border-slate-200/80 bg-white p-4 dark:border-slate-800/80 dark:bg-slate-900/60">
-          <h2 className="flex items-center gap-2 text-sm font-semibold">
+        <section className="content-panel p-4">
+          <h2 className="section-heading flex items-center gap-2 text-sm font-semibold">
             <Inbox className="size-4 text-[var(--fyj-accent)]" /> 意向岗位
             <Link to="/applications?status=SAVED" className="ml-auto text-[13px] font-normal text-[var(--fyj-accent)]">查看全部 →</Link>
           </h2>
           {(savedApplications ?? []).length === 0 ? (
             <div className="mt-3 text-[13px] text-[var(--fyj-tertiary)]">先收藏感兴趣的职位，准备好后再正式投递</div>
           ) : (
-            <div className="mt-2 space-y-1">
+            <div className="striped-list mt-2 space-y-1">
               {(savedApplications ?? []).slice(0, 5).map((application) => (
                 <button
                   key={application.id}
@@ -148,14 +148,14 @@ export default function DashboardPage() {
           )}
         </section>
 
-        <section className="rounded-xl border border-slate-200/80 bg-white p-4 dark:border-slate-800/80 dark:bg-slate-900/60">
-          <h2 className="flex items-center gap-2 text-sm font-semibold">
+        <section className="content-panel p-4">
+          <h2 className="section-heading flex items-center gap-2 text-sm font-semibold">
             <Clock3 className="size-4 text-amber-500" /> 等待过久
           </h2>
           {(stats?.silent ?? []).length === 0 ? (
             <div className="mt-3 text-[13px] text-[var(--fyj-tertiary)]">没有超过 14 天未推进的投递</div>
           ) : (
-            <div className="mt-2 space-y-1">
+            <div className="striped-list mt-2 space-y-1">
               {(stats?.silent ?? []).slice(0, 5).map((application) => (
                 <button
                   key={application.id}

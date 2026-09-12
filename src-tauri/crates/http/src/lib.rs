@@ -11,6 +11,7 @@ use fyj_core::entities::Application;
 use fyj_core::services::{CreateApplicationInput, Services};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+mod extraction_jobs;
 
 pub const DEFAULT_PORT: u16 = 37321;
 
@@ -170,6 +171,14 @@ pub fn router(state: Arc<HttpState>) -> Router {
         .route("/api/health", get(health))
         .route("/api/ext/clip", post(clip))
         .route("/api/ext/extract", post(extract))
+        .route("/api/ext/extract/jobs", post(extraction_jobs::start))
+        .route(
+            "/api/ext/extract/jobs/{id}",
+            get(extraction_jobs::get).delete(extraction_jobs::cancel),
+        )
+        .layer(axum::Extension(Arc::new(
+            extraction_jobs::JobStore::default(),
+        )))
         .layer(middleware::from_fn_with_state(state.clone(), auth))
         .with_state(state)
 }
@@ -397,5 +406,103 @@ mod tests {
         let _ = task.await;
         let rebound = tokio::net::TcpListener::bind(addr).await.unwrap();
         drop(rebound);
+    }
+
+    #[tokio::test]
+    async fn extraction_jobs_require_auth_and_honor_cancel_before_start() {
+        let (state, _d) = setup().await;
+        let app = router(state);
+        let id = "fixture-cancel-before-start";
+        let uri = format!("/api/ext/extract/jobs/{id}");
+        let unauthorized = app
+            .clone()
+            .oneshot(Request::builder().uri(&uri).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(unauthorized.status(), StatusCode::UNAUTHORIZED);
+        let deleted = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri(&uri)
+                    .header("authorization", "Bearer test-token")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(deleted.status(), StatusCode::NO_CONTENT);
+        let started = app.clone().oneshot(Request::builder().method("POST").uri("/api/ext/extract/jobs")
+            .header("authorization", "Bearer test-token").header("content-type", "application/json")
+            .body(Body::from(serde_json::json!({"requestId":id,"title":"fixture","url":"https://example.com","text":"fixture"}).to_string())).unwrap()).await.unwrap();
+        assert_eq!(started.status(), StatusCode::OK);
+        let value: serde_json::Value =
+            serde_json::from_slice(&started.into_body().collect().await.unwrap().to_bytes())
+                .unwrap();
+        assert_eq!(value["status"], "cancelled");
+    }
+
+    #[tokio::test]
+    async fn asynchronous_extraction_finishes_after_start_request_has_returned() {
+        let (state, _d) = setup().await;
+        let release = Arc::new(tokio::sync::Semaphore::new(0));
+        let gate = release.clone();
+        let mock = Router::new().route("/chat/completions", post(move || {
+            let gate = gate.clone();
+            async move {
+                gate.acquire().await.unwrap().forget();
+                Json(serde_json::json!({"choices":[{"message":{"content":"{\"companyName\":\"测试公司\",\"positionTitle\":\"测试岗位\",\"jdText\":\"岗位要求\"}"}}]}))
+            }
+        }));
+        let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+            .await
+            .unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            axum::serve(listener, mock).await.unwrap();
+        });
+        state
+            .services
+            .set_setting("llm_base_url", &format!("http://{address}"))
+            .await
+            .unwrap();
+        *state.llm_api_key.write().unwrap() = Some("fixture-key".into());
+        let app = router(state);
+        let id = "fixture-async-extraction";
+        let response = app.clone().oneshot(Request::builder().method("POST").uri("/api/ext/extract/jobs")
+            .header("authorization", "Bearer test-token").header("content-type", "application/json")
+            .body(Body::from(serde_json::json!({"requestId":id,"title":"fixture","url":"https://example.com","text":"fixture"}).to_string())).unwrap()).await.unwrap();
+        assert_eq!(response.status(), StatusCode::ACCEPTED);
+        drop(response);
+        release.add_permits(1);
+        let result = tokio::time::timeout(std::time::Duration::from_secs(3), async {
+            loop {
+                let response = app
+                    .clone()
+                    .oneshot(
+                        Request::builder()
+                            .uri(format!("/api/ext/extract/jobs/{id}"))
+                            .header("authorization", "Bearer test-token")
+                            .body(Body::empty())
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap();
+                let value: serde_json::Value = serde_json::from_slice(
+                    &response.into_body().collect().await.unwrap().to_bytes(),
+                )
+                .unwrap();
+                if value["status"] != "running" {
+                    break value;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .unwrap();
+        assert_eq!(result["status"], "done", "{result}");
+        assert_eq!(result["result"]["companyName"], "测试公司");
+        server.abort();
     }
 }

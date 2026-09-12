@@ -30,8 +30,6 @@ export function extractJobInPage(): ExtractResult {
   // ① 站点适配器
   if (host.includes("zhipin.com")) {
     result.channel = "BOSS";
-    const name =
-      document.querySelector(".job-salary")?.parentElement?.textContent ?? "";
     const title =
       document.querySelector(".job-banner .name")?.textContent ??
       document.querySelector("h1")?.textContent ??

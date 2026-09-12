@@ -201,7 +201,7 @@ export default function CalendarPage() {
 
         {/* 当日明细 */}
         <div className="native-panel min-h-[460px] overflow-hidden">
-          <div className="border-b border-[var(--fyj-separator)] px-4 py-3.5">
+          <div className="panel-heading px-4 py-3.5">
             <h2 className="text-[14px] font-semibold">{selectedLabel}</h2>
             <p className="mt-0.5 text-[11px] tabular-nums text-[var(--fyj-tertiary)]">{selected}</p>
           </div>
@@ -214,7 +214,7 @@ export default function CalendarPage() {
               </div>
             </div>
           ) : (
-            <div className="divide-y divide-[var(--fyj-separator)] px-2 py-1.5">
+            <div className="striped-list px-2 py-1.5">
               {selectedEntries.map((e, i) => (
                 <button
                   key={i}

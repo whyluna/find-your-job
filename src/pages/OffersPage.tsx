@@ -96,7 +96,7 @@ export default function OffersPage() {
       />
 
       {/* 权重 */}
-      <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200/80 px-4 py-3 dark:border-slate-800/80">
+      <div className="summary-tile mt-4 flex flex-wrap items-center gap-3 px-4 py-3">
         <span className="text-[13px] font-medium text-slate-500">权重</span>
         {DIMENSIONS.map((d) => (
           <label key={d.key} className="flex items-center gap-1.5 text-[13px] text-slate-500">
@@ -118,8 +118,8 @@ export default function OffersPage() {
           还没有进入 OC / offer 阶段的投递。先在时间线记录好消息
         </div>
       ) : (
-        <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200/80 dark:border-slate-800/80">
-          <table className="w-full text-sm">
+        <div className="data-table-shell mt-4 overflow-x-auto">
+          <table className="data-table min-w-[1020px] text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50 text-left text-[13px] text-slate-500 dark:border-slate-800 dark:bg-slate-800/50">
                 <th className="px-4 py-2.5 font-medium">公司 · 岗位</th>

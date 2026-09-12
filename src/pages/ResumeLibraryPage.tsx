@@ -84,8 +84,9 @@ export default function ResumeLibraryPage() {
         {(resumes ?? []).map((r) => (
           <div
             key={r.id}
+            data-default={r.isDefault || undefined}
             className={cn(
-              "rounded-xl border bg-white p-4 transition-[border-color,box-shadow] hover:shadow-sm dark:bg-slate-900",
+              "content-panel p-4 transition-[border-color,box-shadow] hover:shadow-sm",
               r.isDefault ? "border-blue-300 dark:border-blue-700" : "border-slate-200 dark:border-slate-800/80",
             )}
           >
@@ -111,7 +112,7 @@ export default function ResumeLibraryPage() {
               </div>
             </div>
             {r.notes && <div className="mt-2 text-[13px] text-slate-500">{r.notes}</div>}
-            <div className="mt-3 flex items-center justify-between">
+            <div className="resume-card-footer flex items-center justify-between">
               <span className="text-xs text-slate-400">被 {r.usageCount} 条投递引用</span>
               <div className="flex gap-0.5">
                 <button

@@ -43,8 +43,8 @@ export function NotificationSettingsCard() {
   };
 
   return (
-    <section className="mt-4 max-w-2xl rounded-xl border border-slate-200/80 p-5 dark:border-slate-800/80">
-      <h2 className="flex items-center gap-2 text-sm font-semibold">
+    <section className="content-panel mt-4 max-w-2xl p-5">
+      <h2 className="section-heading flex items-center gap-2 text-sm font-semibold">
         <Bell className="size-4" /> 系统提醒
       </h2>
       <p className="mt-1.5 text-[13px] leading-relaxed text-slate-500">

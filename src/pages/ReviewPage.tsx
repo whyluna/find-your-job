@@ -164,9 +164,9 @@ export default function ReviewPage() {
         {groups.map((g) => (
           <section
             key={g.applicationId}
-            className="overflow-hidden rounded-xl border border-slate-200/80 bg-white dark:border-slate-800/80 dark:bg-slate-900/60"
+            className="content-panel overflow-hidden"
           >
-            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 dark:border-slate-800/80">
+            <div className="panel-heading flex items-center justify-between gap-4 px-4 py-3">
               <button
                 onClick={() => setCollapsed((c) => ({ ...c, [g.applicationId]: !c[g.applicationId] }))}
                 aria-expanded={!collapsed[g.applicationId]}
@@ -202,25 +202,25 @@ export default function ReviewPage() {
               .sort((a, b) => +b[0] - +a[0])
               .map(([roundKey, qs]) => (
                 <div key={roundKey} className="border-b border-slate-100/90 last:border-0 dark:border-slate-800/70">
-                  <div className="px-4 pb-1 pt-2.5 text-sm font-medium text-slate-400 dark:text-slate-500">
+                  <div className="review-round text-sm">
                     第 {roundKey} 轮{qs[0]?.roundLabel ? ` · ${qs[0].roundLabel}` : ""}
                   </div>
-                  <div className="divide-y divide-slate-100/80 dark:divide-slate-800/60">
+                  <div>
                     {qs.map((q) => (
-                      <div key={q.questionId} className="group px-4 py-3">
+                      <div key={q.questionId} className="review-question group">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0 flex-1">
                             <div className="text-base font-medium leading-relaxed"><LatexText>{q.question}</LatexText></div>
                             {(q.myAnswer || q.reflection) && (
-                              <div className="mt-2 space-y-1.5 border-l-2 border-slate-200 pl-3 dark:border-slate-700/70">
+                              <div className="mt-3 space-y-2">
                                 {q.myAnswer && (
-                                  <div className="text-base leading-relaxed text-slate-600 dark:text-slate-300">
+                                  <div className="answer-block text-base leading-relaxed text-slate-600 dark:text-slate-300">
                                     <span className="mr-1.5 select-none text-[13px] font-medium text-slate-400 dark:text-slate-500">我的回答</span>
                                     <LatexText>{q.myAnswer}</LatexText>
                                   </div>
                                 )}
                                 {q.reflection && (
-                                  <div className="text-base leading-relaxed text-slate-700 dark:text-slate-200">
+                                  <div data-kind="reflection" className="answer-block text-base leading-relaxed text-slate-700 dark:text-slate-200">
                                     <span className="mr-1.5 select-none text-[13px] font-medium text-amber-600 dark:text-amber-400">理想回答</span>
                                     <LatexText>{q.reflection}</LatexText>
                                   </div>
@@ -245,7 +245,7 @@ export default function ReviewPage() {
                             </span>
                             <button
                               onClick={() => setEditing(q)}
-                              className="rounded-md p-1 text-slate-300 opacity-0 transition-all hover:bg-slate-100 hover:text-slate-600 group-hover:opacity-100 dark:hover:bg-slate-800 dark:hover:text-slate-300"
+                              className="rounded-md p-1 text-slate-400 opacity-0 transition-all hover:bg-slate-100 hover:text-slate-600 group-hover:opacity-100 group-focus-within:opacity-100 dark:hover:bg-slate-800 dark:hover:text-slate-300"
                               title="编辑"
                             >
                               <Pencil className="size-3.5" />
@@ -254,7 +254,7 @@ export default function ReviewPage() {
                               onClick={() => {
                                 if (confirm("删除这道面经？")) delQuestion.mutate(q);
                               }}
-                              className="rounded-md p-1 text-slate-300 opacity-0 transition-all hover:bg-red-50 hover:text-red-500 group-hover:opacity-100 dark:hover:bg-red-900/30"
+                              className="rounded-md p-1 text-slate-400 opacity-0 transition-all hover:bg-red-50 hover:text-red-500 group-hover:opacity-100 group-focus-within:opacity-100 dark:hover:bg-red-900/30"
                               title="删除"
                             >
                               <Trash2 className="size-3.5" />

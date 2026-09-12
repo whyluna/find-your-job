@@ -330,7 +330,7 @@ export default function ApplicationDetailPage() {
               className="w-full rounded-xl border border-slate-200/80 bg-white p-4 font-mono text-[13px] leading-relaxed focus:border-indigo-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800"
             />
           ) : app.jdText ? (
-            <pre className="max-h-[60vh] overflow-y-auto whitespace-pre-wrap break-words rounded-xl border border-slate-200/80 p-4 text-[13px] leading-relaxed text-slate-600 dark:border-slate-800 dark:text-slate-300">
+            <pre className="reading-surface max-h-[60vh] overflow-y-auto whitespace-pre-wrap break-words p-5 font-sans text-[15px] leading-7 text-[var(--fyj-text)]">
               {app.jdText}
             </pre>
           ) : (

@@ -7,16 +7,18 @@
   --fyj-accent: #0a76e8;
   --fyj-accent-hover: #0068d5;
   --fyj-accent-soft: rgba(10, 118, 232, 0.11);
-  --fyj-canvas: #f6f6f8;
+  --fyj-canvas: #f0f2f5;
   --fyj-sidebar: rgba(232, 233, 237, 0.88);
-  --fyj-surface: rgba(255, 255, 255, 0.88);
+  --fyj-surface: #fcfcfd;
   --fyj-surface-solid: #ffffff;
-  --fyj-surface-muted: #f2f2f5;
+  --fyj-surface-muted: #e9edf2;
+  --fyj-row-alternate: #f2f5f8;
+  --fyj-reading: #f5f6f8;
   --fyj-border: rgba(16, 24, 40, 0.12);
   --fyj-separator: rgba(16, 24, 40, 0.085);
   --fyj-text: #1d1d1f;
   --fyj-secondary: #5f6066;
-  --fyj-tertiary: #7f8087;
+  --fyj-tertiary: #686e78;
   --fyj-control-shadow:
     0 1px 1px rgba(0, 0, 0, 0.04), 0 0 0 0.5px rgba(0, 0, 0, 0.04);
   --fyj-panel-shadow: 0 1px 2px rgba(0, 0, 0, 0.035);
@@ -32,11 +34,13 @@
   --fyj-surface: rgba(45, 45, 48, 0.88);
   --fyj-surface-solid: #2c2c2e;
   --fyj-surface-muted: #37373a;
+  --fyj-row-alternate: #303237;
+  --fyj-reading: #26282c;
   --fyj-border: rgba(255, 255, 255, 0.13);
   --fyj-separator: rgba(255, 255, 255, 0.09);
   --fyj-text: #f5f5f7;
   --fyj-secondary: #b0b0b6;
-  --fyj-tertiary: #86868c;
+  --fyj-tertiary: #a3a6ae;
   --fyj-control-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);
   --fyj-panel-shadow: 0 1px 2px rgba(0, 0, 0, 0.24);
 }
@@ -116,9 +120,7 @@ a:focus-visible {
 
   .app-main {
     padding-top: 0;
-    background:
-      radial-gradient(circle at 52% -20%, rgba(255, 255, 255, 0.75), transparent 34%),
-      var(--fyj-canvas);
+    background: var(--fyj-canvas);
   }
 
   .dark .app-main {
@@ -181,20 +183,195 @@ a:focus-visible {
   color: var(--fyj-tertiary);
 }
 
-/* Give legacy page surfaces the same quiet macOS material while pages migrate. */
-.app-main :is(section, div).rounded-xl.border {
-  border-color: var(--fyj-border);
+/* Explicit materials: do not paint every rounded border white. In particular,
+   status lanes, reminders and editing states must keep their own surfaces. */
+.content-panel,
+.data-table-shell {
+  border: 1px solid var(--fyj-border);
   border-radius: 10px;
-  background-color: var(--fyj-surface);
+  background: var(--fyj-surface);
   box-shadow: var(--fyj-panel-shadow);
 }
 
-.app-main table thead tr {
-  border-color: var(--fyj-separator);
+.panel-heading {
+  border-bottom: 1px solid var(--fyj-separator);
   background: var(--fyj-surface-muted);
 }
 
-.app-main table tbody tr {
+.section-heading {
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--fyj-separator);
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.data-table thead tr {
+  background: var(--fyj-surface-muted);
+  color: var(--fyj-secondary);
+}
+
+.data-table th {
+  white-space: nowrap;
+  border-bottom: 1px solid var(--fyj-border);
+}
+
+.data-table tbody tr {
+  background: var(--fyj-surface);
+}
+
+.data-table tbody tr:nth-of-type(even) {
+  background: var(--fyj-row-alternate);
+}
+
+.data-table tbody td {
+  border-bottom: 1px solid var(--fyj-separator);
+}
+
+.data-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.data-table tbody tr:is(:hover, :focus-within, [data-dragging="true"]) {
+  background: color-mix(in srgb, var(--fyj-accent) 9%, var(--fyj-surface));
+}
+
+.data-table tbody tr:focus-visible {
+  outline: 2px solid var(--fyj-accent);
+  outline-offset: -2px;
+}
+
+.application-table {
+  table-layout: fixed;
+  min-width: 1128px;
+}
+
+/* Disable selection before the drag threshold is reached, including in WKWebView.
+   Keep selection available in editable fields; detail/review pages are unaffected. */
+.applications-page {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.applications-page :is(input, textarea, [contenteditable="true"]) {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.application-table td {
+  padding-top: 13px;
+  padding-bottom: 13px;
+}
+
+/* The same stage colors are used by badges and kanban headings. */
+[data-status] { --stage-color: #607590; }
+[data-status="APPLIED"], [data-status="INTERVIEWING"] { --stage-color: #1674ce; }
+[data-status="ASSESSMENT"], [data-status="WRITTEN"] { --stage-color: #8054be; }
+[data-status="OC"], [data-status="INTENT"] { --stage-color: #ad6a19; }
+[data-status="OFFER"], [data-status="SIGNED"] { --stage-color: #27806a; }
+[data-status="REJECTED"] { --stage-color: #b65259; }
+[data-status="WITHDRAWN"] { --stage-color: #787b83; }
+.dark [data-status] { --stage-color: #a4b6cf; }
+.dark [data-status="APPLIED"], .dark [data-status="INTERVIEWING"] { --stage-color: #79b6f1; }
+.dark [data-status="ASSESSMENT"], .dark [data-status="WRITTEN"] { --stage-color: #bea0ef; }
+.dark [data-status="OC"], .dark [data-status="INTENT"] { --stage-color: #e4b26d; }
+.dark [data-status="OFFER"], .dark [data-status="SIGNED"] { --stage-color: #7dcbb3; }
+.dark [data-status="REJECTED"] { --stage-color: #e6989e; }
+.dark [data-status="WITHDRAWN"] { --stage-color: #a4a6ad; }
+
+.status-badge {
+  color: var(--stage-color);
+  background: color-mix(in srgb, var(--stage-color) 11%, var(--fyj-surface));
+}
+
+.status-dot { background: var(--stage-color); }
+
+.kanban-lane {
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--stage-color) 18%, var(--fyj-border));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--stage-color) 7%, var(--fyj-canvas));
+}
+
+.lane-heading {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 12px;
+  color: var(--stage-color);
+}
+
+.lane-count {
+  min-width: 24px;
+  border-radius: 6px;
+  padding: 1px 6px;
+  background: color-mix(in srgb, var(--stage-color) 10%, var(--fyj-surface));
+  text-align: center;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.lane-rule {
+  height: 1px;
+  flex: 1;
+  background: color-mix(in srgb, var(--stage-color) 20%, transparent);
+}
+
+/* Empty and occupied lanes share one header-only drop indicator. */
+.kanban-lane[data-drop="allowed"] .lane-heading { color: var(--fyj-accent); }
+.kanban-lane[data-drop="allowed"] .lane-rule { height: 2px; background: var(--fyj-accent); }
+.kanban-lane[data-drop="blocked"] .lane-heading { color: var(--fyj-secondary); }
+
+.job-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+  gap: 10px;
+}
+
+.job-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+  padding: 13px 14px 11px;
+  border: 1px solid var(--fyj-border);
+  border-radius: 9px;
+  background: var(--fyj-surface);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 3%);
+  transition: border-color 150ms, box-shadow 150ms;
+}
+
+.job-card:hover, .job-card:focus-visible {
+  border-color: color-mix(in srgb, var(--stage-color) 60%, var(--fyj-border));
+  box-shadow: 0 2px 6px rgb(0 0 0 / 6%);
+}
+
+.job-card[data-dragging="true"] { transform: rotate(1deg); box-shadow: 0 10px 28px rgb(0 0 0 / 16%); }
+.job-company { min-height: 2.8em; font-size: 15px; line-height: 1.4; font-weight: 600; }
+.job-position { margin-top: 6px; color: var(--fyj-secondary); line-height: 1.45; }
+.job-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: auto; padding-top: 12px; color: var(--fyj-secondary); font-size: 13px; }
+
+.reading-surface {
+  background: var(--fyj-reading);
+  border: 1px solid var(--fyj-separator);
+  border-radius: 8px;
+}
+
+.review-round { padding: 12px 16px 6px; color: var(--fyj-secondary); font-weight: 500; }
+.review-question { margin: 8px 16px 16px; padding: 16px; border-radius: 8px; background: var(--fyj-reading); }
+.answer-block { padding: 12px 14px; border-left: 3px solid var(--fyj-border); border-radius: 0 6px 6px 0; background: var(--fyj-surface); }
+.answer-block[data-kind="reflection"] { border-left-color: #c29345; }
+.striped-list > :nth-child(even) { background: var(--fyj-row-alternate); }
+.striped-list > button:hover { background: var(--fyj-accent-soft); }
+.summary-tile { background: var(--fyj-surface-muted); border: 1px solid var(--fyj-border); border-radius: 10px; }
+.resume-card-footer { margin: 16px -16px -16px; padding: 10px 16px; background: var(--fyj-surface-muted); border-top: 1px solid var(--fyj-separator); border-radius: 0 0 9px 9px; }
+.content-panel[data-default="true"] { border-color: var(--fyj-accent); }
+
+.app-main .native-separator {
   border-color: var(--fyj-separator);
 }
 

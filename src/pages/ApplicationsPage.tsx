@@ -95,7 +95,7 @@ export default function ApplicationsPage() {
   }
 
   return (
-    <div className="px-6 pb-10 pt-0">
+    <div className="applications-page px-6 pb-10 pt-0">
       <PageHeader
         title="投递"
         subtitle={status === "SAVED" ? "收集感兴趣的岗位，准备好后再投递" : `共 ${items.length} 个岗位`}
@@ -180,21 +180,28 @@ export default function ApplicationsPage() {
           )}
         </div>
       ) : (
-        <>
-
-
-      <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200/80 dark:border-slate-800/80">
-        <table className="w-full text-sm">
+      <div className="data-table-shell mt-4 overflow-x-auto">
+        <table className="data-table application-table text-sm">
+          <colgroup>
+            <col style={{ width: 32 }} />
+            <col style={{ width: "22%" }} />
+            <col style={{ width: "23%" }} />
+            <col style={{ width: 132 }} />
+            <col style={{ width: 70 }} />
+            <col style={{ width: 88 }} />
+            <col style={{ width: 80 }} />
+            <col style={{ width: 104 }} />
+            <col style={{ width: 112 }} />
+          </colgroup>
           <thead>
             <tr className="border-b border-slate-200/80 text-left text-[13px] text-slate-400 dark:border-slate-800/80 dark:text-slate-500">
               <th className="w-8 px-2 py-2.5" />
-              <th className="whitespace-nowrap px-3 py-2.5 font-medium">公司</th>
-              <th className="whitespace-nowrap px-3 py-2.5 font-medium">部门</th>
+              <th className="whitespace-nowrap px-3 py-2.5 font-medium">公司 / 部门</th>
               <th className="whitespace-nowrap px-3 py-2.5 font-medium">岗位</th>
               <th className="whitespace-nowrap px-3 py-2.5 font-medium">状态</th>
               <th className="whitespace-nowrap px-3 py-2.5 font-medium">批次</th>
               <th className="whitespace-nowrap px-3 py-2.5 font-medium">渠道</th>
-              <th className="whitespace-nowrap px-3 py-2.5 font-medium">Base</th>
+              <th className="whitespace-nowrap px-3 py-2.5 font-medium">地点</th>
               <th className="whitespace-nowrap px-3 py-2.5 font-medium">投递日</th>
               <th className="whitespace-nowrap px-3 py-2.5 font-medium">简历版本</th>
             </tr>
@@ -210,14 +217,14 @@ export default function ApplicationsPage() {
               <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
                 {isLoading && (
                   <tr>
-                    <td colSpan={10} className="px-4 py-10 text-center text-slate-400">
+                    <td colSpan={9} className="px-4 py-10 text-center text-slate-400">
                       加载中…
                     </td>
                   </tr>
                 )}
                 {!isLoading && items.length === 0 && (
                   <tr>
-                    <td colSpan={10} className="px-4 py-12 text-center text-slate-400">
+                    <td colSpan={9} className="px-4 py-12 text-center text-slate-400">
                       {search || status !== "ALL" ? "没有符合条件的岗位，可调整搜索或筛选" : "还没有岗位，点右上角「添加意向岗位」开始"}
                     </td>
                   </tr>
@@ -235,7 +242,6 @@ export default function ApplicationsPage() {
           </tbody>
         </table>
       </div>
-        </>
       )}
 
       <CreateApplicationDialog
@@ -276,6 +282,7 @@ function Row({
         if (e.key === "Enter") onClick();
       }}
       tabIndex={0}
+      data-dragging={isDragging || undefined}
       className={cn(
         "border-b border-slate-100 transition-colors last:border-0 outline-none focus-visible:bg-indigo-50 hover:bg-slate-50 dark:border-slate-800/60 dark:hover:bg-slate-800/40 dark:focus-visible:bg-indigo-900/20",
         canReorder && !isDragging && "cursor-pointer",
@@ -297,9 +304,9 @@ function Row({
           <GripVertical className="size-3.5" />
         </span>
       </td>
-      <td className="whitespace-nowrap px-3 py-2.5">
-        <div className="flex items-center gap-2">
-          <span className="font-medium">{item.companyName}</span>
+      <td className="px-3 py-2.5">
+        <div className="flex items-center gap-2" title={item.companyName}>
+          <span className="line-clamp-2 break-words font-semibold">{item.companyName}</span>
           {isUrgent(item.nextDeadline) && (
             <span
               title={deadlineLabel(item.nextDeadline)}
@@ -307,13 +314,13 @@ function Row({
             />
           )}
         </div>
+        {item.department && <div className="mt-1 truncate text-xs text-slate-500" title={item.department}>{item.department}</div>}
       </td>
-      <td className="whitespace-nowrap px-3 py-2.5 text-slate-500">
-        {item.department ?? "—"}
+      <td className="px-3 py-2.5" title={item.positionTitle}>
+        <span className="line-clamp-2 break-words">{item.positionTitle}</span>
       </td>
-      <td className="max-w-44 truncate px-3 py-2.5">{item.positionTitle}</td>
       <td className="whitespace-nowrap px-3 py-2.5">
-        <div className="flex flex-nowrap items-center gap-1.5 whitespace-nowrap">
+        <div className="flex flex-wrap items-center gap-1.5">
           <StatusBadge status={item.status} />
           {item.hasOverdueInterview ? (
             <span className="rounded bg-red-100 px-1.5 py-0.5 text-[11px] font-medium text-red-600 dark:bg-red-900/40 dark:text-red-300">
@@ -333,13 +340,13 @@ function Row({
         {CHANNEL_LABELS[item.channel as keyof typeof CHANNEL_LABELS] ?? item.channel}
       </td>
       <td
-          className="max-w-40 break-words px-3 py-2.5 text-slate-500"
+          className="truncate px-3 py-2.5 text-slate-500"
           title={item.workLocation ?? undefined}
         >
           {item.workLocation ?? "—"}
         </td>
       <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-slate-500">{fmtDate(item.appliedDate)}</td>
-      <td className="whitespace-nowrap px-3 py-2.5">
+      <td className="truncate px-3 py-2.5" title={item.resumeVersionName ?? undefined}>
         {item.resumeVersionName ? (
           <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[13px] text-slate-600 dark:bg-slate-800 dark:text-slate-300">
             {item.resumeVersionName}

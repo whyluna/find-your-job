@@ -32,6 +32,7 @@ jobs:
           pnpm test
           pnpm build
           pnpm --filter fyj-extension build
+          pnpm --filter fyj-extension typecheck
       - name: Rust checks
         working-directory: src-tauri
         run: |

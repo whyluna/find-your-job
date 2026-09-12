@@ -111,8 +111,8 @@ export default function SettingsPage() {
       <PageHeader title="设置" subtitle="数据、浏览器扩展与智能识别" />
 
       {/* 数据 */}
-      <section className="mt-5 max-w-2xl rounded-xl border border-slate-200/80 p-5 dark:border-slate-800/80">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
+      <section className="content-panel mt-5 max-w-2xl p-5">
+        <h2 className="section-heading flex items-center gap-2 text-sm font-semibold">
           <Database className="size-4" /> 数据
         </h2>
         <p className="mt-1.5 text-[13px] leading-relaxed text-slate-500">
@@ -152,8 +152,8 @@ export default function SettingsPage() {
       </section>
 
       {/* 浏览器扩展接入 */}
-      <section className="mt-4 max-w-2xl rounded-xl border border-slate-200/80 p-5 dark:border-slate-800/80">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
+      <section className="content-panel mt-4 max-w-2xl p-5">
+        <h2 className="section-heading flex items-center gap-2 text-sm font-semibold">
           <Puzzle className="size-4" /> 浏览器扩展接入
         </h2>
         <p className="mt-1.5 text-[13px] leading-relaxed text-slate-500">
@@ -224,7 +224,7 @@ export default function SettingsPage() {
       <NotificationSettingsCard />
 
       {/* 关于 */}
-      <section className="mt-4 max-w-2xl rounded-xl border border-slate-200/80 p-5 dark:border-slate-800/80">
+      <section className="content-panel mt-4 max-w-2xl p-5">
         <h2 className="text-sm font-semibold">关于</h2>
         <p className="mt-1.5 text-[13px] leading-relaxed text-slate-500">
           FindYourJob{appVersion ? ` v${appVersion}` : ""} · 状态由事件时间线推导的本地求职记录工具。

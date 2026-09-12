@@ -1,0 +1,5 @@
+{
+  "extends": "./.wxt/tsconfig.json",
+  "compilerOptions": { "jsx": "react-jsx", "noUnusedLocals": true, "noUnusedParameters": true },
+  "exclude": ["build", "src/**/*.test.ts", "src/**/*.test.tsx"]
+}

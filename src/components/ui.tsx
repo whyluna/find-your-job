@@ -230,30 +230,13 @@ export function Modal({
   );
 }
 
-const STATUS_STYLES: Record<Status, { badge: string; dot: string }> = {
-  SAVED: { badge: "text-slate-600 dark:text-slate-300", dot: "bg-slate-400" },
-  APPLIED: { badge: "text-blue-700 dark:text-blue-300", dot: "bg-blue-500" },
-  ASSESSMENT: { badge: "text-violet-700 dark:text-violet-300", dot: "bg-violet-500" },
-  WRITTEN: { badge: "text-violet-700 dark:text-violet-300", dot: "bg-violet-500" },
-  INTERVIEWING: { badge: "text-blue-700 dark:text-blue-300", dot: "bg-blue-500" },
-  OC: { badge: "text-amber-700 dark:text-amber-300", dot: "bg-amber-500" },
-  INTENT: { badge: "text-orange-700 dark:text-orange-300", dot: "bg-orange-500" },
-  OFFER: { badge: "text-emerald-700 dark:text-emerald-300", dot: "bg-emerald-500" },
-  SIGNED: { badge: "text-emerald-700 dark:text-emerald-300", dot: "bg-emerald-500" },
-  REJECTED: { badge: "text-red-700 dark:text-red-300", dot: "bg-red-500" },
-  WITHDRAWN: { badge: "text-slate-400 dark:text-slate-500", dot: "bg-slate-400" },
-};
-
 export function StatusBadge({ status }: { status: Status }) {
-  const style = STATUS_STYLES[status] ?? STATUS_STYLES.SAVED;
   return (
     <span
-      className={cn(
-        "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-black/[0.035] px-2 py-0.5 text-[11px] font-medium dark:bg-white/[0.065]",
-        style.badge,
-      )}
+      data-status={status}
+      className="status-badge inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium"
     >
-      <span className={cn("size-1.5 rounded-full", style.dot)} />
+      <span className="status-dot size-1.5 rounded-full" />
       {STATUS_LABELS[status] ?? status}
     </span>
   );

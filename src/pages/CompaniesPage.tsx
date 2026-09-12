@@ -43,8 +43,8 @@ export default function CompaniesPage() {
         </div>
       )}
 
-      <div className="mt-4 overflow-hidden rounded-xl border border-slate-200/80 dark:border-slate-800/80">
-        <table className="w-full text-sm">
+      <div className="data-table-shell mt-4 overflow-x-auto">
+        <table className="data-table min-w-[760px] text-sm">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50 text-left text-[13px] text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
               <th className="px-4 py-2.5 font-medium">公司</th>

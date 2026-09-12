@@ -129,9 +129,9 @@ export function InterviewCard({
     new Date(interview.scheduledAt).getTime() < Date.now();
 
   return (
-    <div className="rounded-xl border border-slate-200/80 dark:border-slate-800/80">
+    <div className="content-panel overflow-hidden">
       {/* 头部：左区展开，操作区独立（防误触） */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3">
+      <div className="panel-heading flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3">
         <div
           role="button"
           tabIndex={0}
@@ -368,20 +368,20 @@ function QuestionItem({
           : "bg-slate-100 text-slate-400 dark:bg-slate-800";
 
   return (
-    <div className="rounded-lg border border-slate-200/80 p-3 dark:border-slate-700">
+    <div className="reading-surface p-4">
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
           <div className="text-base font-medium leading-relaxed"><LatexText>{question.question}</LatexText></div>
           {(question.myAnswer || question.reflection) && (
-            <div className="mt-1.5 space-y-1 border-l-2 border-slate-200 pl-2.5 dark:border-slate-700/70">
+            <div className="mt-3 space-y-2">
               {question.myAnswer && (
-                <div className="text-base leading-relaxed text-slate-600 dark:text-slate-300">
+                <div className="answer-block text-base leading-relaxed text-slate-600 dark:text-slate-300">
                   <span className="mr-1.5 select-none text-[13px] font-medium text-slate-400 dark:text-slate-500">我的回答</span>
                   <LatexText>{question.myAnswer}</LatexText>
                 </div>
               )}
               {question.reflection && (
-                <div className="text-base leading-relaxed text-slate-700 dark:text-slate-200">
+                <div data-kind="reflection" className="answer-block text-base leading-relaxed text-slate-700 dark:text-slate-200">
                   <span className="mr-1.5 select-none text-[13px] font-medium text-amber-600 dark:text-amber-400">理想回答</span>
                   <LatexText>{question.reflection}</LatexText>
                 </div>

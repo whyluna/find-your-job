@@ -94,7 +94,7 @@ export default function StatsPage() {
 
       <div className="mx-auto mt-5 grid max-w-[1120px] grid-cols-2 gap-4">
         {/* 流程进展 */}
-        <section className="rounded-xl border border-slate-200/80 p-5 dark:border-slate-800/80">
+        <section className="content-panel p-5">
           <h2 className="text-sm font-semibold">流程进展</h2>
           <p className="mt-1 text-[11px] text-[var(--fyj-tertiary)]">进入后续阶段时，会同时计入此前阶段。</p>
           <div className="mt-4 space-y-2.5">
@@ -135,8 +135,8 @@ export default function StatsPage() {
         </section>
 
         {/* 周曲线 */}
-        <section className="rounded-xl border border-slate-200/80 p-5 dark:border-slate-800/80">
-          <h2 className="text-sm font-semibold">近 8 周投递量</h2>
+        <section className="content-panel p-5">
+          <h2 className="section-heading text-sm font-semibold">近 8 周投递量</h2>
           <div className="mt-3 h-44">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={weeks} margin={{ top: 4, right: 4, bottom: 0, left: -24 }}>
@@ -162,8 +162,8 @@ export default function StatsPage() {
         ).map(([title, rows, labels]) => {
           const max = Math.max(1, ...rows.map((r) => r.count));
           return (
-            <section key={title} className="rounded-xl border border-slate-200/80 p-5 dark:border-slate-800/80">
-              <h2 className="text-sm font-semibold">{title}</h2>
+            <section key={title} className="content-panel p-5">
+              <h2 className="section-heading text-sm font-semibold">{title}</h2>
               <div className="mt-3 space-y-2">
                 {rows.length === 0 && <div className="text-[13px] text-slate-400">暂无数据</div>}
                 {rows.slice(0, 7).map((r) => (
@@ -188,14 +188,14 @@ export default function StatsPage() {
       </div>
 
       {/* 沉默投递 */}
-      <section className="mx-auto mt-4 max-w-[1120px] rounded-xl border border-slate-200/80 p-5 dark:border-slate-800/80">
-        <h2 className="text-sm font-semibold">
+      <section className="content-panel mx-auto mt-4 max-w-[1120px] p-5">
+        <h2 className="section-heading text-sm font-semibold">
           沉默投递 <span className="text-[13px] font-normal text-slate-400">超过 14 天无动静且未到终态</span>
         </h2>
         {s.silent.length === 0 ? (
           <div className="mt-3 text-[13px] text-slate-400">没有沉默的投递 👍</div>
         ) : (
-          <div className="mt-3 space-y-1">
+          <div className="striped-list mt-3 space-y-1">
             {s.silent.map((a) => (
               <button
                 key={a.id}
