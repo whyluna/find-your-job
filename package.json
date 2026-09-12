@@ -11,8 +11,8 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "app:install": "bash scripts/tauri.sh build",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "pnpm --filter fyj-extension exec wxt prepare && vitest run",
+    "test:watch": "pnpm --filter fyj-extension exec wxt prepare && vitest"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
