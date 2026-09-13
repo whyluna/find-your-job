@@ -51,6 +51,7 @@ const os = require('node:os');
             if (cmd === 'db_ready') return { ok: true, applications: jobs.length, companies: jobs.length, events: 14, recoveryMode: false };
             if (cmd === 'list_applications') return jobs.filter(job => (!args.filter?.statuses?.length || args.filter.statuses.includes(job.status)) && (!args.filter?.search || job.companyName.includes(args.filter.search)));
             if (cmd === 'list_all_questions') return questions;
+            if (cmd === 'list_company_watches') return [];
             if (cmd === 'list_companies') return jobs.slice(0, 18).map(job => ({ id: job.companyId, name: job.companyName, aliases: ['研发中心'], nature: '研究所', industry: '互联网/软件', careersUrl: 'https://example.com/jobs', applicationCount: 1 }));
             if (cmd === 'list_resumes') return ['研发岗版', '算法岗版', '基础架构版'].map((name, i) => ({ id: `resume-${i}`, name, isDefault: i === 0, targetRole: '软件研发', fileName: '示例简历.pdf', fileSize: 256000, usageCount: i + 2, notes: '突出工程实践与系统设计能力。' }));
             if (cmd === 'get_stats') return { wishlistCount: 16, statusCounts: stages.map(key => ({ key, count: jobs.filter(j => j.status === key).length })), stageReachedCounts: stages.slice(1, 9).map((key, i) => ({ key, count: 8 - i })), channelCounts: [{ key: 'COMPANY_SITE', count: 8 }], batchCounts: [{ key: 'FORMAL', count: 8 }], dailyApplied: [{ key: date.slice(0, 10), count: 3 }], silent: [], resumeFunnel: [] };
@@ -114,6 +115,7 @@ const os = require('node:os');
       for (const route of ['companies', 'review', 'resumes', 'stats', 'calendar', 'offers', 'settings', '']) {
         await page.goto(`http://127.0.0.1:4178/${route}`);
         await page.locator('.page-header').waitFor();
+        if (route === 'companies') await page.getByRole('button', { name: '全部公司', exact: true }).click();
         await page.waitForTimeout(350);
         assert.equal(await page.locator('body').evaluate(body => body.scrollWidth > innerWidth), false, `Overflow on ${route}`);
         await page.screenshot({ path: path.join(output, `${colorScheme}-${route || 'dashboard'}.png`) });

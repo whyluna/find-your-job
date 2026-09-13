@@ -1,0 +1,27 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><title>插件公司模式 · 隔离验收</title></head><body>
+<div id="qa-toolbar" style="padding:10px;display:flex;gap:8px;flex-wrap:wrap"><strong>隔离预览 · 不连接真实 App</strong><button id="close">关闭侧边栏</button><button id="open">打开侧边栏</button><button id="refresh">刷新来源页面</button><label><input type="checkbox" id="fail">模拟保存失败</label><output id="saved"></output></div>
+<div id="root" style="width:420px;max-width:100%;margin:auto"></div>
+<script type="module">
+import React from 'react';
+import {createRoot} from 'react-dom/client';
+import {DraftController,emptyState,stateKey} from '/apps/extension/src/drafts.ts';
+const states=new Map(),listeners=new Set(),saved=[];
+let source={tabId:10,windowId:1,documentId:'fixture-document',url:'https://example.com/careers',title:'示例科技校园招聘'};
+const platform={load:async id=>structuredClone(states.get(id)??emptyState()),save:async(id,state)=>{states.set(id,structuredClone(state));for(const cb of listeners)cb({[stateKey(id)]:{newValue:structuredClone(state)}},'session');},capture:async()=>({source:structuredClone(source),clip:{companyName:'示例科技',positionTitle:'',channel:'COMPANY_SITE',source:'heuristic'},company:{companyName:'示例科技',website:'https://example.com',careersUrl:source.url}}),current:async s=>s.documentId===source.documentId,page:async()=>({title:source.title,url:source.url,text:'示例页面'}),request:async(method,path,input)=>{
+  if(path.startsWith('/api/ext/companies'))return [];
+  if(method==='DELETE')return;
+  if(document.getElementById('fail').checked)throw new Error('模拟连接失败，请重试');
+  if(path==='/api/ext/company-watch'){const w={...input,id:crypto.randomUUID(),companyId:'fixture-company'};saved.push(w);document.getElementById('saved').textContent=`已保存公司关注 ${saved.length} 条；未创建岗位。最近：${w.companyName} / ${w.year} / ${w.season}`;return {created:true,watch:w};}
+  throw new Error('隔离预览不调用真实模型或岗位接口');
+}};
+const controller=new DraftController(platform);
+const mock={runtime:{id:'fixture-extension',sendMessage:async m=>{try{let state;switch(m.type){case 'state':state=await controller.state(1);break;case 'capture':state=await controller.capture(1);break;case 'mode':state=await controller.setMode(1,m.mode);break;case 'company-edit':state=await controller.editCompany(1,m.draftId,m.patch);break;case 'company-submit':state=await controller.submitCompany(1,m.draftId);break;case 'company-search':state={...(await controller.state(1)),companySuggestions:[]};break;case 'edit':state=await controller.edit(1,m.draftId,m.field,m.value);break;case 'discard':state=await controller.discard(1,m.draftId);break;default:throw new Error('未实现 '+m.type);}return{ok:true,state};}catch(e){return{ok:false,error:String(e)};}}},windows:{getCurrent:async()=>({id:1})},tabs:{update:async()=>({})},storage:{local:{get:async()=>({token:'fixture-token'}),set:async()=>{}},onChanged:{addListener:cb=>listeners.add(cb),removeListener:cb=>listeners.delete(cb)}}};
+globalThis.browser=mock;globalThis.chrome=mock;
+await import('/apps/extension/src/panel.css');
+const {Panel}=await import('/apps/extension/src/Panel.tsx');
+const root=createRoot(document.getElementById('root'));
+const open=()=>root.render(React.createElement(Panel));
+document.getElementById('close').onclick=()=>root.render(null);document.getElementById('open').onclick=open;
+document.getElementById('refresh').onclick=async()=>{source={...source,documentId:crypto.randomUUID()};await controller.invalidate(1,10);};
+open();
+</script></body></html>

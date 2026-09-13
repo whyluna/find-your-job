@@ -21,7 +21,7 @@ pub async fn init_pool(db_path: &Path) -> Result<SqlitePool> {
         .max_connections(5)
         .connect_with(opts)
         .await?;
-    // 两个迁移均随二进制嵌入，运行时不依赖源码目录。
+    // 迁移均随二进制嵌入，运行时不依赖源码目录。
     // 0001 使用 IF NOT EXISTS / INSERT OR IGNORE，可安全重复执行。
     sqlx::raw_sql(include_str!("../migrations/0001_init.sql"))
         .execute(&pool)
@@ -51,5 +51,8 @@ pub async fn init_pool(db_path: &Path) -> Result<SqlitePool> {
             .await?;
         tx.commit().await?;
     }
+    sqlx::raw_sql(include_str!("../migrations/0004_company_watch.sql"))
+        .execute(&pool)
+        .await?;
     Ok(pool)
 }

@@ -1,0 +1,58 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><title>公司关注 · 隔离界面验收</title></head>
+<body><div id="qa-toolbar" style="height:32px;padding:4px 12px;background:#dce9ff;color:#123;display:flex;gap:12px;align-items:center;font:13px system-ui">隔离验收：仅使用此页内存中的示例数据 <button id="theme">切换深浅色</button><button id="width">切换内容宽度</button></div><div id="root"></div>
+<script type="module">
+import { defaultWatchConfig } from '/packages/shared/src/company-watch.ts';
+const now = () => new Date().toISOString();
+const companies = ['示例科技集团南京研发中心','示例银行','示例研究所','示例制造集团'].map((name,i)=>({id:`company-${i}`,name,aliases:[],website:'https://example.com/',careersUrl:'https://example.com/careers',createdAt:now(),updatedAt:now(),applicationCount:0}));
+const watches = companies.map((c,i)=>({...defaultWatchConfig(),id:`watch-${i}`,companyId:c.id,companyName:c.name,website:c.website,careersUrl:c.careersUrl,applicationCount:0,status:['NOT_OPEN','OPEN','UNKNOWN','CLOSED'][i],paused:i===2,nextCheckAt:i>1?null:new Date(Date.now()+(i===0?-1:7)*86400000).toISOString(),lastCheckedAt:i===0?now():null,targetRole:'软件研发 / 人工智能',targetLocation:'南京',notes:'示例数据，不代表真实招聘情况',createdAt:now(),updatedAt:now()}));
+const histories = Object.fromEntries(watches.map(w=>[w.id,[{id:crypto.randomUUID(),watchId:w.id,action:'FOLLOWED',status:w.status,recordedAt:now(),nextCheckAt:w.nextCheckAt}]]));
+const jobs = [];
+const record = (w, action, input={}) => (histories[w.id]??=[]).unshift({id:crypto.randomUUID(),watchId:w.id,action,status:w.status,recordedAt:now(),nextCheckAt:w.nextCheckAt,note:input.note,evidenceUrl:input.evidenceUrl});
+async function invoke(cmd,args={}) {
+  if(cmd.startsWith('plugin:')) return 1;
+  if(cmd==='get_setting') return args.key==='onboarded'?'true':null;
+  if(cmd==='db_ready') return {ok:true,recoveryMode:false,companies:companies.length,applications:jobs.length,events:0};
+  if(cmd==='list_companies'||cmd==='search_companies') return companies.filter(c=>!args.query||c.name.includes(args.query));
+  if(cmd==='list_company_watches') return watches.map(w=>({...w,companyName:companies.find(c=>c.id===w.companyId).name,applicationCount:jobs.filter(j=>j.companyId===w.companyId).length}));
+  if(cmd==='list_company_watch_checks') return histories[args.id]??[];
+  if(cmd==='follow_company') {
+    const i=args.input;
+    let c=companies.find(c=>c.id===i.companyId||c.name===i.companyName);
+    if(!c){c={id:crypto.randomUUID(),name:i.companyName,website:i.website,careersUrl:i.careersUrl,aliases:[],createdAt:now(),updatedAt:now(),applicationCount:0};companies.push(c);}
+    const existing=watches.find(w=>w.companyId===c.id&&w.year===i.year&&w.season===i.season);
+    if(existing)return {created:false,watch:existing};
+    const w={...i,id:crypto.randomUUID(),companyId:c.id,companyName:c.name,website:c.website,careersUrl:c.careersUrl,applicationCount:0,lastCheckedAt:null,createdAt:now(),updatedAt:now()};
+    if(w.paused||w.status==='CLOSED')w.nextCheckAt=null;
+    watches.push(w);record(w,'FOLLOWED');return {created:true,watch:w};
+  }
+  if(cmd==='update_company_watch'){const w=watches.find(w=>w.id===args.id);Object.assign(w,args.input);if(w.paused||w.status==='CLOSED')w.nextCheckAt=null;record(w,'EDIT');return w;}
+  if(cmd==='act_on_company_watch'){
+    const w=watches.find(w=>w.id===args.id), i=args.input;
+    if(i.action==='CHECK'){w.status=i.status;w.lastCheckedAt=now();w.nextCheckAt=w.intervalDays&&w.status!=='CLOSED'?new Date(Date.now()+w.intervalDays*86400000).toISOString():null;}
+    if(i.action==='SNOOZE')w.nextCheckAt=new Date(Date.now()+i.days*86400000).toISOString();
+    if(i.action==='PAUSE'){w.paused=true;w.nextCheckAt=null;}
+    if(i.action==='RESUME'){w.paused=false;w.nextCheckAt=w.intervalDays&&w.status!=='CLOSED'?new Date(Date.now()+w.intervalDays*86400000).toISOString():null;}
+    record(w,i.action,i);return w;
+  }
+  if(cmd==='delete_company_watch'){watches.splice(watches.findIndex(w=>w.id===args.id),1);delete histories[args.id];return null;}
+  if(cmd==='list_applications')return jobs.filter(j=>(!args.filter?.companyId||j.companyId===args.filter.companyId)&&(!args.filter?.statuses?.length||args.filter.statuses.includes(j.status)));
+  if(cmd==='create_application'){const i=args.input,c=companies.find(c=>c.name===i.companyName);const j={...i,id:crypto.randomUUID(),companyId:c.id,status:'SAVED',isArchived:false,createdAt:now(),updatedAt:now(),hasOverdueInterview:false,hasScheduledInterview:false,maxInterviewRound:0,interviewCount:0};jobs.push(j);return j;}
+  if(cmd==='get_application_detail')return {...jobs.find(j=>j.id===args.id),events:[],interviews:[],attachments:[]};
+  if(['list_resumes','list_all_questions','get_upcoming','get_calendar_items','list_custom_event_types','list_dictionary'].includes(cmd))return [];
+  if(cmd==='get_stats')return {wishlistCount:jobs.length,statusCounts:[],stageReachedCounts:[],channelCounts:[],batchCounts:[],dailyApplied:[],silent:[],resumeFunnel:[]};
+  if(cmd==='llm_get_settings')return {baseUrl:'',model:'',apiKeyConfigured:false};
+  if(cmd==='local_api_status')return {enabled:false,running:false,port:37321,token:'fixture-token'};
+  if(cmd==='update_company'){const c=companies.find(c=>c.id===args.id);Object.assign(c,args);return c;}
+  throw new Error(`隔离预览未实现命令: ${cmd}`);
+}
+window.__TAURI_INTERNALS__={metadata:{currentWindow:{label:'main'},currentWebview:{label:'main'}},transformCallback:()=>1,invoke:async(...args)=>structuredClone(await invoke(...args))};
+// HashRouter keeps this isolated entry point on reload / Vite dependency refresh.
+location.hash='/companies';
+document.getElementById('theme').onclick=()=>document.documentElement.classList.toggle('dark');
+document.getElementById('width').onclick=()=>{const root=document.getElementById('root');root.style.width=root.style.width==='960px'?'1280px':'960px';};
+document.getElementById('root').style.height='calc(100vh - 32px)';
+const [{default:React},{createRoot},{HashRouter},{QueryClient,QueryClientProvider,MutationCache},{default:App}]=await Promise.all([import('react'),import('react-dom/client'),import('react-router'),import('@tanstack/react-query'),import('/src/App.tsx')]);
+await import('/src/styles/globals.css');
+const client=new QueryClient({mutationCache:new MutationCache({onSuccess:()=>{void client.invalidateQueries();}}),defaultOptions:{queries:{retry:false}}});
+createRoot(document.getElementById('root')).render(React.createElement(QueryClientProvider,{client},React.createElement(HashRouter,null,React.createElement(App))));
+</script></body></html>

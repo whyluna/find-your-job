@@ -1,6 +1,7 @@
 import { browser } from "wxt/browser";
 import { DraftController, FIELDS, stateKey, type Field, type PanelState } from "../src/drafts";
 import { platform } from "../src/platform";
+import { COMPANY_FIELDS } from "../src/company-draft";
 
 export default defineBackground(() => {
   const controller = new DraftController(platform);
@@ -55,6 +56,16 @@ export default defineBackground(() => {
       const { windowId, draftId, type } = message;
       if (!Number.isInteger(windowId)) throw new Error("无效窗口");
       switch (type) {
+        case "mode":
+          if (!["job", "company"].includes(message.mode)) throw new Error("无效收录模式");
+          return controller.setMode(windowId, message.mode);
+        case "company-edit":
+          if (!message.patch || typeof message.patch !== "object" || Array.isArray(message.patch) || Object.entries(message.patch).some(([key, value]) => !COMPANY_FIELDS.includes(key as typeof COMPANY_FIELDS[number]) || typeof value !== "string" || value.length > 8192)) throw new Error("无效公司字段");
+          return controller.editCompany(windowId, draftId, message.patch);
+        case "company-submit": return controller.submitCompany(windowId, draftId);
+        case "company-search":
+          if (typeof message.query !== "string" || message.query.length > 200) throw new Error("无效公司名称");
+          return { ...(await controller.state(windowId)), companySuggestions: await platform.request("GET", `/api/ext/companies?q=${encodeURIComponent(message.query)}`) };
         case "state": return controller.state(windowId);
         case "capture": return controller.capture(windowId);
         case "edit":

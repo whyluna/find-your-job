@@ -1,6 +1,6 @@
 use fyj_core::db::init_pool;
 
-/// P0-1 脚手架验收：迁移建全 14 张表、字典种子正确、重复初始化幂等。
+/// 迁移建全 16 张表（含公司关注/查看历史）、字典种子正确、重复初始化幂等。
 #[tokio::test]
 async fn migrations_create_all_tables_and_seed_dictionaries() {
     let dir = tempfile::tempdir().unwrap();
@@ -15,7 +15,9 @@ async fn migrations_create_all_tables_and_seed_dictionaries() {
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert_eq!(tables, 14, "应有 14 张业务表");
+    assert_eq!(tables, 16, "应有 16 张业务表");
+    let watch_tables: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('company_watch','company_watch_check')").fetch_one(&pool).await.unwrap();
+    assert_eq!(watch_tables, 2);
 
     let dict_rows: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM dictionary")
         .fetch_one(&pool)

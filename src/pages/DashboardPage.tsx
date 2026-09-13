@@ -7,6 +7,7 @@ import { EVENT_TYPE_DEFS, STATUS_LABELS, type EventType, type Status } from "@sh
 import { PageHeader } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { planningLabel } from "@/lib/schedule";
+import { CompanyWatchDue } from "@/components/CompanyWatch";
 
 export default function DashboardPage() {
   const navigate = useNavigate();
@@ -106,6 +107,7 @@ export default function DashboardPage() {
       </section>
 
       {/* 概况 */}
+      <CompanyWatchDue />
       <section className="mt-4 flex max-w-5xl gap-3">
         <div className="summary-tile flex-1 p-4">
           <div className="text-2xl font-semibold tabular-nums tracking-tight">{stats?.stageReachedCounts.find((r) => r.key === "APPLIED")?.count ?? "—"}</div>

@@ -4,6 +4,10 @@
 use tauri::Manager;
 
 use fyj_core::backup;
+use fyj_core::company_watch::{
+    CompanyWatch, FollowCompanyInput, FollowCompanyResult, WatchActionInput, WatchCheck,
+    WatchConfig,
+};
 use fyj_core::entities::{
     Application, ApplicationListItem, Attachment, Company, CustomEventType, DictionaryItem,
     Interview, InterviewQuestion, ResumeVersion,
@@ -575,6 +579,50 @@ async fn list_custom_event_types(
 // ---------- 备份 ----------
 
 #[tauri::command]
+async fn list_company_watches(state: tauri::State<'_, AppState>) -> CmdResult<Vec<CompanyWatch>> {
+    state.0.list_company_watches().await.map_err(e2s)
+}
+
+#[tauri::command]
+async fn follow_company(
+    state: tauri::State<'_, AppState>,
+    input: FollowCompanyInput,
+) -> CmdResult<FollowCompanyResult> {
+    state.0.follow_company(input).await.map_err(e2s)
+}
+
+#[tauri::command]
+async fn update_company_watch(
+    state: tauri::State<'_, AppState>,
+    id: String,
+    input: WatchConfig,
+) -> CmdResult<CompanyWatch> {
+    state.0.update_company_watch(&id, input).await.map_err(e2s)
+}
+
+#[tauri::command]
+async fn act_on_company_watch(
+    state: tauri::State<'_, AppState>,
+    id: String,
+    input: WatchActionInput,
+) -> CmdResult<CompanyWatch> {
+    state.0.act_on_company_watch(&id, input).await.map_err(e2s)
+}
+
+#[tauri::command]
+async fn list_company_watch_checks(
+    state: tauri::State<'_, AppState>,
+    id: String,
+) -> CmdResult<Vec<WatchCheck>> {
+    state.0.list_company_watch_checks(&id).await.map_err(e2s)
+}
+
+#[tauri::command]
+async fn delete_company_watch(state: tauri::State<'_, AppState>, id: String) -> CmdResult<()> {
+    state.0.delete_company_watch(&id).await.map_err(e2s)
+}
+
+#[tauri::command]
 async fn export_json(state: tauri::State<'_, AppState>, path: String) -> CmdResult<u64> {
     backup::export_to_json(&state.0.pool, std::path::Path::new(&path))
         .await
@@ -968,6 +1016,12 @@ pub fn run() {
             llm_save_settings,
             llm_test,
             list_companies,
+            list_company_watches,
+            follow_company,
+            update_company_watch,
+            act_on_company_watch,
+            list_company_watch_checks,
+            delete_company_watch,
             update_company,
             delete_company,
             search_companies,

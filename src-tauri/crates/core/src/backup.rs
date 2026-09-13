@@ -2,6 +2,7 @@
 //!
 //! v2 备份除全部数据库表外，还以 base64 内嵌简历、附件和 eml 原文件，
 //! 因此单个 JSON 可以在新机器的应用数据目录中独立恢复。
+//! v3 另外包含招聘季关注与查看历史；继续支持 v1/v2 导入。
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use serde::{Deserialize, Serialize};
@@ -16,6 +17,8 @@ use crate::error::{Error, Result};
 /// 导出顺序 = 父表在前（导入插入时满足外键）；删除时倒序
 pub const TABLES: &[&str] = &[
     "company",
+    "company_watch",
+    "company_watch_check",
     "resume_version",
     "contact",
     "application",
@@ -179,7 +182,7 @@ pub async fn export_to_json(pool: &SqlitePool, path: &Path) -> Result<u64> {
     let files = collect_embedded_files(pool).await?;
     let doc = json!({
         "format": "findyourjob.export",
-        "version": 2,
+        "version": 3,
         "exported_at": now_ts(),
         "tables": Value::Object(tables),
         "files": files,
@@ -227,7 +230,12 @@ async fn validate_document(pool: &SqlitePool, doc: &Value, version: u64) -> Resu
         .and_then(Value::as_object)
         .ok_or_else(|| Error::Invalid("备份文件缺少 tables 对象".into()))?;
     let required = if version == 1 { LEGACY_TABLES } else { TABLES };
-    for table in required {
+    for table in TABLES {
+        let legacy_optional = !required.contains(table)
+            || (version < 3 && ["company_watch", "company_watch_check"].contains(table));
+        if legacy_optional && !tables.contains_key(*table) {
+            continue;
+        }
         let rows = tables
             .get(*table)
             .and_then(Value::as_array)
@@ -457,7 +465,7 @@ pub async fn import_from_json(
         .get("version")
         .and_then(Value::as_u64)
         .ok_or_else(|| Error::Invalid("备份文件缺少版本号".into()))?;
-    if !matches!(version, 1 | 2) {
+    if !matches!(version, 1..=3) {
         return Err(Error::Invalid(format!("不支持的备份版本: {version}")));
     }
     // 旧备份可能包含明文密钥；恢复时也绝不把它们重新写进 SQLite。
@@ -465,7 +473,7 @@ pub async fn import_from_json(
     validate_document(pool, &doc, version).await?;
 
     let old_paths = current_file_paths(pool).await?;
-    let (_replacements, created_paths) = if version == 2 {
+    let (_replacements, created_paths) = if version >= 2 {
         let files: Vec<EmbeddedFile> = serde_json::from_value(
             doc.get("files")
                 .cloned()
@@ -537,7 +545,7 @@ pub async fn import_from_json(
         for path in &created_paths {
             let _ = std::fs::remove_file(path);
         }
-    } else if version == 2 {
+    } else if version >= 2 {
         remove_old_managed_files(data_dir, &old_paths, &created_paths);
     }
     import_result

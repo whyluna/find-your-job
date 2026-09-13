@@ -43,6 +43,51 @@ export interface ResumeVersion {
   usageCount: number;
 }
 
+export type RecruitmentStatus = "UNKNOWN" | "NOT_OPEN" | "OPEN" | "CLOSED";
+export type RecruitmentSeason = "AUTUMN" | "SPRING" | "INTERNSHIP";
+export interface CompanyWatchConfig {
+  year: number;
+  season: RecruitmentSeason;
+  status: RecruitmentStatus;
+  recruitmentUrl?: string | null;
+  targetRole?: string | null;
+  targetLocation?: string | null;
+  notes?: string | null;
+  intervalDays: number | null;
+  nextCheckAt?: string | null;
+  paused: boolean;
+}
+export interface CompanyWatch extends CompanyWatchConfig {
+  id: string;
+  companyId: string;
+  companyName: string;
+  website?: string | null;
+  careersUrl?: string | null;
+  applicationCount: number;
+  lastCheckedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface FollowCompanyInput extends CompanyWatchConfig {
+  companyId?: string | null;
+  companyName: string;
+  website?: string | null;
+  careersUrl?: string | null;
+}
+export interface FollowCompanyResult { watch: CompanyWatch; created: boolean }
+export interface CompanyWatchAction {
+  action: "CHECK" | "SNOOZE" | "PAUSE" | "RESUME";
+  status?: RecruitmentStatus;
+  days?: number;
+  note?: string | null;
+  evidenceUrl?: string | null;
+}
+export interface CompanyWatchCheck {
+  id: string; watchId: string; action: CompanyWatchAction["action"] | "FOLLOWED" | "EDIT";
+  status: RecruitmentStatus; recordedAt: string; nextCheckAt?: string | null;
+  note?: string | null; evidenceUrl?: string | null;
+}
+
 export interface Application {
   id: string;
   companyId: string;
@@ -318,6 +363,7 @@ export interface UpdateQuestionInput {
 }
 
 export interface ListFilter {
+  companyId?: string | null;
   submittedOnly?: boolean;
   statuses?: string[];
   channels?: string[];

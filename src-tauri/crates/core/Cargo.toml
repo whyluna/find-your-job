@@ -1,6 +1,6 @@
 [package]
 name = "fyj-core"
-version = "0.1.2"
+version = "0.1.3"
 description = "FindYourJob 领域层：模型、状态机、服务、仓储（纯 Rust，不依赖 Tauri）"
 edition = "2021"
 

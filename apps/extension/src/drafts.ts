@@ -1,4 +1,6 @@
 import type { ExtractResult, PageContext } from "./extract";
+import type { FollowCompanyInput, FollowCompanyResult } from "../../../packages/shared/src/ipc-types";
+import { newCompanyDraft, patchCompanyDraft, type CompanyPatch } from "./company-draft";
 
 export const API = "http://127.0.0.1:37321";
 export const stateKey = (windowId: number) => `fyj-draft:${windowId}`;
@@ -11,14 +13,15 @@ export interface Draft {
   submitting?: boolean;
   submitStartedAt?: number;
   duplicate?: { id: string; companyName: string; positionTitle: string };
+  company?: FollowCompanyInput;
 }
-export interface PanelState { revision: number; initialized: boolean; draft: Draft | null; notice: string; noticeKind?: "info" | "success" | "error" }
+export interface PanelState { revision: number; initialized: boolean; draft: Draft | null; mode?: "job" | "company"; notice: string; noticeKind?: "info" | "success" | "error" }
 export const emptyState = (): PanelState => ({ revision: 0, initialized: false, draft: null, notice: "点击“收录当前页面”开始" });
 export type JobResult = { status: "running" | "cancelled" | "done" | "failed"; result?: Partial<ExtractResult>; error?: string };
 export interface Platform {
   load(windowId: number): Promise<PanelState>;
   save(windowId: number, state: PanelState): Promise<void>;
-  capture(windowId: number): Promise<{ source: Source; clip: ExtractResult }>;
+  capture(windowId: number): Promise<{ source: Source; clip: ExtractResult; company?: Partial<FollowCompanyInput> }>;
   current(source: Source): Promise<boolean>;
   page(source: Source): Promise<PageContext>;
   request<T>(method: string, path: string, body?: unknown): Promise<T>;
@@ -51,6 +54,10 @@ export class DraftController {
       if (state.draft && !(await this.platform.current(state.draft.source))) {
         return this.clear(windowId, state, "来源页面已刷新或跳转，草稿已清空");
       }
+      if (state.draft && !state.draft.company) {
+        state.draft.company = newCompanyDraft(state.draft.clip);
+        return this.write(windowId, state);
+      }
       if (state.draft?.submitting && Date.now() - (state.draft.submitStartedAt ?? 0) > 15000) {
         state.draft.submitting = false;
         state.notice = "上次提交未得到确认，可重试；App 会检查重复岗位";
@@ -73,8 +80,8 @@ export class DraftController {
       if (!(await this.platform.current(captured.source))) throw new Error("页面正在刷新，请加载完成后重试");
       const state = await this.platform.load(windowId);
       this.cancel(state.draft?.ai.id);
-      return this.write(windowId, { revision: state.revision, initialized: true, notice: "草稿已保存至本次页面，刷新来源页面即清空", draft: {
-        id: crypto.randomUUID(), ...captured, dirty: {}, ai: { status: "idle" },
+      return this.write(windowId, { revision: state.revision, mode: state.mode, initialized: true, notice: "草稿已保存至本次页面，刷新来源页面即清空", draft: {
+        id: crypto.randomUUID(), ...captured, company: newCompanyDraft(captured.clip, captured.company), dirty: {}, ai: { status: "idle" },
       } });
     });
   }
@@ -102,7 +109,7 @@ export class DraftController {
     let launch = false;
     const state = await this.lock(async () => {
       const state = await this.platform.load(windowId);
-      if (!state.draft || state.draft.id !== draftId || state.draft.ai.status === "running" || state.draft.submitting) return state;
+      if (state.mode === "company" || !state.draft || state.draft.id !== draftId || state.draft.ai.status === "running" || state.draft.submitting) return state;
       if (!(await this.platform.current(state.draft.source))) return this.clear(windowId, state, "来源页面已刷新，草稿已清空");
       state.draft.ai = { status: "running", id: crypto.randomUUID(), startedAt: Date.now() };
       launch = true;
@@ -164,6 +171,7 @@ export class DraftController {
   async submit(windowId: number, draftId: string, allowDuplicate: boolean) {
     const started = await this.lock(async () => {
       const state = await this.platform.load(windowId);
+      if (state.mode === "company") throw new Error("当前是关注公司模式");
       const draft = state.draft;
       if (!draft || draft.id !== draftId || draft.submitting) throw new Error("草稿已更新，请重新查看");
       if (!(await this.platform.current(draft.source))) return this.clear(windowId, state, "来源页面已刷新，草稿已清空");
@@ -186,6 +194,54 @@ export class DraftController {
         state.notice = "这个岗位已经收录过，没有重复创建";
         state.noticeKind = "info";
         return this.write(windowId, state);
+      });
+    } catch (error) {
+      return this.lock(async () => {
+        const state = await this.platform.load(windowId);
+        if (state.draft?.id === draftId) { state.draft.submitting = false; state.notice = String(error); state.noticeKind = "error"; return this.write(windowId, state); }
+        return state;
+      });
+    }
+  }
+  async setMode(windowId: number, mode: "job" | "company") {
+    return this.lock(async () => {
+      const state = await this.platform.load(windowId);
+      if (state.draft?.submitting) throw new Error("正在保存，请稍后切换");
+      if ((state.mode ?? "job") === mode) return state;
+      if (state.draft) { this.cancel(state.draft.ai.id); state.draft.ai = { status: "idle" }; }
+      state.mode = mode;
+      if (state.draft && !(await this.platform.current(state.draft.source))) return this.clear(windowId, state, "来源页面已变化，草稿已清空");
+      return this.write(windowId, state);
+    });
+  }
+  async editCompany(windowId: number, draftId: string, patch: CompanyPatch) {
+    return this.lock(async () => {
+      const state = await this.platform.load(windowId);
+      const draft = state.draft;
+      if (!draft || draft.id !== draftId || draft.submitting) return state;
+      if (!(await this.platform.current(draft.source))) return this.clear(windowId, state, "来源页面已变化，草稿已清空");
+      draft.company = patchCompanyDraft(draft.company ?? newCompanyDraft(draft.clip), patch);
+      return this.write(windowId, state);
+    });
+  }
+  async submitCompany(windowId: number, draftId: string) {
+    const started = await this.lock(async () => {
+      const state = await this.platform.load(windowId);
+      const draft = state.draft;
+      if (state.mode !== "company" || !draft || draft.id !== draftId || draft.submitting) throw new Error("草稿已变化，请重新查看");
+      if (!(await this.platform.current(draft.source))) return this.clear(windowId, state, "来源页面已变化，草稿已清空");
+      draft.company ??= newCompanyDraft(draft.clip);
+      if (!draft.company.companyName.trim()) throw new Error("请填写公司名称，无需填写岗位");
+      draft.submitting = true; draft.submitStartedAt = Date.now();
+      this.cancel(draft.ai.id); draft.ai = { status: "idle" };
+      return this.write(windowId, state);
+    });
+    if (!started.draft) return started;
+    try {
+      const result = await this.platform.request<FollowCompanyResult>("POST", "/api/ext/company-watch", started.draft.company);
+      return this.lock(async () => {
+        const state = await this.platform.load(windowId);
+        return state.draft?.id === draftId ? this.clear(windowId, state, result.created ? "已关注公司，可在 App 的公司页跟进招聘进展" : result.watch?.paused ? "该公司本届已有暂停记录，未覆盖；可在 App 恢复关注" : "该公司本届已有关注记录，未覆盖原有状态", "success") : state;
       });
     } catch (error) {
       return this.lock(async () => {

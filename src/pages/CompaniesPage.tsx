@@ -1,17 +1,22 @@
 /** 公司库：投递时沉淀的公司 + 别名、官网与招聘官网维护 */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, ExternalLink, Loader2, Pencil, Trash2 } from "lucide-react";
+import { Building2, ExternalLink, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { useSearchParams } from "react-router";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { api } from "@/lib/ipc";
 import type { Company } from "@shared";
-import { Button, Field, Modal, PageHeader, Select, TextInput } from "@/components/ui";
+import { Button, Field, Modal, PageHeader, Segmented, Select, TextInput } from "@/components/ui";
+import { CompanyWatchDialog, CompanyWatchList } from "@/components/CompanyWatch";
 import { showToast } from "@/lib/toast";
 
 const NATURES = ["", "互联网", "国企/央企", "外企", "民企", "银行/金融", "事业单位", "研究所", "其他"];
 const INDUSTRIES = ["", "互联网/软件", "硬件/半导体", "金融", "制造", "通信", "新能源", "消费", "教育", "其他"];
 
 export default function CompaniesPage() {
+  const [params, setParams] = useSearchParams();
+  const [view, setView] = useState<"watch" | "all">("watch");
+  const [following, setFollowing] = useState<Company | null | undefined>(undefined);
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<Company | null>(null);
   const [error, setError] = useState("");
@@ -34,8 +39,10 @@ export default function CompaniesPage() {
     <div className="px-6 pb-10 pt-0">
       <PageHeader
         title="公司"
-        subtitle="维护公司别名、官网与招聘信息"
+        subtitle="关注招聘动态，等合适的岗位出现后再投递"
+        actions={<Button variant="primary" onClick={() => setFollowing(null)}><Plus className="size-4" />关注公司</Button>}
       />
+      <div className="mt-4"><Segmented value={view} onChange={setView} options={[{ value: "watch", label: "关注中" }, { value: "all", label: "全部公司" }]} /></div>
 
       {error && (
         <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-[13px] text-red-600 dark:bg-red-900/20 dark:text-red-300">
@@ -43,7 +50,7 @@ export default function CompaniesPage() {
         </div>
       )}
 
-      <div className="data-table-shell mt-4 overflow-x-auto">
+      {view === "watch" ? <CompanyWatchList key={params.toString()} watchId={params.get("watch")} initialFilter={params.get("view") === "due" ? "due" : params.get("view") === "paused" ? "paused" : "active"} onFollow={() => setFollowing(null)} /> : <div className="data-table-shell mt-4 overflow-x-auto">
         <table className="data-table min-w-[760px] text-sm">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50 text-left text-[13px] text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
@@ -63,7 +70,7 @@ export default function CompaniesPage() {
             {!isLoading && (companies ?? []).length === 0 && (
               <tr>
                 <td colSpan={5} className="px-4 py-12 text-center text-slate-400">
-                  还没有公司。新建投递时填写的公司会自动出现在这里
+                  还没有公司。可以先关注公司，也可以添加具体岗位
                 </td>
               </tr>
             )}
@@ -107,6 +114,7 @@ export default function CompaniesPage() {
                 <td className="px-4 py-2.5 tabular-nums text-slate-500">{c.applicationCount}</td>
                 <td className="px-4 py-2.5">
                   <div className="flex justify-end gap-0.5">
+                    <button onClick={() => setFollowing(c)} className="rounded p-1.5 text-[var(--fyj-accent)] hover:bg-[var(--fyj-accent-soft)]" title="关注该公司招聘"><Plus className="size-3.5" /></button>
                     <button
                       onClick={() => setEditing(c)}
                       className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
@@ -116,7 +124,7 @@ export default function CompaniesPage() {
                     </button>
                     <button
                       onClick={() => {
-                        if (confirm(`删除公司「${c.name}」？`)) del.mutate(c.id);
+                        if (confirm(`删除公司「${c.name}」及其招聘关注、查看历史？已有岗位的公司不能删除。`)) del.mutate(c.id);
                       }}
                       className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/30"
                       title="删除"
@@ -129,9 +137,10 @@ export default function CompaniesPage() {
             ))}
           </tbody>
         </table>
-      </div>
+      </div>}
 
       <EditCompanyDialog company={editing} onClose={() => setEditing(null)} />
+      {following !== undefined && <CompanyWatchDialog company={following} onClose={() => setFollowing(undefined)} onSaved={watch => { setView("watch"); setParams({ watch: watch.id, ...(watch.paused ? { view: "paused" } : {}) }); }} />}
     </div>
   );
 }

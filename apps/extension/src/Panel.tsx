@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { browser } from "wxt/browser";
 import { emptyState, stateKey, type Field, type PanelState } from "./drafts";
+import { newCompanyDraft, patchCompanyDraft, type CompanyField, type CompanyPatch } from "./company-draft";
+import { CompanyFields } from "./CompanyFields";
+import type { Company } from "../../../packages/shared/src/ipc-types";
 
 const CHANNELS = { COMPANY_SITE: "官网网申", BOSS: "Boss直聘", NOWCODER: "牛客", SHIXISENG: "实习僧", LIEPIN: "猎聘", REFERRAL: "内推", OTHER: "其他" };
 
@@ -12,8 +15,14 @@ export function Panel() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const edits = useRef<Partial<Record<Field, { draftId: string; value: string; sequence: number }>>>({});
+  const companyEdits = useRef<Partial<Record<CompanyField, { draftId: string; value: string; sequence: number }>>>({});
   const sequence = useRef(0);
   const polling = useRef(false);
+  const pendingEdits = useRef(new Set<Promise<unknown>>());
+  const trackEdit = (operation: Promise<unknown>) => {
+    pendingEdits.current.add(operation);
+    void operation.finally(() => pendingEdits.current.delete(operation)).catch(() => undefined);
+  };
 
   const accept = useCallback((incoming: PanelState) => {
     setState((current) => {
@@ -23,6 +32,12 @@ export function Panel() {
         if (pending && next.draft?.id === pending.draftId) next.draft.clip[field as Field] = pending.value;
         else delete edits.current[field as Field];
       }
+      const companyPatch: CompanyPatch = {};
+      for (const [field, pending] of Object.entries(companyEdits.current)) {
+        if (pending && next.draft?.id === pending.draftId) companyPatch[field as CompanyField] = pending.value;
+        else delete companyEdits.current[field as CompanyField];
+      }
+      if (next.draft) next.draft.company = patchCompanyDraft(next.draft.company ?? newCompanyDraft(next.draft.clip), companyPatch);
       return next;
     });
   }, []);
@@ -67,7 +82,20 @@ export function Panel() {
 
   const act = async (type: string, args: Record<string, unknown> = {}) => {
     setError(""); setBusy(true);
-    try { await command(type, { draftId: state.draft?.id, ...args }); }
+    try {
+      if (type === "submit" || type === "company-submit") {
+        await Promise.all([...pendingEdits.current]);
+        // 编辑失败时本地仍保留输入；先重试这些字段，不能用后台旧值提交。
+        const draftId = state.draft?.id;
+        if (type === "company-submit") {
+          const patch = Object.fromEntries(Object.entries(companyEdits.current).filter(([, e]) => e?.draftId === draftId).map(([key, e]) => [key, e!.value]));
+          if (Object.keys(patch).length) await command("company-edit", { draftId, patch });
+        } else {
+          for (const [field, edit] of Object.entries(edits.current)) if (edit?.draftId === draftId) await command("edit", { draftId, field, value: edit.value });
+        }
+      }
+      await command(type, { draftId: state.draft?.id, ...args });
+    }
     catch (e) { setError(String(e)); }
     finally { setBusy(false); }
   };
@@ -77,18 +105,39 @@ export function Panel() {
     const id = ++sequence.current;
     edits.current[field] = { draftId, value, sequence: id };
     setState((s) => s.draft?.id === draftId ? { ...s, draft: { ...s.draft, clip: { ...s.draft.clip, [field]: value } } } : s);
-    void command("edit", { draftId, field, value }).then((response) => {
+    trackEdit(command("edit", { draftId, field, value }).then((response) => {
       if (edits.current[field]?.sequence === id) delete edits.current[field];
       if (response) accept(response);
-    }).catch((e) => setError(`草稿保存失败：${String(e)}`));
+    }).catch((e) => setError(`草稿保存失败：${String(e)}`)));
   };
   const draft = state.draft;
+  const companyMode = state.mode === "company";
+  const editCompany = (patch: CompanyPatch) => {
+    const draftId = state.draft?.id;
+    if (!draftId) return;
+    const id = ++sequence.current;
+    for (const [field, value] of Object.entries(patch)) companyEdits.current[field as CompanyField] = { draftId, value, sequence: id };
+    setState(s => s.draft?.id === draftId ? { ...s, draft: { ...s.draft, company: patchCompanyDraft(s.draft.company ?? newCompanyDraft(s.draft.clip), patch) } } : s);
+    trackEdit(command("company-edit", { draftId, patch }).then(response => {
+      for (const field of Object.keys(patch) as CompanyField[]) if (companyEdits.current[field]?.sequence === id) delete companyEdits.current[field];
+      if (response) accept(response);
+    }).catch(e => setError(`公司草稿保存失败：${String(e)}`)));
+  };
+  const searchCompany = useCallback(async (query: string): Promise<Company[]> => {
+    const reply = await browser.runtime.sendMessage({ scope: "fyj-panel", windowId, type: "company-search", query });
+    if (!reply?.ok) throw new Error(reply?.error ?? "无法查询公司");
+    return reply.state.companySuggestions ?? [];
+  }, [windowId]);
   const capture = () => {
     if (draft && !confirm("切换来源会清理当前未收录草稿，继续？")) return;
     void act("capture");
   };
   return <main>
     <header><span className="mark">↗</span><strong>FindYourJob</strong><button className="subtle" onClick={() => setSettings(!settings)}>设置</button></header>
+    <div className="mode-switch" role="group" aria-label="收录类型">
+      <button aria-pressed={!companyMode} disabled={busy || draft?.submitting || windowId === undefined} onClick={() => { if (companyMode) void act("mode", { mode: "job" }); }}>收录岗位</button>
+      <button aria-pressed={companyMode} disabled={busy || draft?.submitting || windowId === undefined} onClick={() => { if (!companyMode) void act("mode", { mode: "company" }); }}>关注公司</button>
+    </div>
     <div className="toolbar"><button onClick={capture} disabled={busy || windowId === undefined}>收录当前页面</button>
       {draft && <button className="subtle" disabled={busy} onClick={() => void act("discard")}>清空草稿</button>}
     </div>
@@ -105,11 +154,14 @@ export function Panel() {
         <span title={draft.source.url}>{draft.source.url}</span>
         <button className="subtle" onClick={() => { void browser.tabs.update(draft.source.tabId, { active: true }).catch((e) => setError(String(e))); }}>回到来源页面 ↗</button>
       </section>
-      <button className="ai" disabled={busy || draft.submitting || draft.ai.status === "running"} onClick={() => void act("ai")}>
+      {companyMode ? <>
+        <CompanyFields company={draft.company ?? newCompanyDraft(draft.clip)} disabled={busy || !!draft.submitting} onEdit={editCompany} onSearch={searchCompany} />
+        <footer><button className="primary" disabled={busy || draft.submitting || !(draft.company?.companyName ?? draft.clip.companyName).trim()} onClick={() => void act("company-submit")}>{draft.submitting ? "保存中…" : "关注公司"}</button></footer>
+      </> : <><button className="ai" disabled={busy || draft.submitting || draft.ai.status === "running"} onClick={() => void act("ai")}>
         {draft.ai.status === "running" ? "AI 解析中…" : "AI 解析岗位信息"}
       </button>
       {draft.ai.status === "failed" && <p role="alert" className="message error">{draft.ai.error}</p>}
-      <fieldset disabled={!!draft.submitting}>
+      <fieldset disabled={busy || !!draft.submitting}>
         <label>公司 *<input value={draft.clip.companyName} onChange={(e) => edit("companyName", e.target.value)} /></label>
         <label>岗位 *<input value={draft.clip.positionTitle} onChange={(e) => edit("positionTitle", e.target.value)} /></label>
         <div className="row"><label>部门<input value={draft.clip.department ?? ""} onChange={(e) => edit("department", e.target.value)} /></label>
@@ -122,7 +174,7 @@ export function Panel() {
         <button disabled={busy} onClick={() => void act("submit", { allowDuplicate: true })}>仍然新建一条</button></div>}
       <footer><button className="primary" disabled={busy || draft.submitting || !draft.clip.companyName.trim() || !draft.clip.positionTitle.trim()} onClick={() => void act("submit")}>
         {draft.submitting ? "添加中…" : "添加到意向岗位"}
-      </button></footer>
-    </> : <section className="empty"><p>在招聘网页点击“收录当前页面”，再使用 AI 解析或手动整理。</p></section>}
+      </button></footer></>}
+    </> : <section className="empty"><p>{companyMode ? "在公司官网或招聘网站点击“收录当前页面”，确认资料后关注。" : "在招聘网页点击“收录当前页面”，再使用 AI 解析或手动整理。"}</p></section>}
   </main>;
 }

@@ -371,6 +371,22 @@ a:focus-visible {
 .resume-card-footer { margin: 16px -16px -16px; padding: 10px 16px; background: var(--fyj-surface-muted); border-top: 1px solid var(--fyj-separator); border-radius: 0 0 9px 9px; }
 .content-panel[data-default="true"] { border-color: var(--fyj-accent); }
 
+.recruitment-badge {
+  flex-shrink: 0;
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 12px;
+  color: var(--fyj-secondary);
+  background: var(--fyj-surface-muted);
+}
+.recruitment-badge[data-recruitment-status="NOT_OPEN"] { color: #86601b; background: #f5ecd9; }
+.recruitment-badge[data-recruitment-status="OPEN"] { color: #23745e; background: #dfefe9; }
+.dark .recruitment-badge[data-recruitment-status="NOT_OPEN"] { color: #e4be75; background: #403925; }
+.dark .recruitment-badge[data-recruitment-status="OPEN"] { color: #85ceba; background: #253f38; }
+.company-watch-card { border-top: 3px solid var(--fyj-border); }
+.company-watch-card[data-recruitment-status="NOT_OPEN"] { border-top-color: #c09b56; }
+.company-watch-card[data-recruitment-status="OPEN"] { border-top-color: #62a58f; }
+
 .app-main .native-separator {
   border-color: var(--fyj-separator);
 }

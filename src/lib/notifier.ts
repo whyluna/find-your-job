@@ -1,6 +1,7 @@
 /** 应用运行期间的系统通知调度器。权限只在用户从设置页显式开启时申请。 */
 import { api } from "./ipc";
 import { reminderFor } from "./schedule";
+import { localDay, pendingCompanyChecks } from "./company-watch";
 
 const INTERVAL_MS = 5 * 60 * 1000;
 const STORAGE_KEY = "fyj-notified";
@@ -54,6 +55,22 @@ async function tick() {
       notified.add(reminder.key);
     }
     saveNotified(notified);
+    // 公司查看提醒按到期日期去重，且一天至多一条汇总；旧到期项不会每五分钟催促。
+    const watches = await api.listCompanyWatches().catch(() => null);
+    if (!watches) return;
+    let delivered: Record<string, string> = {};
+    try { delivered = JSON.parse(localStorage.getItem("fyj-company-check-notified") ?? "{}"); } catch { /* 使用空记录 */ }
+    if (!delivered || typeof delivered !== "object" || Array.isArray(delivered)) delivered = {};
+    const pending = pendingCompanyChecks(watches, delivered, now);
+    const day = localDay(new Date(now));
+    if (pending.length && localStorage.getItem("fyj-company-check-notice-day") !== day) {
+      const names = [...new Set(pending.map(w => w.companyName))].slice(0, 3).join("、");
+      await sendNotification({ title: `${pending.length} 项公司招聘动态待查看`, body: `${names}。打开 FindYourJob → 公司 → 待查看，确认本届招聘进展。` });
+      for (const watch of pending) delivered[watch.id] = watch.nextCheckAt!;
+      localStorage.setItem("fyj-company-check-notice-day", day);
+    }
+    const existing = new Set(watches.map(w => w.id));
+    localStorage.setItem("fyj-company-check-notified", JSON.stringify(Object.fromEntries(Object.entries(delivered).filter(([id]) => existing.has(id)))));
   } finally {
     ticking = false;
   }
@@ -66,8 +83,8 @@ export async function startNotifier() {
     if (!enabled) return;
     const { isPermissionGranted } = await import("@tauri-apps/plugin-notification");
     if (!(await isPermissionGranted())) return;
-    await tick();
-    intervalId = window.setInterval(() => void tick(), INTERVAL_MS);
+    await tick().catch(() => undefined);
+    intervalId = window.setInterval(() => void tick().catch(() => undefined), INTERVAL_MS);
   } catch {
     // 通知不可用时不影响主流程；设置页会给出显式反馈。
   }

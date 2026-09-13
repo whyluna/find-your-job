@@ -417,11 +417,11 @@ function SortableCard({
     <div
       ref={setNodeRef}
       style={{ transition }}
-      {...attributes}
-      {...listeners}
+      {...(canReorder ? attributes : {})}
+      {...(canReorder ? listeners : {})}
       className={cn("min-w-0 touch-none", isDragging && "opacity-30")}
     >
-      <Card item={item} onOpen={onOpen} />
+      <Card item={item} onOpen={onOpen} canDrag={canReorder} />
     </div>
   );
 }
@@ -430,10 +430,12 @@ function Card({
   item,
   onOpen,
   dragging,
+  canDrag = true,
 }: {
   item: ApplicationListItem;
   onOpen?: (id: string) => void;
   dragging?: boolean;
+  canDrag?: boolean;
 }) {
   return (
     <div
@@ -445,7 +447,7 @@ function Card({
       onKeyDown={(e) => {
         if (e.key === "Enter") onOpen?.(item.id);
       }}
-      className="job-card cursor-grab outline-none focus-visible:ring-2 focus-visible:ring-[var(--fyj-accent)]"
+      className={cn("job-card outline-none focus-visible:ring-2 focus-visible:ring-[var(--fyj-accent)]", canDrag ? "cursor-grab" : "cursor-pointer")}
     >
       <div className="flex items-start justify-between gap-1">
         <div className="min-w-0">

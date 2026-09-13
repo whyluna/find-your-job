@@ -14,14 +14,16 @@ export function CreateApplicationDialog({
   onClose,
   defaultBatch,
   initialApplied = false,
+  defaultCompanyName = "",
 }: {
   open: boolean;
   onClose: () => void;
   defaultBatch: string;
   initialApplied?: boolean;
+  defaultCompanyName?: string;
 }) {
   const queryClient = useQueryClient();
-  const [companyName, setCompanyName] = useState("");
+  const [companyName, setCompanyName] = useState(defaultCompanyName);
   const [companySuggestions, setCompanySuggestions] = useState<Company[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [positionTitle, setPositionTitle] = useState("");

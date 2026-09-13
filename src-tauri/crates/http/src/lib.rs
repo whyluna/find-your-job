@@ -1,12 +1,13 @@
 //! 本地 HTTP API（设计 §4.2）：仅绑定 127.0.0.1，全部路由要求 Bearer token。
 //! 只是 core Services 的薄封装，与 Tauri IPC 复用同一套业务逻辑。
 
-use axum::extract::State;
+use axum::extract::{Query, State};
 use axum::http::{header, Request, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use fyj_core::company_watch::FollowCompanyInput;
 use fyj_core::entities::Application;
 use fyj_core::services::{CreateApplicationInput, Services};
 use serde::{Deserialize, Serialize};
@@ -81,6 +82,35 @@ async fn auth(
 
 async fn health() -> &'static str {
     "ok"
+}
+
+#[derive(Deserialize)]
+struct CompanySearch {
+    #[serde(default)]
+    q: String,
+}
+
+async fn company_search(
+    State(state): State<Arc<HttpState>>,
+    Query(input): Query<CompanySearch>,
+) -> Response {
+    if input.q.chars().count() > 200 {
+        return err(StatusCode::BAD_REQUEST, "公司名称过长");
+    }
+    match state.services.search_companies(input.q.trim(), 8).await {
+        Ok(companies) => Json(companies).into_response(),
+        Err(error) => err(StatusCode::BAD_REQUEST, &error.to_string()),
+    }
+}
+
+async fn company_follow(
+    State(state): State<Arc<HttpState>>,
+    Json(input): Json<FollowCompanyInput>,
+) -> Response {
+    match state.services.follow_company(input).await {
+        Ok(result) => Json(result).into_response(),
+        Err(error) => err(StatusCode::BAD_REQUEST, &error.to_string()),
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -170,6 +200,8 @@ pub fn router(state: Arc<HttpState>) -> Router {
     Router::new()
         .route("/api/health", get(health))
         .route("/api/ext/clip", post(clip))
+        .route("/api/ext/companies", get(company_search))
+        .route("/api/ext/company-watch", post(company_follow))
         .route("/api/ext/extract", post(extract))
         .route("/api/ext/extract/jobs", post(extraction_jobs::start))
         .route(
@@ -249,6 +281,76 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn company_follow_requires_token_reuses_records_and_never_creates_a_job() {
+        let (state, _dir) = setup().await;
+        let app = router(state.clone());
+        for (method, uri) in [
+            ("GET", "/api/ext/companies?q=test"),
+            ("POST", "/api/ext/company-watch"),
+        ] {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .method(method)
+                        .uri(uri)
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        }
+        let body = serde_json::json!({"companyName":"插件关注示例公司","year":2027,"season":"AUTUMN","status":"UNKNOWN","intervalDays":7,"careersUrl":"https://example.com/careers"}).to_string();
+        let mut id = String::new();
+        for expected in [true, false] {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .method("POST")
+                        .uri("/api/ext/company-watch")
+                        .header("authorization", "Bearer test-token")
+                        .header("content-type", "application/json")
+                        .body(Body::from(body.clone()))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            let bytes = response.into_body().collect().await.unwrap().to_bytes();
+            let result: fyj_core::company_watch::FollowCompanyResult =
+                serde_json::from_slice(&bytes).unwrap();
+            assert_eq!(result.created, expected);
+            if expected {
+                id = result.watch.company_id;
+            } else {
+                assert_eq!(id, result.watch.company_id);
+            }
+        }
+        assert!(state
+            .services
+            .list_applications(&Default::default())
+            .await
+            .unwrap()
+            .is_empty());
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/ext/companies?q=")
+                    .header("authorization", "Bearer test-token")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let bytes = response.into_body().collect().await.unwrap().to_bytes();
+        let companies: Vec<fyj_core::entities::Company> = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(companies.len(), 1);
+        assert_eq!(companies[0].id, id);
     }
 
     #[tokio::test]

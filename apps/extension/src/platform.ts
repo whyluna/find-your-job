@@ -1,5 +1,5 @@
 import { browser } from "wxt/browser";
-import { extractJobInPage, extractPageContextInPage, channelFromUrl } from "./extract";
+import { extractJobInPage, extractPageContextInPage, extractCompanyInPage, channelFromUrl } from "./extract";
 import { API, emptyState, stateKey, type PanelState, type Platform, type Source } from "./drafts";
 
 export function documentUrl(raw: string): string {
@@ -24,10 +24,11 @@ export const platform: Platform = {
     try {
       const [extraction] = await browser.scripting.executeScript({ target: { tabId: tab.id }, func: extractJobInPage });
       const [context] = await browser.scripting.executeScript({ target: { tabId: tab.id, documentIds: [extraction.documentId] }, func: extractPageContextInPage });
+      const [company] = await browser.scripting.executeScript({ target: { tabId: tab.id, documentIds: [extraction.documentId] }, func: extractCompanyInPage });
       if (!extraction.result || !context.result || extraction.documentId !== context.documentId) throw new Error("页面已变化");
       const clip = extraction.result;
       clip.channel = clip.channel === "OTHER" ? channelFromUrl(clip.jobUrl ?? "") : clip.channel;
-      return { source: { tabId: tab.id, windowId, documentId: extraction.documentId, url: context.result.url, title: context.result.title }, clip };
+      return { source: { tabId: tab.id, windowId, documentId: extraction.documentId, url: context.result.url, title: context.result.title }, clip, company: { ...company.result, companyName: clip.companyName || company.result?.companyName || "" } };
     } catch {
       throw new Error("无法读取当前页面。请在普通招聘网页点击一次工具栏的 FindYourJob 图标授权读取，再点击“收录当前页面”。");
     }
@@ -45,7 +46,7 @@ export const platform: Platform = {
       response = await fetch(`${API}${path}`, { method, headers: { "Content-Type": "application/json", Authorization: `Bearer ${String(token).trim()}` }, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(8000) });
     } catch { throw new Error("无法连接 App，请确认 FindYourJob 已打开并开启浏览器扩展接入"); }
     if (response.status === 401) throw new Error("Token 无效，请更新为 App 设置中的 Token");
-    if (response.status === 404 && method === "POST") throw new Error("当前 App 不支持后台解析任务，请更新 FindYourJob 后重试");
+    if (response.status === 404) throw new Error(path.includes("compan") ? "当前 App 不支持公司关注，请更新 FindYourJob 后重试" : "当前 App 不支持此解析任务，请更新 FindYourJob 或重新识别");
     if (!response.ok) { const error = await response.json().catch(() => ({})); throw new Error(error.error ?? `请求失败（${response.status}）`); }
     return response.status === 204 ? undefined as T : await response.json();
   },

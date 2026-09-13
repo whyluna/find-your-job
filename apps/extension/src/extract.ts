@@ -132,6 +132,33 @@ export interface PageContext {
   text: string;
 }
 
+/** 只提出名称、网址建议，不判断招聘是否已启动。 */
+export function extractCompanyInPage(): { companyName: string; website?: string; careersUrl?: string } {
+  let name = "";
+  let website: string | undefined;
+  for (const script of document.querySelectorAll('script[type="application/ld+json"]')) {
+    try {
+      const data = JSON.parse(script.textContent ?? "");
+      const items = Array.isArray(data) ? data : [data, ...(Array.isArray(data?.["@graph"]) ? data["@graph"] : [])];
+      for (const item of items) {
+        const types = Array.isArray(item?.["@type"]) ? item["@type"] : [item?.["@type"]];
+        const org = types.includes("Organization") || types.includes("Corporation") ? item : item?.hiringOrganization;
+        if (typeof org?.name === "string" && org.name.trim()) {
+          name = org.name.trim();
+          if (typeof org.url === "string" && /^https?:\/\//i.test(org.url)) website = org.url;
+          break;
+        }
+      }
+    } catch { /* 不妨碍手动填写 */ }
+    if (name) break;
+  }
+  if (!name) name = document.querySelector('meta[property="og:site_name"]')?.getAttribute("content")?.trim() ?? "";
+  if (!name) name = (document.title || "").split(/[|｜—_-]/).map(s => s.trim()).find(s => s && !/^(首页|校园招聘|人才招聘|招聘门户|招聘官网|职位列表|招聘职位|Home|Careers|Jobs)$/i.test(s)) ?? "";
+  name = name.replace(/(官方网站|招聘官网|校园招聘|人才招聘|招聘门户)$/g, "").trim().slice(0, 200);
+  const recruitment = /招聘|招贤|career|recruit|talent|campus|jobs/i.test(`${document.title} ${location.pathname} ${location.hostname}`);
+  return { companyName: name, website: website ?? (recruitment ? undefined : location.href), careersUrl: recruitment ? location.href : undefined };
+}
+
 /** 抓取页面原文（优先主内容区，截断 12000 字），交给应用内 LLM 做智能识别 */
 export function extractPageContextInPage(): PageContext {
   const pickBest = (): string => {

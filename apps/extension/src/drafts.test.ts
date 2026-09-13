@@ -96,3 +96,59 @@ describe("AI 任务与编辑竞争", () => {
     expect((await controller.submit(1, draft!.id, false)).draft).toBeNull();
   });
 });
+
+describe("公司关注与岗位草稿隔离", () => {
+  it("无需岗位名称即可关注公司，且不会调用岗位收录接口", async () => {
+    const { controller, request } = setup();
+    const { draft } = await controller.capture(1);
+    await controller.edit(1, draft!.id, "positionTitle", "");
+    await controller.setMode(1, "company");
+    await controller.editCompany(1, draft!.id, { companyName: "准备关注的公司", status: "NOT_OPEN" });
+    request.mockResolvedValue({ created: true, watch: { id: "watch" } });
+    expect((await controller.submitCompany(1, draft!.id)).draft).toBeNull();
+    expect(request).toHaveBeenCalledWith("POST", "/api/ext/company-watch", expect.objectContaining({ companyName: "准备关注的公司", status: "NOT_OPEN" }));
+    expect(request.mock.calls.some(([, path]) => path === "/api/ext/clip")).toBe(false);
+  });
+  it("切换模式、关闭重开都保留各自编辑内容，刷新后两套草稿一起清空", async () => {
+    const { controller, platform, navigate } = setup();
+    const { draft } = await controller.capture(1);
+    await controller.edit(1, draft!.id, "companyName", "岗位公司");
+    await controller.setMode(1, "company");
+    await controller.editCompany(1, draft!.id, { companyName: "关注公司", notes: "等正式秋招" });
+    await controller.setMode(1, "job");
+    const reopened = await new DraftController(platform).state(1);
+    expect(reopened.draft?.clip.companyName).toBe("岗位公司");
+    expect(reopened.draft?.company?.companyName).toBe("关注公司");
+    navigate({ documentId: "new-document" });
+    expect((await controller.state(1)).draft).toBeNull();
+    expect((await controller.editCompany(1, draft!.id, { notes: "旧编辑" })).draft).toBeNull();
+  });
+  it("重复关注不覆盖已有记录；失败保留公司表单，改名称会清除旧关联", async () => {
+    const { controller, request } = setup();
+    const { draft } = await controller.capture(1);
+    await controller.setMode(1, "company");
+    await controller.editCompany(1, draft!.id, { companyName: "旧公司", companyId: "old-id" });
+    expect((await controller.editCompany(1, draft!.id, { companyName: "新公司" })).draft?.company?.companyId).toBeNull();
+    request.mockRejectedValue(new Error("未连接 App"));
+    expect((await controller.submitCompany(1, draft!.id)).draft?.company?.companyName).toBe("新公司");
+    request.mockResolvedValue({ created: false, watch: { id: "existing" } });
+    const done = await controller.submitCompany(1, draft!.id);
+    expect(done.draft).toBeNull();
+    expect(done.notice).toContain("未覆盖");
+  });
+  it("公司模式不会运行岗位 AI，来源刷新后迟到的保存响应不会复活草稿", async () => {
+    const { controller, request, navigate } = setup();
+    const { draft } = await controller.capture(1);
+    await controller.setMode(1, "company");
+    await controller.startAi(1, draft!.id);
+    expect(request).not.toHaveBeenCalled();
+    let finish!: (value: unknown) => void;
+    request.mockImplementation(async () => await new Promise(resolve => { finish = resolve; }) as never);
+    const pending = controller.submitCompany(1, draft!.id);
+    await vi.waitFor(() => expect(finish).toBeTypeOf("function"));
+    navigate({ documentId: "reloaded" });
+    await controller.invalidate(1, 7);
+    finish({ created: true, watch: { id: "watch" } });
+    expect((await pending).draft).toBeNull();
+  });
+});

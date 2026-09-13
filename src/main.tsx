@@ -37,7 +37,7 @@ const queryClient = new QueryClient({
 function refreshJobData() {
   void queryClient.invalidateQueries({ predicate: (query) => [
     "applications", "application-detail", "db-ready", "stats", "upcoming",
-    "calendar-items", "resumes", "companies", "offer-apps", "question-bank", "palette-search",
+    "calendar-items", "resumes", "companies", "company-watches", "company-watch-checks", "offer-apps", "question-bank", "palette-search",
   ].includes(String(query.queryKey[0])) });
 }
 

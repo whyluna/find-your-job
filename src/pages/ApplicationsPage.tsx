@@ -34,6 +34,9 @@ export default function ApplicationsPage() {
     () => (localStorage.getItem("fyj-view") as "board" | "table") || "board",
   );
   const [search, setSearch] = useState("");
+  const companyId = params.get("company") || null;
+  const companyQuery = useQuery({ queryKey: ["companies"], queryFn: api.listCompanies, enabled: !!companyId });
+  const companyName = companyQuery.data?.find(c => c.id === companyId)?.name;
   const filterValue = params.get("status") ?? "ALL";
   const status = STATUS_LIST.includes(filterValue as Status) || ["SUBMITTED", "ARCHIVED"].includes(filterValue) ? filterValue : "ALL";
   const [showCreate, setShowCreate] = useState(false);
@@ -41,9 +44,10 @@ export default function ApplicationsPage() {
   const [noResumeDismissed, setNoResumeDismissed] = useState(false);
 
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ["applications", search, status],
+    queryKey: ["applications", search, status, companyId],
     queryFn: () =>
       api.listApplications({
+        companyId,
         search: search.trim() || null,
         statuses: ["ALL", "ARCHIVED", "SUBMITTED"].includes(status) ? [] : [status],
         submittedOnly: status === "SUBMITTED",
@@ -61,7 +65,7 @@ export default function ApplicationsPage() {
   const showYellowBar = !noResumeDismissed && missingResume.length > 0;
 
   // 行拖动排序：仅在未筛选/未搜索（完整列表）时可用
-  const canReorder = search.trim() === "" && status === "ALL";
+  const canReorder = search.trim() === "" && status === "ALL" && !companyId;
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const [dragActive, setDragActive] = useState(false);
 
@@ -87,7 +91,7 @@ export default function ApplicationsPage() {
     if (oldIdx < 0 || newIdx < 0) return;
     const next = arrayMove(items, oldIdx, newIdx);
     // 乐观更新 + 持久化
-    queryClient.setQueryData(["applications", search, status], next);
+    queryClient.setQueryData(["applications", search, status, companyId], next);
     api
       .reorderApplications(next.map((i) => i.id))
       .then(() => queryClient.invalidateQueries({ queryKey: ["applications"] }))
@@ -131,7 +135,7 @@ export default function ApplicationsPage() {
         <Select
           value={status}
           aria-label="岗位范围"
-          onChange={(e) => setParams(e.target.value === "ALL" ? {} : { status: e.target.value })}
+          onChange={(e) => setParams(p => { const next = new URLSearchParams(p); if (e.target.value === "ALL") next.delete("status"); else next.set("status", e.target.value); return next; })}
           className="w-36"
         >
           <option value="ALL">全部岗位</option>
@@ -145,6 +149,7 @@ export default function ApplicationsPage() {
         </Select>
       </div>
 
+      {companyId && <div className="native-inset mt-3 flex items-center justify-between gap-3 px-3 py-2 text-sm"><span>仅查看：{companyName ?? "所选公司"}</span><button className="text-[var(--fyj-accent)]" onClick={() => setParams(p => { const next = new URLSearchParams(p); next.delete("company"); return next; })}>清除公司筛选</button></div>}
       {showYellowBar && (
         <div className="mt-3 flex items-center gap-2 rounded-lg border border-amber-200/70 bg-amber-50/80 px-3.5 py-2 text-sm text-amber-700 dark:border-amber-800/70 dark:bg-amber-900/15 dark:text-amber-300">
           <TriangleAlert className="size-4 shrink-0" />

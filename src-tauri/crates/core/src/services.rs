@@ -468,6 +468,7 @@ pub struct QuestionBankItem {
 #[derive(Debug, Clone, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ListFilter {
+    pub company_id: Option<String>,
     pub submitted_only: Option<bool>,
     #[serde(default)]
     pub statuses: Vec<String>,
@@ -505,10 +506,7 @@ impl Services {
         careers_url: Option<&str>,
     ) -> Result<Company> {
         let mut tx = self.pool.begin().await?;
-        let existing: Option<String> = sqlx::query_scalar("SELECT id FROM company WHERE name = ?")
-            .bind(name)
-            .fetch_optional(&mut *tx)
-            .await?;
+        let existing = crate::company_watch::matching_company(&mut tx, name).await?;
         let id = match existing {
             Some(id) => {
                 // 有新信息则补全（不覆盖已有值）
@@ -1181,6 +1179,10 @@ impl Services {
         };
 
         let archived_only = f.archived_only.unwrap_or(false);
+        if let Some(company_id) = &f.company_id {
+            cond(&mut qb, &mut first);
+            qb.push("a.company_id = ").push_bind(company_id);
+        }
         if archived_only {
             cond(&mut qb, &mut first);
             qb.push("a.is_archived = 1");
@@ -2548,10 +2550,7 @@ async fn upsert_company_tx(
     website: Option<&str>,
     careers_url: Option<&str>,
 ) -> Result<String> {
-    let existing: Option<String> = sqlx::query_scalar("SELECT id FROM company WHERE name = ?")
-        .bind(name)
-        .fetch_optional(&mut *tx)
-        .await?;
+    let existing = crate::company_watch::matching_company(&mut *tx, name).await?;
     if let Some(id) = existing {
         if website.is_some() || careers_url.is_some() {
             sqlx::query(

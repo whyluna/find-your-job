@@ -9,10 +9,12 @@ import { EVENT_TYPE_DEFS, type EventType } from "@shared";
 import { cn } from "@/lib/utils";
 import { Button, PageHeader } from "@/components/ui";
 import { planningLabel } from "@/lib/schedule";
+import { watchSeasonLabel } from "@/lib/company-watch";
 
 interface CalendarEntry {
   date: string; // YYYY-MM-DD
-  kind: "interview" | "deadline" | "applied" | "planned_apply" | "application_deadline";
+  kind: "interview" | "deadline" | "applied" | "planned_apply" | "application_deadline" | "company_check";
+  watchId?: string;
   applicationId: string;
   companyName: string;
   positionTitle: string;
@@ -42,6 +44,7 @@ export default function CalendarPage() {
     queryFn: () => api.getCalendarItems(range.start, range.end),
     staleTime: 5 * 60 * 1000,
   });
+  const { data: companyWatches } = useQuery({ queryKey: ["company-watches"], queryFn: api.listCompanyWatches });
   const all = useMemo<CalendarEntry[]>(() => {
     const list: CalendarEntry[] = [];
     for (const u of calendarItems ?? []) {
@@ -56,8 +59,14 @@ export default function CalendarPage() {
         at: u.at,
       });
     }
+    for (const watch of companyWatches ?? []) {
+      if (watch.paused || watch.status === "CLOSED" || !watch.nextCheckAt) continue;
+      const at = Date.parse(watch.nextCheckAt);
+      if (!Number.isFinite(at) || at < Date.parse(range.start) || at >= Date.parse(range.end)) continue;
+      list.push({ date: fmtDate(watch.nextCheckAt), kind: "company_check", watchId: watch.id, applicationId: "", companyName: watch.companyName, positionTitle: watchSeasonLabel(watch), at: watch.nextCheckAt });
+    }
     return list;
-  }, [calendarItems]);
+  }, [calendarItems, companyWatches, range]);
 
   useEffect(() => {
     const monthPrefix = `${cursor.y}-${String(cursor.m + 1).padStart(2, "0")}-`;
@@ -102,7 +111,7 @@ export default function CalendarPage() {
     <div className="px-6 pb-10 pt-0">
       <PageHeader
         title="日历"
-        subtitle="投递计划、网申截止、面试与投递记录"
+        subtitle="投递计划、面试、截止日期与公司查看安排"
         actions={
           <div className="flex items-center gap-1">
             <Button
@@ -146,11 +155,12 @@ export default function CalendarPage() {
             <h2 className="text-[15px] font-semibold tracking-[-0.01em]">
               {cursor.y} 年 {cursor.m + 1} 月
             </h2>
-            <div className="flex gap-3 text-[11px] text-[var(--fyj-tertiary)]">
+            <div className="flex flex-wrap justify-end gap-2 text-[11px] text-[var(--fyj-tertiary)]">
               <Legend color="bg-blue-500" label="面试" />
               <Legend color="bg-red-500" label="截止" />
               <Legend color="bg-slate-400" label="投递" />
               <Legend color="bg-amber-500" label="计划" />
+              <Legend color="bg-violet-500" label="公司查看" />
             </div>
           </div>
           <div className="mb-1 grid grid-cols-7 text-center text-[11px] font-medium text-[var(--fyj-tertiary)]">
@@ -166,10 +176,12 @@ export default function CalendarPage() {
               const hasDeadline = dayEntries.some((e) => e.kind === "deadline" || e.kind === "application_deadline");
               const hasPlan = dayEntries.some((e) => e.kind === "planned_apply");
               const hasApplied = dayEntries.some((e) => e.kind === "applied");
+              const hasCompanyCheck = dayEntries.some((e) => e.kind === "company_check");
               const isToday = date === todayStr;
               return (
                 <button
                   key={date}
+                  aria-label={`${date}，${dayEntries.length} 项安排`}
                   onClick={() => setSelected(date)}
                   className={cn(
                     "group flex h-[68px] flex-col items-center rounded-[8px] pt-2 transition-colors",
@@ -192,6 +204,7 @@ export default function CalendarPage() {
                     {hasDeadline && <span className="size-1.5 rounded-full bg-red-500" title="截止" />}
                     {hasApplied && <span className="size-1.5 rounded-full bg-slate-400" title="投递" />}
                     {hasPlan && <span className="size-1.5 rounded-full bg-amber-500" title="计划投递" />}
+                    {hasCompanyCheck && <span className="size-1.5 rounded-full bg-violet-500" title="公司查看" />}
                   </span>
                 </button>
               );
@@ -218,18 +231,18 @@ export default function CalendarPage() {
               {selectedEntries.map((e, i) => (
                 <button
                   key={i}
-                  onClick={() => navigate(`/applications/${e.applicationId}`)}
+                  onClick={() => navigate(e.watchId ? `/companies?watch=${encodeURIComponent(e.watchId)}` : `/applications/${e.applicationId}`)}
                   className="group relative w-full rounded-[7px] px-3 py-3 text-left transition-colors hover:bg-black/[0.035] dark:hover:bg-white/[0.055]"
                 >
                   <span className={cn(
                     "absolute bottom-3 left-0 top-3 w-0.5 rounded-full",
-                    e.kind === "deadline" || e.kind === "application_deadline" ? "bg-red-500" : e.kind === "planned_apply" ? "bg-amber-500" : e.kind === "interview" ? "bg-blue-500" : "bg-slate-400",
+                    e.kind === "company_check" ? "bg-violet-500" : e.kind === "deadline" || e.kind === "application_deadline" ? "bg-red-500" : e.kind === "planned_apply" ? "bg-amber-500" : e.kind === "interview" ? "bg-blue-500" : "bg-slate-400",
                   )} />
                   <div className="truncate text-[13px] font-medium">
                     {e.companyName} · {e.positionTitle}
                   </div>
                   <div className="mt-1 text-[11px] text-[var(--fyj-tertiary)]">
-                    {planningLabel(e.kind, e.at) ?? (e.kind === "applied"
+                    {e.kind === "company_check" ? "查看本届招聘动态" : planningLabel(e.kind, e.at) ?? (e.kind === "applied"
                       ? "投递日"
                       : e.kind === "deadline"
                         ? `${EVENT_TYPE_DEFS[e.detail as EventType]?.label ?? e.detail} 截止`

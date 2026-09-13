@@ -38,6 +38,12 @@ import type {
   ApplicationDetail,
   ApplicationListItem,
   Company,
+  CompanyWatch,
+  CompanyWatchConfig,
+  CompanyWatchAction,
+  CompanyWatchCheck,
+  FollowCompanyInput,
+  FollowCompanyResult,
   CreateApplicationInput,
   ConfirmApplicationInput,
   ApplicationImportPreview,
@@ -70,6 +76,12 @@ export const api = {
   searchCompanies: (query: string, limit = 8) =>
     call<Company[]>("search_companies", { query, limit }),
   listCompanies: () => call<(Company & { applicationCount: number })[]>("list_companies"),
+  listCompanyWatches: () => call<CompanyWatch[]>("list_company_watches"),
+  followCompany: (input: FollowCompanyInput) => call<FollowCompanyResult>("follow_company", { input }),
+  updateCompanyWatch: (id: string, input: CompanyWatchConfig) => call<CompanyWatch>("update_company_watch", { id, input }),
+  actOnCompanyWatch: (id: string, input: CompanyWatchAction) => call<CompanyWatch>("act_on_company_watch", { id, input }),
+  listCompanyWatchChecks: (id: string) => call<CompanyWatchCheck[]>("list_company_watch_checks", { id }),
+  deleteCompanyWatch: (id: string) => call<void>("delete_company_watch", { id }),
   updateCompany: (
     id: string,
     input: {

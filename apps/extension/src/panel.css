@@ -31,3 +31,17 @@ footer { position: sticky; bottom: 0; background: #f7f8fa; padding: 14px 0 6px; 
   label, .source small, .source span, .empty { color: #b1b6bf; }
   .ai, .message { background: #233449; color: #aed4ff; } .error { background: #492d2b; color: #ffb4a9; }
 }
+/* 与岗位收录共用来源和页面级草稿，模式只决定展示哪套表单。 */
+.mode-switch { display: flex; gap: 3px; margin: 16px 0 12px; padding: 3px; border-radius: 9px; background: #e9ecf1; }
+.mode-switch button { flex: 1; border: 0; background: transparent; padding: 8px; }
+.mode-switch button[aria-pressed="true"] { background: white; box-shadow: 0 1px 3px #0001; }
+.company-suggestions { border: 1px solid #d4dae3; border-radius: 8px; padding: 8px; }
+.company-suggestions button { display: block; width: 100%; margin-top: 4px; text-align: left; }
+details { margin-top: 10px; }
+summary { cursor: pointer; color: #596575; font-size: 13px; }
+@media (prefers-color-scheme: dark) {
+  .mode-switch { background: #34373c; }
+  .mode-switch button[aria-pressed="true"] { background: #4a5058; color: #fff; }
+  .company-suggestions { border-color: #4c5057; }
+  summary { color: #b8c2d1; }
+}
