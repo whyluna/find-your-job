@@ -825,6 +825,185 @@ async fn no_backward_stage_after_interview_or_written() {
 }
 
 #[tokio::test]
+async fn ai_interview_is_exempt_from_stage_chain() {
+    let (_dir, s) = setup().await;
+    // 意向岗位（SAVED）不能加 AI 面：豁免只针对阶段链，投递前提不变
+    let mut saved = create_input("AI面科技", "测试");
+    saved.applied = Some(false);
+    let app0 = s.create_application(saved).await.unwrap();
+    assert!(s
+        .add_interview(AddInterviewInput {
+            application_id: app0.id.clone(),
+            round: None,
+            round_label: None,
+            format: Some("AI".into()),
+            scheduled_at: Some(dt(2, 10)),
+            duration_min: None,
+            location_or_link: None,
+            interviewer_note: None,
+            status: None,
+            outcome: None,
+        })
+        .await
+        .is_err());
+
+    let app = s
+        .create_application(create_input("AI面科技", "算法"))
+        .await
+        .unwrap();
+
+    // 测评已进入未出结果：常规面试被拦，AI 面放行（并行发放特例）
+    s.add_event(AddEventInput {
+        application_id: app.id.clone(),
+        event_type: "ASSESSMENT_INVITED".into(),
+        occurred_at: Some(dt(1, 10)),
+        deadline: None,
+        result: None,
+        note: None,
+        source: None,
+    })
+    .await
+    .unwrap();
+    assert!(s
+        .add_interview(AddInterviewInput {
+            application_id: app.id.clone(),
+            round: Some(1),
+            round_label: None,
+            format: None,
+            scheduled_at: Some(dt(2, 10)),
+            duration_min: None,
+            location_or_link: None,
+            interviewer_note: None,
+            status: None,
+            outcome: None,
+        })
+        .await
+        .is_err());
+    let ai = s
+        .add_interview(AddInterviewInput {
+            application_id: app.id.clone(),
+            round: Some(1),
+            round_label: Some("AI面".into()),
+            format: Some("AI".into()),
+            scheduled_at: Some(dt(2, 10)),
+            duration_min: None,
+            location_or_link: None,
+            interviewer_note: None,
+            status: None,
+            outcome: None,
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        s.get_application(&app.id).await.unwrap().status,
+        Status::Interviewing
+    );
+
+    // AI 面已约未完成：仍可并行补录测评结果与笔试邀请（AI 轮不阻塞其他阶段）
+    s.add_event(AddEventInput {
+        application_id: app.id.clone(),
+        event_type: "ASSESSMENT_DONE".into(),
+        occurred_at: Some(dt(3, 10)),
+        deadline: None,
+        result: Some(EventResult::Pass),
+        note: None,
+        source: None,
+    })
+    .await
+    .unwrap();
+    s.add_event(AddEventInput {
+        application_id: app.id.clone(),
+        event_type: "WRITTEN_INVITED".into(),
+        occurred_at: Some(dt(4, 10)),
+        deadline: None,
+        result: None,
+        note: None,
+        source: None,
+    })
+    .await
+    .unwrap();
+    // 笔试未出结果：OC 依旧被拦（阶段链不受 AI 豁免影响）
+    assert!(s
+        .add_event(AddEventInput {
+            application_id: app.id.clone(),
+            event_type: "OC".into(),
+            occurred_at: Some(dt(5, 10)),
+            deadline: None,
+            result: None,
+            note: None,
+            source: None,
+        })
+        .await
+        .is_err());
+
+    // AI 面通过后，常规面试仍需笔试先通过（豁免只属于 AI 面自身）
+    s.update_interview(
+        &ai.id,
+        UpdateInterviewInput {
+            status: Some(InterviewStatus::Completed),
+            outcome: Some(InterviewOutcome::Pass),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    assert!(s
+        .add_interview(AddInterviewInput {
+            application_id: app.id.clone(),
+            round: Some(2),
+            round_label: None,
+            format: Some("VIDEO".into()),
+            scheduled_at: Some(dt(6, 10)),
+            duration_min: None,
+            location_or_link: None,
+            interviewer_note: None,
+            status: None,
+            outcome: None,
+        })
+        .await
+        .is_err());
+    s.add_event(AddEventInput {
+        application_id: app.id.clone(),
+        event_type: "WRITTEN_DONE".into(),
+        occurred_at: Some(dt(5, 10)),
+        deadline: None,
+        result: Some(EventResult::Pass),
+        note: None,
+        source: None,
+    })
+    .await
+    .unwrap();
+    // 只有 AI 轮（已通过）时不构成"面试尚未全部通过"：OC 放行
+    s.add_event(AddEventInput {
+        application_id: app.id.clone(),
+        event_type: "OC".into(),
+        occurred_at: Some(dt(7, 10)),
+        deadline: None,
+        result: None,
+        note: None,
+        source: None,
+    })
+    .await
+    .unwrap();
+    assert_eq!(s.get_application(&app.id).await.unwrap().status, Status::Oc);
+    // 阶段链走通后常规面试恢复可加
+    s.add_interview(AddInterviewInput {
+        application_id: app.id.clone(),
+        round: Some(2),
+        round_label: Some("一面".into()),
+        format: Some("VIDEO".into()),
+        scheduled_at: Some(dt(8, 10)),
+        duration_min: None,
+        location_or_link: None,
+        interviewer_note: None,
+        status: None,
+        outcome: None,
+    })
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
 async fn reorder_applications_persists_manual_order() {
     let (_dir, s) = setup().await;
     let a = s

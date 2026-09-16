@@ -70,12 +70,14 @@ async fn stage_latest_result(
 /// 面试阶段状态：None=无有效面试；Some(通过)=最后一轮已完成且过；
 /// Some(未完成)=存在已约未进行或最后一轮未出结果。
 /// 已取消轮次不参与门禁，否则“取消后新约下一轮”会被永久锁死。
+/// AI 轮次与测评/笔试并行发放（特例），同样不参与门禁。
 async fn interview_stage_state(
     tx: &mut sqlx::SqliteConnection,
     app_id: &str,
 ) -> Result<Option<bool>> {
     let row: Option<(String, String)> = sqlx::query_as(
         "SELECT status, outcome FROM interview WHERE application_id = ? AND status != 'CANCELLED' \
+         AND (format IS NULL OR format != 'AI') \
          ORDER BY round DESC LIMIT 1",
     )
     .bind(app_id)
@@ -87,6 +89,7 @@ async fn interview_stage_state(
 /// 统一顺序门禁（用户模型）：
 /// 添加阶段事件时，按阶段链依次检查——出现在目标阶段之前的每个"已经历"阶段，
 /// 其最新结果必须为通过；面试未全部通过时，任何前序/后续阶段都不可添加。
+/// 例外：AI 面（__AI_INTERVIEW__）与测评/笔试并行发放，不查阶段链。
 async fn ensure_stage_rules(
     tx: &mut sqlx::SqliteConnection,
     app_id: &str,
@@ -108,6 +111,7 @@ async fn ensure_stage_rules(
             | "TRIPLICATE"
             | "SIGNED"
             | "__INTERVIEW__"
+            | "__AI_INTERVIEW__"
     );
     if !gate_or_stage {
         // 已挂/主动放弃本身即终态事件；沟通/简历结果/备注不设门禁
@@ -120,6 +124,12 @@ async fn ensure_stage_rules(
         return Err(Error::Invalid(
             "该职位仍是意向岗位，请先确认已投递，再添加后续阶段事件".into(),
         ));
+    }
+
+    // AI 面特例：常与测评/笔试并行发放，不参与顺序阶段链——测评/笔试未出结果
+    // 甚至未通过时也可直接添加，也不阻塞其他阶段事件（轮次逐级添加约束仍生效）。
+    if event_type == "__AI_INTERVIEW__" {
+        return Ok(());
     }
 
     // 阶段链上的位置：测评=0，笔试=1，面试=2，OC及以后=3
@@ -1900,8 +1910,14 @@ impl Services {
             .fetch_one(&mut *tx)
             .await?;
         ensure_not_terminal(&status_now)?;
-        // 添加面试 = 面试阶段事件：统一顺序门禁（测评/笔试未通过则拦截）
-        ensure_stage_rules(&mut tx, &input.application_id, &status_now, "__INTERVIEW__").await?;
+        // 添加面试 = 面试阶段事件：常规面试走统一顺序门禁；
+        // AI 面与测评/笔试并行发放，走 __AI_INTERVIEW__ 豁免分支
+        let gate_type = if input.format.as_deref() == Some("AI") {
+            "__AI_INTERVIEW__"
+        } else {
+            "__INTERVIEW__"
+        };
+        ensure_stage_rules(&mut tx, &input.application_id, &status_now, gate_type).await?;
         // 逐轮约束：上一轮必须已完结（完成/取消），新轮次必须恰好为最大轮次 + 1
         let (max_round, pending): (i64, i64) = sqlx::query_as(
             "SELECT COALESCE(MAX(round), 0), \
