@@ -1004,6 +1004,99 @@ async fn ai_interview_is_exempt_from_stage_chain() {
 }
 
 #[tokio::test]
+async fn ai_round_label_alone_also_triggers_gate_exemption() {
+    let (_dir, s) = setup().await;
+    let app = s
+        .create_application(create_input("AI标签科技", "算法"))
+        .await
+        .unwrap();
+
+    // 测评已进入未出结果：形式未选 AI、仅轮次标签写「AI面」，同样豁免门禁
+    s.add_event(AddEventInput {
+        application_id: app.id.clone(),
+        event_type: "ASSESSMENT_INVITED".into(),
+        occurred_at: Some(dt(1, 10)),
+        deadline: None,
+        result: None,
+        note: None,
+        source: None,
+    })
+    .await
+    .unwrap();
+    s.add_interview(AddInterviewInput {
+        application_id: app.id.clone(),
+        round: Some(1),
+        round_label: Some("AI面".into()),
+        format: None,
+        scheduled_at: Some(dt(2, 10)),
+        duration_min: None,
+        location_or_link: None,
+        interviewer_note: None,
+        status: None,
+        outcome: None,
+    })
+    .await
+    .unwrap();
+
+    // 仅凭标签判定的 AI 轮同样不阻塞其他阶段：补录测评结果、直接 OC 均放行
+    s.add_event(AddEventInput {
+        application_id: app.id.clone(),
+        event_type: "ASSESSMENT_DONE".into(),
+        occurred_at: Some(dt(3, 10)),
+        deadline: None,
+        result: Some(EventResult::Pass),
+        note: None,
+        source: None,
+    })
+    .await
+    .unwrap();
+    s.add_event(AddEventInput {
+        application_id: app.id.clone(),
+        event_type: "OC".into(),
+        occurred_at: Some(dt(4, 10)),
+        deadline: None,
+        result: None,
+        note: None,
+        source: None,
+    })
+    .await
+    .unwrap();
+    assert_eq!(s.get_application(&app.id).await.unwrap().status, Status::Oc);
+
+    // 对照：轮次标签不含 AI 的常规标签（如「一面」）不享受豁免
+    let app2 = s
+        .create_application(create_input("AI标签科技", "后端"))
+        .await
+        .unwrap();
+    s.add_event(AddEventInput {
+        application_id: app2.id.clone(),
+        event_type: "ASSESSMENT_INVITED".into(),
+        occurred_at: Some(dt(1, 10)),
+        deadline: None,
+        result: None,
+        note: None,
+        source: None,
+    })
+    .await
+    .unwrap();
+    assert!(s
+        .add_interview(AddInterviewInput {
+            application_id: app2.id.clone(),
+            round: Some(1),
+            round_label: Some("一面".into()),
+            format: None,
+            scheduled_at: Some(dt(2, 10)),
+            duration_min: None,
+            location_or_link: None,
+            interviewer_note: None,
+            status: None,
+            outcome: None,
+        })
+        .await
+        .is_err());
+}
+
+#[tokio::test]
 async fn reorder_applications_persists_manual_order() {
     let (_dir, s) = setup().await;
     let a = s

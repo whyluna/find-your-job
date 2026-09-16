@@ -70,7 +70,7 @@ async fn stage_latest_result(
 /// 面试阶段状态：None=无有效面试；Some(通过)=最后一轮已完成且过；
 /// Some(未完成)=存在已约未进行或最后一轮未出结果。
 /// 已取消轮次不参与门禁，否则“取消后新约下一轮”会被永久锁死。
-/// AI 轮次与测评/笔试并行发放（特例），同样不参与门禁。
+/// AI 轮次（形式或轮次标签标明 AI，与测评/笔试并行发放的特例）同样不参与门禁。
 async fn interview_stage_state(
     tx: &mut sqlx::SqliteConnection,
     app_id: &str,
@@ -78,12 +78,20 @@ async fn interview_stage_state(
     let row: Option<(String, String)> = sqlx::query_as(
         "SELECT status, outcome FROM interview WHERE application_id = ? AND status != 'CANCELLED' \
          AND (format IS NULL OR format != 'AI') \
+         AND (round_label IS NULL OR round_label NOT LIKE '%AI%') \
          ORDER BY round DESC LIMIT 1",
     )
     .bind(app_id)
     .fetch_optional(tx)
     .await?;
     Ok(row.map(|(status, outcome)| status == "COMPLETED" && outcome == "PASS"))
+}
+
+/// 该轮是否按 AI 面处理：形式选了 AI，或轮次标签写明 AI。
+/// 「形式」与「轮次标签」两处都有 AI 面选项，任一处标明即适用门禁豁免。
+/// 与 interview_stage_state 的 SQL 排除条件保持一致。
+fn is_ai_interview(format: Option<&str>, round_label: Option<&str>) -> bool {
+    format == Some("AI") || round_label.is_some_and(|l| l.to_uppercase().contains("AI"))
 }
 
 /// 统一顺序门禁（用户模型）：
@@ -1912,7 +1920,8 @@ impl Services {
         ensure_not_terminal(&status_now)?;
         // 添加面试 = 面试阶段事件：常规面试走统一顺序门禁；
         // AI 面与测评/笔试并行发放，走 __AI_INTERVIEW__ 豁免分支
-        let gate_type = if input.format.as_deref() == Some("AI") {
+        // （形式或轮次标签任一标明 AI 即视为 AI 面）
+        let gate_type = if is_ai_interview(input.format.as_deref(), input.round_label.as_deref()) {
             "__AI_INTERVIEW__"
         } else {
             "__INTERVIEW__"
