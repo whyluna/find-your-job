@@ -82,17 +82,23 @@ export function DatePicker({ value, onChange, withTime = false, minIso, placehol
 
   // 面板外点击收起。不能用 fixed 遮罩拦截：Modal 以 portal 挂 body（z-50），
   // WKWebView 中遮罩在该堆叠上下文内拿不到点击，点击会穿透到表单，面板关不掉。
-  // 捕获阶段的 pointerdown 不依赖命中测试的层叠顺序，任何引擎下都可靠。
+  // 捕获阶段监听不依赖命中测试的层叠顺序；同时挂 pointerdown 与 mousedown：
+  // WKWebView 对合成鼠标事件只派发 mousedown 而无 pointerdown，两条路都要覆盖，
+  // 重复触发也只是幂等的 setOpen(false)。
   useEffect(() => {
     if (!open) return;
-    const onPointerDown = (event: PointerEvent) => {
+    const onDown = (event: Event) => {
       const target = event.target as Node | null;
       if (!target) return;
       if (panelRef.current?.contains(target) || anchorRef.current?.contains(target)) return;
       setOpen(false);
     };
-    document.addEventListener("pointerdown", onPointerDown, true);
-    return () => document.removeEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("pointerdown", onDown, true);
+    document.addEventListener("mousedown", onDown, true);
+    return () => {
+      document.removeEventListener("pointerdown", onDown, true);
+      document.removeEventListener("mousedown", onDown, true);
+    };
   }, [open]);
 
   useEffect(() => {
