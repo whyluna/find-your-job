@@ -242,10 +242,14 @@ export function KanbanView({ items, canReorder }: { items: ApplicationListItem[]
     }
 
     // ① 持久化当前可见顺序（拖动中 onDragOver 已实时重排缓存）
+    // key 必须与 ApplicationsPage 的 ["applications", search, status, companyId] 完全一致
+    // （未筛选时 search=""、status="ALL"、companyId=null，null 也占一个元素），
+    // 否则 getQueryData 拿到 undefined，排序只停留在前端缓存，重新聚焦拉取后就回退。
     const cache = queryClient.getQueryData([
       "applications",
       "",
       "ALL",
+      null,
     ]) as ApplicationListItem[] | undefined;
     if (canReorder && cache) {
       void api.reorderApplications(cache.map((i) => i.id)).catch((reason) => {

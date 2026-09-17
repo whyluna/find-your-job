@@ -80,6 +80,21 @@ export function DatePicker({ value, onChange, withTime = false, minIso, placehol
     return () => window.removeEventListener("keydown", closeOnEscape, true);
   }, [open]);
 
+  // 面板外点击收起。不能用 fixed 遮罩拦截：Modal 以 portal 挂 body（z-50），
+  // WKWebView 中遮罩在该堆叠上下文内拿不到点击，点击会穿透到表单，面板关不掉。
+  // 捕获阶段的 pointerdown 不依赖命中测试的层叠顺序，任何引擎下都可靠。
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (panelRef.current?.contains(target) || anchorRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    return () => document.removeEventListener("pointerdown", onPointerDown, true);
+  }, [open]);
+
   useEffect(() => {
     if (cur) {
       setViewY(cur.getFullYear());
@@ -145,7 +160,6 @@ export function DatePicker({ value, onChange, withTime = false, minIso, placehol
 
       {open && (
         <>
-          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
           <div
             ref={panelRef}
             style={position}

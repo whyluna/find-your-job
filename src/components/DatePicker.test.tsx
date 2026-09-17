@@ -28,6 +28,16 @@ describe("DatePicker", () => {
     expect(screen.queryByRole("dialog", { name: "选择日期" })).toBeNull();
   });
 
+  it("面板外按下收起面板，面板内按下不收起（不依赖遮罩层叠）", () => {
+    render(<DatePicker value={null} onChange={() => undefined} />);
+    fireEvent.click(screen.getByRole("button", { name: "选择日期" }));
+    const panel = screen.getByRole("dialog", { name: "选择日期" });
+    fireEvent.pointerDown(panel);
+    expect(screen.getByRole("dialog", { name: "选择日期" })).toBeTruthy();
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole("dialog", { name: "选择日期" })).toBeNull();
+  });
+
   it("靠近窗口边缘时翻转并约束位置，滚动后重新跟随按钮", () => {
     let anchorTop = window.innerHeight - 40;
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
