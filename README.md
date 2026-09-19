@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/whyluna/find-your-job/releases/tag/v0.1.3">下载 v0.1.3</a>
+  <a href="https://github.com/whyluna/find-your-job/releases/tag/v0.1.4">下载 v0.1.4</a>
   ·
   <a href="docs/design.md">设计文档</a>
   ·
@@ -40,7 +40,7 @@
 - 记录查看结果会更新“上次查看”和下次安排；打开网站不算已查看，“7 天后再看”也不会伪造查看记录。可以暂停、恢复关注，或选择单次/每周/自定义周期提醒。
 - 每张关注卡都直接提供“删除关注”，无需先暂停；确认后仅删除该招聘季的关注与查看历史，公司资料、其他招聘季和已有岗位保留。
 - 仪表盘汇总待查看公司，日历显示下一次查看安排；系统通知需在设置中主动开启且 App 保持运行，同一到期记录不重复提醒，每天最多合并通知一次。
-- 插件侧边栏支持“收录岗位 / 关注公司”。公司模式无需填写岗位，草稿仍遵循“关闭保留、刷新来源清空、重启浏览器不恢复”的规则；需要 App 和插件 0.1.3 配套使用。
+- 插件侧边栏支持“收录岗位 / 关注公司”。公司模式无需填写岗位，草稿仍遵循“关闭保留、刷新来源清空、重启浏览器不恢复”的规则；需要 App 和插件 0.1.3 或更高版本配套使用。
 - 招聘启动后，可从公司卡片添加意向岗位或查看关联岗位。关注公司本身不计入投递统计，不会自动创建职位或认定已投递。
 - 新 JSON 备份格式 v3 包含公司关注与查看历史，并继续支持旧 v1/v2 备份导入；v3 备份需要新版 App 恢复。
 
@@ -96,7 +96,7 @@
 
 ### 下载 DMG
 
-1. 从 [v0.1.3 Release](https://github.com/whyluna/find-your-job/releases/tag/v0.1.3) 下载 `FindYourJob_0.1.3_aarch64.dmg`。
+1. 从 [v0.1.4 Release](https://github.com/whyluna/find-your-job/releases/tag/v0.1.4) 下载 `FindYourJob_0.1.4_aarch64.dmg`。
 2. 打开 DMG，将 FindYourJob 拖入“应用程序”。
 3. 当前版本为本地签名、尚未经过 Apple 公证；首次启动如被 Gatekeeper 阻止，请在 Finder 中右键 App 并选择“打开”。
 
@@ -128,7 +128,7 @@ pnpm app:install
 
 ## 浏览器扩展
 
-v0.1.3 扩展采用浏览器侧边栏，需要 Chrome / Edge 116 或更高版本。请同步升级到本次 Release 中的 App 和扩展：公司关注需要 App v0.1.3；新版 App 仍兼容旧扩展的岗位收录与解析接口。
+扩展采用浏览器侧边栏，需要 Chrome / Edge 116 或更高版本。本次 App 更新未改变扩展接口：扩展 0.1.3 与 0.1.4 均可搭配 App 0.1.4 使用；新版 App 仍兼容旧扩展的岗位收录与解析接口。
 
 升级 App 前建议在“设置 → 数据 → 导出全部数据”保存 JSON 备份。已安装扩展的用户可用新版文件替换原扩展目录，然后在扩展管理页点击“重新加载”；如使用新的解压目录，则重新加载该目录并按需填写 Token。
 
@@ -143,7 +143,7 @@ v0.1.3 扩展采用浏览器侧边栏，需要 Chrome / Edge 116 或更高版本
 
 ### 下载与安装
 
-1. 从 [v0.1.3 Release](https://github.com/whyluna/find-your-job/releases/tag/v0.1.3) 下载 `FindYourJob-browser-extension-v0.1.3.zip`。
+1. 从 [v0.1.4 Release](https://github.com/whyluna/find-your-job/releases/tag/v0.1.4) 下载 `FindYourJob-browser-extension-v0.1.4.zip`。
 2. 将 ZIP 解压到一个固定目录。浏览器会持续读取这个目录，加载后不要移动或删除。
 3. 打开扩展管理页：
    - Chrome：`chrome://extensions`
