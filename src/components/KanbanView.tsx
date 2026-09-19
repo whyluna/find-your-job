@@ -471,30 +471,36 @@ function Card({
         )}
       </div>
       <div className="job-meta">
-        {item.workLocation && (
-          <span className="inline-flex min-w-0 items-center gap-1" title={item.workLocation}>
-            <MapPin className="size-3 shrink-0" aria-hidden="true" />
-            <span className="max-w-28 truncate">{item.workLocation}</span>
-          </span>
-        )}
+        {/* 固定两行，避免 flex-wrap 按地点长度换行导致不同卡片元素高低错位：
+            第一行 = 地点（截断）+ 批次靠右；第二行 = 轮次/待补徽章 */}
+        <div className="flex w-full min-w-0 items-center gap-1">
+          {item.workLocation ? (
+            <span className="inline-flex min-w-0 flex-1 items-center gap-1" title={item.workLocation}>
+              <MapPin className="size-3 shrink-0" aria-hidden="true" />
+              <span className="truncate">{item.workLocation}</span>
+            </span>
+          ) : (
+            <span className="flex-1" />
+          )}
+          {item.batch && item.batch !== "OTHER" && (
+            <span className="ml-auto whitespace-nowrap text-xs text-slate-400">
+              {BATCH_LABELS[item.batch as keyof typeof BATCH_LABELS] ?? item.batch}
+            </span>
+          )}
+        </div>
         {item.hasOverdueInterview ? (
-          <span className="rounded bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-600 dark:bg-red-900/40 dark:text-red-300">
+          <span className="w-full rounded bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-600 dark:bg-red-900/40 dark:text-red-300">
             待补结果 · 第 {item.activeInterviewRound ?? item.maxInterviewRound} 轮
           </span>
         ) : item.status === "INTERVIEWING" && item.maxInterviewRound > 0 ? (
-          <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
+          <span className="w-full rounded bg-indigo-100 px-1.5 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
             第 {item.activeInterviewRound ?? item.maxInterviewRound} 轮
           </span>
         ) : item.interviewCount > 0 ? (
-          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+          <span className="w-full rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-400">
             {item.interviewCount} 轮面试
           </span>
         ) : null}
-        {item.batch && item.batch !== "OTHER" && (
-          <span className="ml-auto whitespace-nowrap text-xs text-slate-400">
-            {BATCH_LABELS[item.batch as keyof typeof BATCH_LABELS] ?? item.batch}
-          </span>
-        )}
       </div>
     </div>
   );
